@@ -142,18 +142,18 @@ pub mod wasmer0_cache {
     }
 
     fn _deserialize_get_artifact(serialized_artifact: Vec<u8>) -> Result<Artifact, CacheError> {
-        let _span = tracing::debug_span!(target: "vm", "deserialize_wasmer").entered();
+        let _span = tracing::debug_span!(target: "vm", "_deserialize_get_artifact").entered();
         Artifact::deserialize(serialized_artifact.as_slice())
             .map_err(|_e| CacheError::DeserializationError)
     }
 
     fn _deserialize_compiler_for_backend() -> Box<dyn Compiler> {
-        let _span = tracing::debug_span!(target: "vm", "deserialize_wasmer").entered();
+        let _span = tracing::debug_span!(target: "vm", "_deserialize_compiler_for_backend").entered();
         compiler_for_backend(Backend::Singlepass).unwrap()
     }
 
     unsafe fn _deserialize_load_cache_with(artifact: Artifact, compiler: &dyn Compiler) -> Result<Result<wasmer_runtime::Module, VMError>, CacheError> {
-        let _span = tracing::debug_span!(target: "vm", "deserialize_wasmer").entered();
+        let _span = tracing::debug_span!(target: "vm", "_deserialize_load_cache_with").entered();
         match load_cache_with(artifact, compiler) {
             Ok(module) => Ok(Ok(module)),
             Err(_) => Err(CacheError::DeserializationError),
