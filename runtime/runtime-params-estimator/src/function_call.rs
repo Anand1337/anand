@@ -181,7 +181,7 @@ fn make_many_methods_contract(method_count: i32) -> ContractCode {
     let long_drop = "drop\
     ".repeat(20);
     for i in 0..method_count {
-        let d = if i == 0 {"drop"} else {long_drop.clone()};
+        let d = if i == 0 {String::from("drop")} else {long_drop.clone()};
         write!(
             &mut methods,
             "
