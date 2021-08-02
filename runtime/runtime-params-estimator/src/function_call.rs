@@ -178,8 +178,7 @@ fn compare_function_call_icount() {
 
 fn make_many_methods_contract(method_count: i32) -> ContractCode {
     let mut methods = String::new();
-    let long_drop = "drop\
-    ".repeat(20);
+    let long_drop = "drop ".repeat(20);
     for i in 0..method_count {
         let d = if i == 0 {String::from("drop")} else {long_drop.clone()};
         write!(
