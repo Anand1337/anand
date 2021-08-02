@@ -28,7 +28,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         println!("LEN = {}", contract.get_code().len());
         let cost = compute_function_call_cost(metric, vm_kind, REPEATS, &contract, "hello0", None);
         println!("{:?} {:?} {} {} {}", vm_kind, metric, method_count, cost / REPEATS,
-                 ratio_to_gas_signed(GasMetric::ICount, Ratio::new(cost as i128, REPEATS as i128)));
+                 ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128)));
         xs.push(contract.get_code().len() as u64);
         ys.push(cost / REPEATS);
     }
