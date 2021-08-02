@@ -23,6 +23,7 @@ const REPEATS: u64 = 50;
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let mut xs = vec![];
     let mut ys = vec![];
+    // for method_count in vec![5, 20, 30, 50, 100, 200, 1000] {
     for method_count in vec![5, 20, 30, 50, 100, 200, 1000] {
         let contract = make_many_methods_contract(method_count);
         println!("LEN = {}", contract.get_code().len());
@@ -177,18 +178,22 @@ fn compare_function_call_icount() {
 
 fn make_many_methods_contract(method_count: i32) -> ContractCode {
     let mut methods = String::new();
+    let long_drop = "drop\
+    ".repeat(20);
     for i in 0..method_count {
+        let d = if i == 0 {"drop"} else {long_drop.clone()};
         write!(
             &mut methods,
             "
             (export \"hello{}\" (func {i}))
               (func (;{i};)
                 i32.const {i}
-                drop
+                {d}
                 return
               )
             ",
-            i = i
+            i = i,
+            d = d,
         )
         .unwrap();
     }

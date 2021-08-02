@@ -194,7 +194,6 @@ pub mod wasmer0_cache {
         match cache.get(&key.0) {
             Ok(serialized) => match serialized {
                 Some(serialized) => {
-                    eprintln!("deserialize_wasmer");
                     deserialize_wasmer(serialized.as_slice()).map_err(VMError::CacheError)?
                 }
                 None => {
