@@ -576,6 +576,12 @@ pub fn run(mut config: Config, only_compile: bool) -> RuntimeConfig {
         if let Err(e) = writeln!(file, "Measure {}", method_name) {
             eprintln!("Couldn't write to file: {}", e);
         }
+        if method_name == "data_receipt_base_10b_1000" {
+            eprintln!("Wait keypress...");
+            let mut buf = String::new();
+            let _ = std::io::stdin().read_line(&mut buf);
+        }
+
         testbed = measure_function(
             metric,
             method_name,
