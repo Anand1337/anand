@@ -178,21 +178,28 @@ fn compare_function_call_icount() {
 
 fn make_many_methods_contract(method_count: i32) -> ContractCode {
     let mut methods = String::new();
-    let long_drop = "drop ".repeat(20);
+    let long_drop =
     for i in 0..method_count {
-        let d = if i == 0 {String::from("drop")} else {long_drop.clone()};
+        let mut body = String::new();
+        write!(
+            &mut body,
+            "i32.const {i} drop ",
+            i = i,
+        );
+        if i != 0 {
+            body = body.repeat(20);
+        }
         write!(
             &mut methods,
             "
             (export \"hello{}\" (func {i}))
               (func (;{i};)
-                i32.const {i}
-                {d}
+                {body}
                 return
               )
             ",
             i = i,
-            d = d,
+            body = body,
         )
         .unwrap();
     }
