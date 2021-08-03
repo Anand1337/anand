@@ -188,7 +188,7 @@ fn make_many_methods_contract(method_count: i32) -> ContractCode {
         );
         if i != 0 {
             body = body.repeat(20);
-        }
+        };
         write!(
             &mut methods,
             "
