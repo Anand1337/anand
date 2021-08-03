@@ -170,6 +170,7 @@ fn compare_function_call_icount() {
         // Newly:
         // Wasmer0 ICount function call base 48080046101 gas, per byte 207939579 gas
         let new_fee = 48_080_046_101 + 207_939_579 * contract_len;
+
         // println!("new estimation = {}", new_fee);
 
         println!("{},{},{},{},{}", method_name, contract_len, actual_gas, fee, new_fee);
@@ -187,7 +188,7 @@ fn make_many_methods_contract(method_count: i32) -> ContractCode {
             i = i,
         ).unwrap();
         if i != 0 {
-            body = body.repeat(20);
+            body = body.repeat(10);
         };
         write!(
             &mut methods,
