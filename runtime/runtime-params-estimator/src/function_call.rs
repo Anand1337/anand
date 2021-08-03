@@ -185,7 +185,7 @@ fn make_many_methods_contract(method_count: i32) -> ContractCode {
             &mut body,
             "i32.const {i} drop ",
             i = i,
-        );
+        ).unwrap();
         if i != 0 {
             body = body.repeat(20);
         };
@@ -202,7 +202,7 @@ fn make_many_methods_contract(method_count: i32) -> ContractCode {
             body = body,
         )
         .unwrap();
-    }
+    };
 
     let code = format!(
         "
