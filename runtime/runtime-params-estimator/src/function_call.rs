@@ -51,7 +51,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 }
 
 #[test]
-fn measure_function_call_1s() {
+fn measure_function_call_1s(vm_kind: VMKind) {
     init_test_logger();
 
     let (contract, method_name, init_args) = get_rs_contract_data();
@@ -70,7 +70,6 @@ fn measure_function_call_1s() {
     let fees = RuntimeFeesConfig::default();
     let promise_results = vec![];
     let gas_metric = GasMetric::Time;
-    let vm_kind = VMKind::Wasmer0;
     precompile_contract(&contract, &vm_config, cache);
 
     let start = start_count(gas_metric);
@@ -99,7 +98,17 @@ fn measure_function_call_1s() {
         };
     }
 
-    println!("iters = {}", i);
+    println!("vmkind = {:?}, iters = {}", vm_kind, i);
+}
+
+#[test]
+fn test_measure_function_call_1s() {
+    // Run with
+    // cargo test --release --lib function_call::test_function_call_time
+    //    --features required  -- --exact --nocapture
+    measure_function_call_1s(VMKind::Wasmer0);
+    measure_function_call_1s(VMKind::Wasmer1);
+    measure_function_call_1s(VMKind::Wasmtime);
 }
 
 #[test]
