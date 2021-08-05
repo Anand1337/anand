@@ -2275,6 +2275,7 @@ dependencies = [
  "funty",
  "futures",
  "hex",
+ "log",
  "near-actix-test-utils",
  "near-chain",
  "near-chain-configs",
@@ -2837,7 +2838,6 @@ dependencies = [
  "serde_json",
  "strum",
  "sysinfo",
- "testlib",
  "thiserror",
 ]
 
