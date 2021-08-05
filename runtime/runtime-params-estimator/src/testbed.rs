@@ -1,8 +1,10 @@
 use std::fs::File;
-use std::io::Read;
-use std::path::Path;
+
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 
 use borsh::BorshDeserialize;
+use borsh::BorshSerialize;
 
 use near_chain_configs::Genesis;
 use near_primitives::receipt::Receipt;
@@ -157,5 +159,24 @@ impl RuntimeTestbed {
         while !self.prev_receipts.is_empty() {
             self.process_block(&[], allow_failures);
         }
+    }
+
+    pub fn dump_state(&mut self) -> Result<PathBuf, Box<dyn std::error::Error>> {
+        let mut genesis_path = self.workdir.path().to_path_buf();
+        genesis_path.push("genesis.json");
+        self.genesis.to_file(genesis_path.as_path());
+        let mut dump_path = self.workdir.path().to_path_buf();
+        dump_path.push("state_dump");
+        let store = self.tries.get_store();
+        store.save_to_file(ColState, dump_path.as_path())?;
+        {
+            let mut roots_files = self.workdir.path().to_path_buf();
+            roots_files.push("genesis_roots");
+            let mut file = File::create(roots_files)?;
+            let roots = vec![self.root]; // : Vec<_> = self.roots.values().cloned().collect();
+            let data = roots.try_to_vec()?;
+            file.write_all(&data)?;
+        }
+        Ok(self.workdir.path().to_path_buf())
     }
 }

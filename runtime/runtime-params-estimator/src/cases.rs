@@ -571,17 +571,22 @@ pub fn run(mut config: Config, only_compile: bool) -> RuntimeConfig {
         storage_read_10kib_key_10b_value_1k => storage_read_10kib_key_10b_value_1k,
         storage_read_10b_key_10kib_value_1k => storage_read_10b_key_10kib_value_1k
     };
+    let mut testbed_inner = testbed.lock().unwrap();
+    let dump_dir = testbed_inner.dump_state().unwrap();
+    let dump_path = dump_dir.as_path();
+
     // Measure the speed of all extern function calls.
     for (metric, method_name) in v {
         if let Err(e) = writeln!(file, "Measure {}", method_name) {
             eprintln!("Couldn't write to file: {}", e);
         }
-
-        testbed = measure_function(
+        // let testbed_inner = testbed.lock().unwrap();
+        let local_testbed = Arc::new(Mutex::new(RuntimeTestbed::from_state_dump(dump_path)));
+        measure_function(
             metric,
             method_name,
             &mut m,
-            testbed,
+            local_testbed,
             &ad,
             &mut nonces,
             &config,
@@ -589,11 +594,11 @@ pub fn run(mut config: Config, only_compile: bool) -> RuntimeConfig {
             vec![],
         );
 
-        if method_name == "storage_write_10kib_key_10b_value_1k" {
-            eprintln!("Wait keypress...");
-            let mut buf = String::new();
-            let _ = std::io::stdin().read_line(&mut buf);
-        }
+        // if method_name == "storage_write_10kib_key_10b_value_1k" {
+        //     eprintln!("Wait keypress...");
+        //     let mut buf = String::new();
+        //     let _ = std::io::stdin().read_line(&mut buf);
+        // }
     }
 
     let v = calls_helper! {
