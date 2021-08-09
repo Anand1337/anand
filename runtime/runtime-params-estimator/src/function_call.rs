@@ -24,7 +24,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let mut xs = vec![];
     let mut ys = vec![];
     // for method_count in vec![5, 20, 30, 50, 100, 200, 1000] {
-    for method_count in vec![5, 20, 30, 50, 100, 200, 1000] {
+    for method_count in vec![100000, 200000, 500000, 1000000] {
         let contract = make_many_methods_contract(method_count);
         println!("LEN = {}", contract.get_code().len());
         let cost = compute_function_call_cost(metric, vm_kind, REPEATS, &contract, "hello0", None);
@@ -178,7 +178,8 @@ fn compare_function_call_icount() {
         // Newly:
         // Wasmer0 ICount function call base 48080046101 gas, per byte 207939579 gas
         let new_fee = 48_080_046_101 + 207_939_579 * contract_len;
-
+        // repeat 100
+        // Wasmer0 ICount function call base 66282547212 gas, per byte 10448237 gas
         // println!("new estimation = {}", new_fee);
 
         println!("{},{},{},{},{}", method_name, contract_len, actual_gas, fee, new_fee);
@@ -187,7 +188,6 @@ fn compare_function_call_icount() {
 
 fn make_many_methods_contract(method_count: i32) -> ContractCode {
     let mut methods = String::new();
-    let long_drop =
     for i in 0..method_count {
         let mut body = String::new();
         write!(
@@ -195,9 +195,9 @@ fn make_many_methods_contract(method_count: i32) -> ContractCode {
             "i32.const {i} drop ",
             i = i,
         ).unwrap();
-        if i != 0 {
-            body = body.repeat(100);
-        };
+        // if i != 0 {
+        //     body = body.repeat(100);
+        // };
         write!(
             &mut methods,
             "
