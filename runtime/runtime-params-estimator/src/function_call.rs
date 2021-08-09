@@ -50,7 +50,6 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     );
 }
 
-#[test]
 fn measure_function_call_1s(vm_kind: VMKind) {
     init_test_logger();
 
