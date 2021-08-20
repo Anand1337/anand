@@ -1132,16 +1132,10 @@ impl Runtime {
         // See https://github.com/near/nearcore/pull/4248/ for more details.
         eprintln!("versions: {} {}", ProtocolFeature::RestoreReceiptsAfterFix.protocol_version(), protocol_version);
         eprintln!("flag: {}", migration_flags.is_first_block_with_chunk_of_version);
-        let receipts_to_restore = if ProtocolFeature::RestoreReceiptsAfterFix.protocol_version()
-            == protocol_version
-            && migration_flags.is_first_block_with_chunk_of_version
-        {
-            // Note that receipts are restored only on mainnet so restored_receipts will be empty on
-            // other chains.
-            migration_data.restored_receipts.get(&0u64).cloned().unwrap_or_default()
-        } else {
-            vec![]
-        };
+        // let receipts_to_restore = if ProtocolFeature::RestoreReceiptsAfterFix.protocol_version()
+        //     == protocol_version
+        //     && migration_flags.is_first_block_with_chunk_of_version
+        let receipts_to_restore = migration_data.restored_receipts.get(&0u64).cloned().unwrap_or_default();
         eprintln!("Receipts to restore: {:?}", receipts_to_restore);
 
         Ok((gas_used, receipts_to_restore))
