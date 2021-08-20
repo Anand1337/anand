@@ -252,6 +252,8 @@ fn apply_block_at_height(
             shard_id,
         )
         .unwrap();
+        eprintln!("force_migrations = {}", force_migrations);
+        eprintln!("is_first_block_with_chunk_of_version = {}", is_first_block_with_chunk_of_version);
         runtime_adapter
             .apply_transactions(
                 shard_id,
