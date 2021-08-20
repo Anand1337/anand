@@ -216,6 +216,7 @@ fn apply_block_at_height(
     near_config: &NearConfig,
     height: BlockHeight,
     shard_id: ShardId,
+    force_migrations: bool,
 ) {
     let mut chain_store = ChainStore::new(store.clone(), near_config.genesis.config.genesis_height);
     let runtime_adapter: Arc<dyn RuntimeAdapter> = Arc::new(NightshadeRuntime::new(
@@ -244,7 +245,7 @@ fn apply_block_at_height(
         let receipts = collect_receipts_from_response(&receipt_proof_response);
 
         let chunk_inner = chunk.cloned_header().take_inner();
-        let is_first_block_with_chunk_of_version = check_if_block_is_first_with_chunk_of_version(
+        let is_first_block_with_chunk_of_version = force_migrations || check_if_block_is_first_with_chunk_of_version(
             &mut chain_store,
             runtime_adapter.as_ref(),
             block.header().prev_hash(),
@@ -409,6 +410,76 @@ fn check_block_chunk_existence(store: Arc<Store>, near_config: &NearConfig) {
     println!("Block check succeed");
 }
 
+fn apply_block_at_height_with_migrations(
+    store: Arc<Store>,
+    home_dir: &Path,
+    near_config: &NearConfig,
+    height: BlockHeight,
+    shard_id: ShardId,
+) {
+    let mut chain_store = ChainStore::new(store.clone(), near_config.genesis.config.genesis_height);
+    let runtime_adapter: Arc<dyn RuntimeAdapter> = Arc::new(NightshadeRuntime::new(
+        &home_dir,
+        store,
+        &near_config.genesis,
+        near_config.client_config.tracked_accounts.clone(),
+        near_config.client_config.tracked_shards.clone(),
+        None,
+        near_config.client_config.max_gas_burnt_view,
+    ));
+    let block_hash = chain_store.get_block_hash_by_height(height).unwrap();
+    let block = chain_store.get_block(&block_hash).unwrap().clone();
+    let apply_result = if block.chunks()[shard_id as usize].height_included() == height {
+        let chunk =
+            chain_store.get_chunk(&block.chunks()[shard_id as usize].chunk_hash()).unwrap().clone();
+        let prev_block = chain_store.get_block(&block.header().prev_hash()).unwrap().clone();
+        let mut chain_store_update = ChainStoreUpdate::new(&mut chain_store);
+        let receipt_proof_response = chain_store_update
+            .get_incoming_receipts_for_shard(
+                shard_id,
+                block_hash,
+                prev_block.chunks()[shard_id as usize].height_included(),
+            )
+            .unwrap();
+        let receipts = collect_receipts_from_response(&receipt_proof_response);
+
+        let chunk_inner = chunk.cloned_header().take_inner();
+        runtime_adapter
+            .apply_transactions(
+                shard_id,
+                chunk_inner.prev_state_root(),
+                height,
+                block.header().raw_timestamp(),
+                block.header().prev_hash(),
+                block.hash(),
+                &receipts,
+                chunk.transactions(),
+                chunk_inner.validator_proposals(),
+                prev_block.header().gas_price(),
+                chunk_inner.gas_limit(),
+                &block.header().challenges_result(),
+                *block.header().random_value(),
+                true,
+                true,
+                None,
+            )
+            .unwrap()
+    } else {
+        panic!("Expected height included");
+    };
+
+    println!(
+        "apply chunk for shard {} at height {}, resulting chunk extra {:?}",
+        shard_id, height, chunk_extra
+    );
+    if let Ok(chunk_extra) = chain_store.get_chunk_extra(&block_hash, shard_id) {
+        println!("Existing chunk extra: {:?}", chunk_extra);
+    } else {
+        println!("no existing chunk extra available");
+    }
+
+}
+
 fn dump_code(account: &str, contract_code: ContractCode, output: &str) {
     let mut file = File::create(output).unwrap();
     file.write_all(&contract_code.code).unwrap();
@@ -488,6 +559,12 @@ fn main() {
                         .long("shard_id")
                         .help("Id of the shard to apply")
                         .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("migrations")
+                        .long("migrations")
+                        .help("Force apply migrations")
+                        .takes_value(false),
                 )
                 .help("apply block at some height for shard"),
         )
@@ -633,7 +710,8 @@ fn main() {
             let height = args.value_of("height").map(|s| s.parse::<u64>().unwrap()).unwrap();
             let shard_id =
                 args.value_of("shard_id").map(|s| s.parse::<u64>().unwrap()).unwrap_or_default();
-            apply_block_at_height(store, home_dir, &near_config, height, shard_id);
+            let force_migrations = args.is_present("migrations");
+            apply_block_at_height(store, home_dir, &near_config, height, shard_id, force_migrations);
         }
         ("view_chain", Some(args)) => {
             let height = args.value_of("height").map(|s| s.parse::<u64>().unwrap());

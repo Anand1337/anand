@@ -1140,6 +1140,7 @@ impl Runtime {
         } else {
             vec![]
         };
+        eprintln!("Receipts to restore: {:?}", receipts_to_restore);
 
         Ok((gas_used, receipts_to_restore))
     }
