@@ -24,10 +24,13 @@ use near_primitives::trie_key::TrieKey;
 use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{BlockHeight, ShardId, StateRoot};
 use near_store::test_utils::create_test_store;
-use near_store::{create_store, Store, TrieIterator};
+use near_store::{create_store, Store, TrieIterator, TrieUpdate, get_account};
 use nearcore::{get_default_home, get_store_path, load_config, NearConfig, NightshadeRuntime};
 use node_runtime::adapter::ViewRuntimeAdapter;
 use state_dump::state_dump;
+use near_primitives::account::id::AccountId;
+use std::str::FromStr;
+use std::rc::Rc;
 
 mod state_dump;
 
@@ -217,6 +220,11 @@ fn apply_block_at_height(
     height: BlockHeight,
     shard_id: ShardId,
 ) {
+    let account_names = ["b4a0c9f6f783bfcde1b1d4b75c85341c1c0d2e075f58d7a231601193d14ff91a",
+        "b828e1925025d7e12d1cf1268d6d9316c9972f85913bf302458a33516c3ebaef",
+        "tom.zest.near"];
+    let account_ids: Vec<AccountId> = account_names.iter().map(|name| AccountId::from_str(name).unwrap()).collect();
+
     let mut chain_store = ChainStore::new(store.clone(), near_config.genesis.config.genesis_height);
     let runtime_adapter: Arc<dyn RuntimeAdapter> = Arc::new(NightshadeRuntime::new(
         &home_dir,
@@ -251,6 +259,17 @@ fn apply_block_at_height(
             shard_id,
         )
         .unwrap();
+        let trie = Rc::new(runtime_adapter.get_trie_for_shard(shard_id));
+        let root = chunk_inner.prev_state_root();
+        let mut state_update = TrieUpdate::new(trie.clone(), root.clone());
+        // let pre_balances: HashMap<AccountId, Balance> = account_ids.cloned().iter().map(|account_id| {
+        //     (account_id, get_account(&mut state_update, &account_id).unwrap().unwrap());
+        // }).cloned().collect();
+        for account_id in account_ids.iter().cloned() {
+            let result = get_account(&mut state_update, &account_id).unwrap().unwrap().amount();
+            eprintln!("Pre-balance: {} {}", account_id, result);
+        }
+
         runtime_adapter
             .apply_transactions(
                 shard_id,

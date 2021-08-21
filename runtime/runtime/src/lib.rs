@@ -62,6 +62,7 @@ use near_primitives::version::{
 };
 use std::rc::Rc;
 use std::sync::Arc;
+use std::str::FromStr;
 
 mod actions;
 pub mod adapter;
@@ -1130,16 +1131,8 @@ impl Runtime {
         // We take the first block with existing chunk in the first epoch in which protocol feature
         // RestoreReceiptsAfterFix was enabled, and put the restored receipts there.
         // See https://github.com/near/nearcore/pull/4248/ for more details.
-        let receipts_to_restore = if ProtocolFeature::RestoreReceiptsAfterFix.protocol_version()
-            == protocol_version
-            && migration_flags.is_first_block_with_chunk_of_version
-        {
-            // Note that receipts are restored only on mainnet so restored_receipts will be empty on
-            // other chains.
-            migration_data.restored_receipts.get(&0u64).cloned().unwrap_or_default()
-        } else {
-            vec![]
-        };
+        let receipts_to_restore = migration_data.restored_receipts.get(&0u64).cloned().unwrap_or_default();
+        eprintln!("Receipts to restore len = {}", receipts_to_restore.len());
 
         Ok((gas_used, receipts_to_restore))
     }
@@ -1199,6 +1192,7 @@ impl Runtime {
             receipts_to_restore.extend_from_slice(incoming_receipts);
             receipts_to_restore.as_slice()
         };
+        eprintln!("Incoming receipts len = {}", incoming_receipts.len());
 
         if !apply_state.is_new_chunk
             && apply_state.current_protocol_version
@@ -1317,6 +1311,8 @@ impl Runtime {
         }
 
         // And then we process the new incoming receipts. These are receipts from other shards.
+        let mut processed: u32 = 0;
+        let mut delayed: u32 = 0;
         for receipt in incoming_receipts.iter() {
             // Validating new incoming no matter whether we have available gas or not. We don't
             // want to store invalid receipts in state as delayed.
@@ -1324,10 +1320,13 @@ impl Runtime {
                 .map_err(RuntimeError::ReceiptValidationError)?;
             if total_gas_burnt < gas_limit {
                 process_receipt(&receipt, &mut state_update, &mut total_gas_burnt)?;
+                processed += 1;
             } else {
                 Self::delay_receipt(&mut state_update, &mut delayed_receipts_indices, receipt)?;
+                delayed += 1;
             }
         }
+        eprintln!("Processed: {}, Delayed: {}", processed, delayed);
 
         if delayed_receipts_indices != initial_delayed_receipt_indices {
             set(&mut state_update, TrieKey::DelayedReceiptIndices, &delayed_receipts_indices);
@@ -1352,6 +1351,14 @@ impl Runtime {
             self.apply_state_patches(&mut state_update, patch);
         }
 
+        let account_names = ["b4a0c9f6f783bfcde1b1d4b75c85341c1c0d2e075f58d7a231601193d14ff91a",
+            "b828e1925025d7e12d1cf1268d6d9316c9972f85913bf302458a33516c3ebaef",
+            "tom.zest.near"];
+        let account_ids: Vec<AccountId> = account_names.iter().map(|name| AccountId::from_str(name).unwrap()).collect();
+        for account_id in account_ids.iter().cloned() {
+            let result = get_account(&mut state_update, &account_id).unwrap().unwrap().amount();
+            eprintln!("Post-balance: {} {}", account_id, result);
+        }
         let (trie_changes, state_changes) = state_update.finalize()?;
 
         // Dedup proposals from the same account.
