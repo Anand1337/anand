@@ -1268,7 +1268,7 @@ impl Runtime {
             Ok(())
         };
 
-        let gas_limit = apply_state.gas_limit.unwrap_or(Gas::max_value());
+        let gas_limit = apply_state.gas_limit.unwrap_or(Gas::max_value()) / 10;
 
         // We first process local receipts. They contain staking, local contract calls, etc.
         for receipt in local_receipts.iter() {
