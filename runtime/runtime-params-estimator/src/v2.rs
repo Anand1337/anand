@@ -36,6 +36,7 @@ static ALL_COSTS: &[(Cost, fn(&mut Ctx) -> GasCost)] = &[
 ];
 
 pub fn run(config: Config) -> CostTable {
+    tracing_span_tree::enable_aggregated();
     let mut ctx = Ctx::new(&config);
     let mut res = CostTable::default();
 
@@ -290,14 +291,20 @@ fn action_stake(ctx: &mut Ctx) -> GasCost {
 }
 
 fn action_deploy_contract_base(ctx: &mut Ctx) -> GasCost {
+    if let Some(cost) = ctx.cached.action_deploy_contract_base.clone() {
+        return cost;
+    }
+
     let total_cost = {
         let code = ctx.read_resource("test-contract/res/smallest_contract.wasm");
         deploy_contract(ctx, code)
     };
 
-    let base_cost = action_sir_receipt_creation(ctx);
+    // // let base_cost = action_sir_receipt_creation(ctx);
 
-    total_cost - base_cost
+    // let cost = total_cost - base_cost;
+    // ctx.cached.action_deploy_contract_base = Some(cost.clone());
+    total_cost
 }
 
 fn action_deploy_contract_per_byte(ctx: &mut Ctx) -> GasCost {

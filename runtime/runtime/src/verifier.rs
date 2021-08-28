@@ -34,6 +34,8 @@ pub fn validate_transaction(
     verify_signature: bool,
     current_protocol_version: ProtocolVersion,
 ) -> Result<TransactionCost, RuntimeError> {
+    let _span = tracing::debug_span!(target: "runtime", "validate_transaction").entered();
+
     let transaction = &signed_transaction.transaction;
     let signer_id = &transaction.signer_id;
 
@@ -81,6 +83,8 @@ pub fn verify_and_charge_transaction(
     #[allow(unused)] block_height: Option<BlockHeight>,
     current_protocol_version: ProtocolVersion,
 ) -> Result<VerificationResult, RuntimeError> {
+    let _span = tracing::debug_span!(target: "runtime", "verify_and_charge_transaction").entered();
+
     let TransactionCost { gas_burnt, gas_remaining, receipt_gas_price, total_cost, burnt_amount } =
         validate_transaction(
             config,
@@ -141,6 +145,7 @@ pub fn verify_and_charge_transaction(
             cost: total_cost,
         }
     })?);
+
 
     if let AccessKeyPermission::FunctionCall(ref mut function_call_permission) =
         access_key.permission
@@ -214,6 +219,7 @@ pub fn verify_and_charge_transaction(
             .into());
         }
     };
+
 
     set_access_key(state_update, signer_id.clone(), transaction.public_key.clone(), &access_key);
     set_account(state_update, signer_id.clone(), &signer);

@@ -463,6 +463,7 @@ pub trait Database: Sync + Send {
 
 impl Database for RocksDB {
     fn get(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError> {
+        let _span = tracing::debug_span!(target: "runtime", "RocksDB::get").entered();
         let read_options = rocksdb_read_options();
         let result = self.db.get_cf_opt(unsafe { &*self.cfs[col as usize] }, key, &read_options)?;
         Ok(RocksDB::get_with_rc_logic(col, result))
@@ -628,12 +629,12 @@ fn rocksdb_options() -> Options {
     opts.set_bytes_per_sync(1048576);
     opts.set_write_buffer_size(1024 * 1024 * 512 / 2);
     opts.set_max_bytes_for_level_base(1024 * 1024 * 512 / 2);
-    #[cfg(not(feature = "single_thread_rocksdb"))]
-    {
-        opts.increase_parallelism(cmp::max(1, num_cpus::get() as i32 / 2));
-        opts.set_max_total_wal_size(1 * 1024 * 1024 * 1024);
-    }
-    #[cfg(feature = "single_thread_rocksdb")]
+    // #[cfg(not(feature = "single_thread_rocksdb"))]
+    // {
+    //     opts.increase_parallelism(cmp::max(1, num_cpus::get() as i32 / 2));
+    //     opts.set_max_total_wal_size(1 * 1024 * 1024 * 1024);
+    // }
+    // #[cfg(feature = "single_thread_rocksdb")]
     {
         opts.set_disable_auto_compactions(true);
         opts.set_max_background_jobs(0);

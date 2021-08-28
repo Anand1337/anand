@@ -21,6 +21,7 @@ borsh = "0.8.1"
 num-rational = "0.3"
 anyhow = "1"
 chrono = "0.4"
+tracing-span-tree = { git = "https://github.com/matklad/tracing-span-tree"}
 
 genesis-populate = { path = "../../genesis-tools/genesis-populate"}
 near-chain-configs = { path = "../../core/chain-configs" }

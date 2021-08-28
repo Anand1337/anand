@@ -694,11 +694,13 @@ impl Trie {
         root: &CryptoHash,
         key: &[u8],
     ) -> Result<Option<(u32, CryptoHash)>, StorageError> {
+        let _span = tracing::debug_span!(target: "runtime", "Trie::get_ref").entered();
         let key = NibbleSlice::new(key);
         self.lookup(root, key)
     }
 
     pub fn get(&self, root: &CryptoHash, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
+        let _span = tracing::debug_span!(target: "runtime", "Trie::get").entered();
         match self.get_ref(root, key)? {
             Some((_length, hash)) => self.retrieve_raw_bytes(&hash).map(Some),
             None => Ok(None),
