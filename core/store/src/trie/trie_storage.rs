@@ -73,6 +73,9 @@ pub struct TrieRecordingStorage {
 
 impl TrieStorage for TrieRecordingStorage {
     fn retrieve_raw_bytes(&self, hash: &CryptoHash) -> Result<Vec<u8>, StorageError> {
+        let _span =
+            tracing::debug_span!(target: "runtime", "TrieRecordingStorage::retrieve_raw_bytes")
+                .entered();
         if let Some(val) = self.recorded.borrow().get(hash) {
             return Ok(val.clone());
         }
@@ -103,6 +106,9 @@ pub struct TrieMemoryPartialStorage {
 
 impl TrieStorage for TrieMemoryPartialStorage {
     fn retrieve_raw_bytes(&self, hash: &CryptoHash) -> Result<Vec<u8>, StorageError> {
+        let _span =
+            tracing::debug_span!(target: "runtime", "TrieMemoryPartialStorage::retrieve_raw_bytes")
+                .entered();
         let result = self
             .recorded_storage
             .get(hash)
@@ -164,6 +170,9 @@ impl TrieCachingStorage {
 
 impl TrieStorage for TrieCachingStorage {
     fn retrieve_raw_bytes(&self, hash: &CryptoHash) -> Result<Vec<u8>, StorageError> {
+        let _span =
+            tracing::debug_span!(target: "runtime", "TrieCachingStorage::retrieve_raw_bytes")
+                .entered();
         let mut guard = self.cache.0.lock().expect(POISONED_LOCK_ERR);
         if let Some(val) = guard.cache_get(hash) {
             Ok(val.clone())

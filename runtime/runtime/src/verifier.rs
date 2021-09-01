@@ -146,7 +146,6 @@ pub fn verify_and_charge_transaction(
         }
     })?);
 
-
     if let AccessKeyPermission::FunctionCall(ref mut function_call_permission) =
         access_key.permission
     {
@@ -219,7 +218,6 @@ pub fn verify_and_charge_transaction(
             .into());
         }
     };
-
 
     set_access_key(state_update, signer_id.clone(), transaction.public_key.clone(), &access_key);
     set_account(state_update, signer_id.clone(), &signer);
