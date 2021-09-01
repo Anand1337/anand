@@ -7,8 +7,8 @@ use near_chain::{Block, ChainGenesis, Provenance, RuntimeAdapter};
 use near_chain_configs::Genesis;
 use near_client::test_utils::TestEnv;
 use near_client_primitives::types::Error;
-use near_crypto::InMemorySigner;
-use near_primitives::transaction::{Action, SignedTransaction};
+use near_crypto::{InMemorySigner, KeyType};
+use near_primitives::transaction::{Action, SignedTransaction, TransferAction};
 use near_primitives::types::{AccountId, BlockHeight, Nonce};
 use near_store::test_utils::create_test_store;
 use nearcore::{config::GenesisExt, NightshadeRuntime};
@@ -66,6 +66,33 @@ impl Scenario {
 
         Ok(runtime_stats)
     }
+}
+
+#[test]
+fn slow_db() {
+    let num_accounts = 100;
+    let seeds: Vec<String> = (0..num_accounts).map(|i| format!("test{}", i)).collect();
+    let accounts: Vec<AccountId> = seeds.iter().map(|id| id.parse().unwrap()).collect();
+
+    let mut s = Scenario { network_config: NetworkConfig { seeds: seeds }, blocks: Vec::new() };
+
+    for i in 0..1 {
+        let mut block = BlockConfig::at_height(i);
+        let signer_id = accounts[i as usize].clone();
+        let receiver_id = accounts[(i as usize + 1) % num_accounts].clone();
+        let signer =
+            InMemorySigner::from_seed(signer_id.clone(), KeyType::ED25519, signer_id.as_ref());
+        block.transactions.push(TransactionConfig {
+            nonce: i,
+            signer_id,
+            receiver_id,
+            signer,
+            actions: vec![Action::Transfer(TransferAction { deposit: 1 })],
+        });
+        s.blocks.push(block)
+    }
+
+    s.run().unwrap();
 }
 
 #[derive(Serialize, Deserialize)]
