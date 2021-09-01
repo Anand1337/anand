@@ -639,6 +639,7 @@ impl Trie {
         root: &CryptoHash,
         mut key: NibbleSlice<'_>,
     ) -> Result<Option<(u32, CryptoHash)>, StorageError> {
+        let _span = tracing::debug_span!(target: "runtime", "Trie::lookup").entered();
         let mut hash = *root;
 
         loop {
@@ -652,6 +653,8 @@ impl Trie {
 
             match node.node {
                 RawTrieNode::Leaf(existing_key, value_length, value_hash) => {
+                    let _span =
+                        tracing::debug_span!(target: "runtime", "Trie::lookup::leaf").entered();
                     if NibbleSlice::from_encoded(&existing_key).0 == key {
                         return Ok(Some((value_length, value_hash)));
                     } else {
@@ -659,6 +662,8 @@ impl Trie {
                     }
                 }
                 RawTrieNode::Extension(existing_key, child) => {
+                    let _span = tracing::debug_span!(target: "runtime", "Trie::lookup::extension")
+                        .entered();
                     let existing_key = NibbleSlice::from_encoded(&existing_key).0;
                     if key.starts_with(&existing_key) {
                         hash = child;
@@ -669,6 +674,7 @@ impl Trie {
                 }
                 RawTrieNode::Branch(mut children, value) => {
                     if key.is_empty() {
+                        let _span = tracing::debug_span!(target: "runtime", "Trie::lookup::branch_empty_key").entered();
                         match value {
                             Some((value_length, value_hash)) => {
                                 return Ok(Some((value_length, value_hash)));
@@ -676,6 +682,7 @@ impl Trie {
                             None => return Ok(None),
                         }
                     } else {
+                        let _span = tracing::debug_span!(target: "runtime", "Trie::lookup::branch_non_empty_key").entered();
                         match children[key.at(0) as usize].take() {
                             Some(x) => {
                                 hash = x;
