@@ -397,6 +397,7 @@ class GCloudNode(BaseNode):
             self.instance_name = name
             self.port = 24567
             self.rpc_port = 3030
+            print('gcloud.get',name)
             self.machine = gcloud.get(name)
             self.ip = self.machine.ip
         elif len(args) == 4:

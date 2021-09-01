@@ -10,10 +10,13 @@ tornado = "*"
 requests = "*"
 ed25519 = "*"
 base58 = "*"
-python-rc = "==0.1.9"
+python-rc = "==0.4.1"
 tqdm = "*"
 deepdiff = "*"
 retrying = "*"
+prometheus-client = "*"
+numpy = "*"
+sklearn = "*"
 
 [dev-packages]
 

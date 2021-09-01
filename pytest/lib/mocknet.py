@@ -13,8 +13,8 @@ import time
 from rc import run, pmap
 
 NUM_SECONDS_PER_YEAR = 3600 * 24 * 365
-NUM_NODES = 54
-NODE_BASE_NAME = 'mocknet-node'
+NUM_NODES = 2
+NODE_BASE_NAME = 'mocknet'
 NODE_USERNAME = 'ubuntu'
 NODE_SSH_KEY_PATH = '~/.ssh/near_ops'
 KEY_TARGET_ENV_VAR = 'NEAR_PYTEST_KEY_TARGET'
@@ -50,16 +50,17 @@ cd {PYTHON_DIR}
 '''
 
 
-# set prefix = 'sharded-' to access sharded mocknet nodes
-def get_node(i, prefix=''):
-    n = GCloudNode(f'{prefix}{NODE_BASE_NAME}{i}')
+def get_node(i):
+    machine_id = f'{NODE_BASE_NAME}{i}'
+    print('GCloudNode',machine_id)
+    n = GCloudNode(machine_id)
     n.machine.username = NODE_USERNAME
-    n.machine.ssh_key_path = NODE_SSH_KEY_PATH
+    # n.machine.ssh_key_path = NODE_SSH_KEY_PATH
     return n
 
 
-def get_nodes(prefix=''):
-    return pmap(lambda i: get_node(i, prefix=prefix), range(NUM_NODES))
+def get_nodes():
+    return pmap(lambda i: get_node(i), range(NUM_NODES))
 
 
 def create_target_dir(machine):
