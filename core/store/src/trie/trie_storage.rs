@@ -174,15 +174,24 @@ impl TrieStorage for TrieCachingStorage {
             tracing::debug_span!(target: "runtime", "TrieCachingStorage::retrieve_raw_bytes")
                 .entered();
         let mut guard = self.cache.0.lock().expect(POISONED_LOCK_ERR);
-        if let Some(val) = guard.cache_get(hash) {
+        let _span2 =
+            tracing::debug_span!(target: "runtime", "TrieCachingStorage::retrieve_raw_bytes::after_guard")
+                .entered();
+        let g = guard.cache_get(hash);
+        let _span3 =
+            tracing::debug_span!(target: "runtime", "TrieCachingStorage::retrieve_raw_bytes::after_cache_get")
+                .entered();
+        if let Some(val) = g {
             Ok(val.clone())
         } else {
+            let _span = tracing::debug_span!(target: "runtime", "TrieCachingStorage::retrieve_raw_bytes::not_in_cache").entered();
             let key = Self::get_key_from_shard_uid_and_hash(self.shard_uid, hash);
             let val = self
                 .store
                 .get(ColState, key.as_ref())
                 .map_err(|_| StorageError::StorageInternalError)?;
             if let Some(val) = val {
+                let _span = tracing::debug_span!(target: "runtime", "TrieCachingStorage::retrieve_raw_bytes::not_in_cache::cache_set").entered();
                 if val.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
                     guard.cache_set(*hash, val.clone());
                 }
