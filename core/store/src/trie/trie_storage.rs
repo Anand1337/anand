@@ -184,7 +184,6 @@ impl TrieStorage for TrieCachingStorage {
         if let Some(val) = g {
             Ok(val.clone())
         } else {
-            let _span = tracing::debug_span!(target: "runtime", "TrieCachingStorage::retrieve_raw_bytes::not_in_cache").entered();
             let key = Self::get_key_from_shard_uid_and_hash(self.shard_uid, hash);
             let val = self
                 .store
