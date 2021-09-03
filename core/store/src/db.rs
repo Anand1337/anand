@@ -17,9 +17,9 @@ use near_primitives::version::DbVersion;
 
 use crate::db::refcount::merge_refcounted_records;
 
+use crate::trie::RawTrieNodeWithSize;
 use std::path::Path;
 use std::sync::atomic::Ordering;
-
 pub(crate) mod refcount;
 pub(crate) mod v6_to_v7;
 
@@ -466,7 +466,16 @@ impl Database for RocksDB {
         let _span = tracing::debug_span!(target: "runtime", "RocksDB::get").entered();
         let read_options = rocksdb_read_options();
         let result = self.db.get_cf_opt(unsafe { &*self.cfs[col as usize] }, key, &read_options)?;
-        Ok(RocksDB::get_with_rc_logic(col, result))
+        let value = RocksDB::get_with_rc_logic(col, result);
+        // DEBUG
+        let node_result = RawTrieNodeWithSize::decode(value.unwrap().as_slice());
+        // let node_result = RawTrieNodeWithSize::decode(value.unwrap().as_slice());
+        if node_result.is_ok() {
+            eprintln!("NODE");
+        } else {
+            eprintln!("VALUE");
+        }
+        Ok(value)
     }
 
     fn iter_without_rc_logic<'a>(

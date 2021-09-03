@@ -114,7 +114,11 @@ impl RocksDB {
     pub(crate) fn get_with_rc_logic(column: DBCol, value: Option<Vec<u8>>) -> Option<Vec<u8>> {
         let _span = tracing::debug_span!(target: "runtime", "RocksDB::get_with_rc_logic").entered();
         if column.is_rc() {
-            value.and_then(|vec| decode_value_with_rc(&vec).0.map(|v| v.to_vec()))
+            value.and_then(|vec| {
+                let value_with_rc = decode_value_with_rc(&vec);
+                eprintln!("RC = {}", value_with_rc.1);
+                value_with_rc.0.map(|v| v.to_vec())
+            })
         } else {
             value
         }

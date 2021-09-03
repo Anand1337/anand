@@ -263,7 +263,7 @@ enum RawTrieNode {
 /// Trie node + memory cost of its subtree
 /// memory_usage is serialized, stored, and contributes to hash
 #[derive(Debug, Eq, PartialEq)]
-struct RawTrieNodeWithSize {
+pub struct RawTrieNodeWithSize {
     node: RawTrieNode,
     memory_usage: u64,
 }
@@ -394,7 +394,7 @@ impl RawTrieNodeWithSize {
         Ok(out)
     }
 
-    fn decode(bytes: &[u8]) -> Result<Self, std::io::Error> {
+    pub(crate) fn decode(bytes: &[u8]) -> Result<Self, std::io::Error> {
         if bytes.len() < 8 {
             return Err(std::io::Error::new(std::io::ErrorKind::Other, "Wrong type"));
         }
