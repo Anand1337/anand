@@ -47,9 +47,16 @@ struct CliArgs {
     /// Render existing `costs.txt` as `RuntimeConfig`.
     #[clap(long)]
     costs_file: Option<PathBuf>,
+    /// Only measure the specified metrics, computing a subset of costs.
+    #[clap(long)]
+    metrics_to_measure: Option<String>,
     /// Build and run the estimator inside a docker container via QEMU.
     #[clap(long)]
     docker: bool,
+
+    /// Work in progess -- run alternative version of the estimator.
+    #[clap(long)]
+    v2: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -117,19 +124,24 @@ fn main() -> anyhow::Result<()> {
         "wasmtime" => VMKind::Wasmtime,
         other => unreachable!("Unknown vm_kind {}", other),
     };
+    let metrics_to_measure =
+        cli_args.metrics_to_measure.map(|it| it.split(',').map(str::to_string).collect());
 
-    let cost_table = run(
-        Config {
-            warmup_iters_per_block,
-            iter_per_block,
-            active_accounts,
-            block_sizes: vec![],
-            state_dump_path: state_dump_path.clone(),
-            metric,
-            vm_kind,
-        },
-        cli_args.compile_only,
-    );
+    let config = Config {
+        warmup_iters_per_block,
+        iter_per_block,
+        active_accounts,
+        block_sizes: vec![],
+        state_dump_path: state_dump_path.clone(),
+        metric,
+        vm_kind,
+        metrics_to_measure,
+    };
+    let cost_table = if cli_args.v2 {
+        runtime_params_estimator::v2::run(config)
+    } else {
+        run(config, cli_args.compile_only)
+    };
 
     let output_path = {
         let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);

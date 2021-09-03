@@ -4427,6 +4427,7 @@ dependencies = [
  "state-viewer",
  "tempfile",
  "testlib",
+ "tracing-span-tree",
  "walrus",
  "wat",
 ]
@@ -5351,6 +5352,15 @@ checksum = "fb65ea441fbb84f9f6748fd496cf7f63ec9af5bca94dd86456978d055e8eb28b"
 dependencies = [
  "serde",
  "tracing-core",
+]
+
+[[package]]
+name = "tracing-span-tree"
+version = "0.1.0"
+source = "git+https://github.com/matklad/tracing-span-tree#c75a3da12384a4dc0e265bdf8d7d9b2f83fad064"
+dependencies = [
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
