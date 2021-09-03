@@ -468,17 +468,17 @@ impl Database for RocksDB {
         let result = self.db.get_cf_opt(unsafe { &*self.cfs[col as usize] }, key, &read_options)?;
         let value = RocksDB::get_with_rc_logic(col, result);
         // DEBUG
-        if value.is_none() {
-            eprintln!("EMPTY");
-        } else {
-            let node_result = RawTrieNodeWithSize::decode(value.clone().unwrap().as_slice());
-            // let node_result = RawTrieNodeWithSize::decode(value.unwrap().as_slice());
-            if node_result.is_ok() {
-                eprintln!("NODE");
-            } else {
-                eprintln!("VALUE");
-            }
-        }
+        // if value.is_none() {
+        //     eprintln!("EMPTY");
+        // } else {
+        //     let node_result = RawTrieNodeWithSize::decode(value.clone().unwrap().as_slice());
+        //     // let node_result = RawTrieNodeWithSize::decode(value.unwrap().as_slice());
+        //     if node_result.is_ok() {
+        //         eprintln!("NODE");
+        //     } else {
+        //         eprintln!("VALUE");
+        //     }
+        // }
         Ok(value)
     }
 
