@@ -2232,16 +2232,21 @@ impl Chain {
             }
             let direction = if cur_index % 2 == 0 { Direction::Left } else { Direction::Right };
 
-            let left = self.reconstruct_merkle_tree_node(
-                cur_index,
+            let left = self.get_merkle_tree_node(
+                cur_index / 2 * 2,
                 level,
                 counter,
                 tree_size,
                 &mut tree_nodes,
             )?;
 
-            let right =
-                self.get_merkle_tree_node(cur_index, level, counter, tree_size, &mut tree_nodes)?;
+            let right = self.reconstruct_merkle_tree_node(
+                cur_index | 1,
+                level,
+                counter,
+                tree_size,
+                &mut tree_nodes,
+            )?;
 
             left_right.push((left, right));
 
