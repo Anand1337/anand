@@ -116,7 +116,7 @@ impl RocksDB {
         if column.is_rc() {
             value.and_then(|vec| {
                 let value_with_rc = decode_value_with_rc(&vec);
-                eprintln!("RC = {}", value_with_rc.1);
+                // eprintln!("RC = {}", value_with_rc.1);
                 value_with_rc.0.map(|v| v.to_vec())
             })
         } else {
