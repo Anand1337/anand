@@ -1,7 +1,8 @@
 # Stop all mocknet nodes, wait 1s, then start all nodes again.
 # Nodes should be responsive again after this operation.
 
-import sys, time
+import sys
+import time
 from rc import pmap
 
 sys.path.append('lib')
@@ -10,7 +11,7 @@ import mocknet
 nodes = mocknet.get_nodes()
 
 # stop nodes
-mocknet.stop_nodes(nodes)
+pmap(mocknet.stop_node, nodes)
 
 # wait 30s
 time.sleep(30)

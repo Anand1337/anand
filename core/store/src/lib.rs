@@ -336,7 +336,6 @@ pub fn get_account(
     state_update: &TrieUpdate,
     account_id: &AccountId,
 ) -> Result<Option<Account>, StorageError> {
-    let _span = tracing::debug_span!(target: "runtime", "get_account").entered();
     get(state_update, &TrieKey::Account { account_id: account_id.clone() })
 }
 
@@ -403,7 +402,6 @@ pub fn get_access_key(
     account_id: &AccountId,
     public_key: &PublicKey,
 ) -> Result<Option<AccessKey>, StorageError> {
-    let _span = tracing::debug_span!(target: "runtime", "get_access_key").entered();
     get(
         state_update,
         &TrieKey::AccessKey { account_id: account_id.clone(), public_key: public_key.clone() },

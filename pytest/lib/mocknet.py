@@ -79,6 +79,7 @@ def create_target_dir(machine):
 
 
 def get_validator_account(node):
+    print('get_validator_account', node)
     m = node.machine
     target_dir = create_target_dir(m)
     m.download(f'/home/ubuntu/.near/validator_key.json', target_dir)
@@ -259,7 +260,9 @@ def transfer_between_nodes(nodes):
     logger.info('Testing transfer between mocknet validators')
     node = nodes[0]
     alice = get_validator_account(nodes[1])
+    print('alice: ', alice)
     bob = get_validator_account(nodes[0])
+    print('bob: ', bob)
     transfer_amount = 100
     get_balance = lambda account: int(
         node.get_account(account.account_id)['result']['amount'])
@@ -434,16 +437,15 @@ def start_nodes(nodes):
     pmap(start_node, nodes)
 
 
-def stop_nodes(nodes):
-    pmap(stop_node, nodes)
-
-
 def start_node(node):
     m = node.machine
     logger.info(f'Starting node {m.name}')
     pid = get_near_pid(m)
+    print('pid', pid)
     if pid == '':
+        print(TMUX_START_SCRIPT)
         start_process = m.run('sudo -u ubuntu -i', input=TMUX_START_SCRIPT)
+        print(start_process.returncode)
         assert start_process.returncode == 0, m.name + '\n' + start_process.stderr
 
 
