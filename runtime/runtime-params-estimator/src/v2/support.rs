@@ -137,7 +137,8 @@ impl<'c> TestBed<'c> {
         let mut total = 0;
         let mut n = 0;
         for iter in 0..total_iters {
-            let block_size = 100;
+            // let block_size = 100;
+            let block_size = 10;
             let block: Vec<_> = iter::repeat_with(|| {
                 let tb = TransactionBuilder { testbed: self };
                 make_transaction(tb)
