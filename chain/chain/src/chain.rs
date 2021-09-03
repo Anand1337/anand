@@ -2221,6 +2221,9 @@ impl Chain {
         let mut path = vec![];
         let mut tree_nodes = HashMap::new();
         let mut iter = tree_size;
+
+        let mut left_right = vec![];
+
         while iter > 1 {
             if cur_index % 2 == 0 {
                 cur_index += 1
@@ -2228,18 +2231,27 @@ impl Chain {
                 cur_index -= 1;
             }
             let direction = if cur_index % 2 == 0 { Direction::Left } else { Direction::Right };
+
+            let left = self.reconstruct_merkle_tree_node(
+                cur_index,
+                level,
+                counter,
+                tree_size,
+                &mut tree_nodes,
+            )?;
+
+            left_right.push((left, right));
+
+            let right =
+                self.get_merkle_tree_node(cur_index, level, counter, tree_size, &mut tree_nodes)?;
+
             let maybe_hash = if cur_index % 2 == 1 {
                 // node not immediately available. Needs to be reconstructed
-                self.reconstruct_merkle_tree_node(
-                    cur_index,
-                    level,
-                    counter,
-                    tree_size,
-                    &mut tree_nodes,
-                )?
+                left
             } else {
-                self.get_merkle_tree_node(cur_index, level, counter, tree_size, &mut tree_nodes)?
+                rigth
             };
+
             if let Some(hash) = maybe_hash {
                 path.push(MerklePathItem { hash, direction });
             }
@@ -2248,6 +2260,7 @@ impl Chain {
             level += 1;
             counter *= 2;
         }
+        println!("{:?}", left_right);
         Ok(path)
     }
 }
