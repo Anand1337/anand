@@ -2240,10 +2240,10 @@ impl Chain {
                 &mut tree_nodes,
             )?;
 
-            left_right.push((left, right));
-
             let right =
                 self.get_merkle_tree_node(cur_index, level, counter, tree_size, &mut tree_nodes)?;
+
+            left_right.push((left, right));
 
             let maybe_hash = if cur_index % 2 == 1 {
                 // node not immediately available. Needs to be reconstructed
