@@ -28,7 +28,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // for method_count in vec![5, 20, 30, 50, 100, 200, 1000] {
     for method_count in vec![5, 100, 4500] {
         let contract = make_many_methods_contract(method_count);
-        println!("LEN = {}", contract.get_code().len());
+        println!("LEN = {}", contract.code().len());
         let cost = compute_function_call_cost(metric, vm_kind, REPEATS, &contract, "hello0", None);
         println!(
             "{:?} {:?} {} {} {}",
@@ -38,7 +38,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             cost / REPEATS,
             ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128))
         );
-        xs.push(contract.get_code().len() as u64);
+        xs.push(contract.code().len() as u64);
         ys.push(cost / REPEATS);
     }
 
@@ -63,7 +63,7 @@ fn measure_function_call_1s(vm_kind: VMKind) {
 
     let (contract, method_name, init_args) = get_rs_contract_data();
     let contract = ContractCode::new(contract.iter().cloned().collect(), None);
-    let contract_len = contract.get_code().len();
+    let contract_len = contract.code().len();
     println!("contract length = {}", contract_len);
     println!("method name = {}", method_name);
 
@@ -164,7 +164,7 @@ fn compare_function_call_icount() {
 
         // Actual cost
         let contract = ContractCode::new(contract.iter().cloned().collect(), None);
-        let contract_len = contract.get_code().len();
+        let contract_len = contract.code().len();
         println!("contract length = {}", contract_len);
 
         let cost = compute_function_call_cost(
@@ -188,7 +188,7 @@ fn compare_function_call_icount() {
 
         // New estimation
         // Prev computed:
-        // let new_fee = 37_732_719_837 + 76_128_437 * contract.get_code().len();
+        // let new_fee = 37_732_719_837 + 76_128_437 * contract.code().len();
         // Newly:
         // Wasmer0 ICount function call base 48080046101 gas, per byte 207939579 gas
         let new_fee = 48_080_046_101 + 207_939_579 * contract_len;
