@@ -261,7 +261,6 @@ pub fn run_wasmer<'a>(
     println!("{}", module_info.func_assoc.len());
     println!("{}", module_info.signatures.len());
     println!("{}", module_info.backend.len());
-    println!("{}", module_info.em_symbol_map.as_ref().unwrap_or_default().len());
     println!("{}", module_info.custom_sections.len());
     println!("-------");
 
