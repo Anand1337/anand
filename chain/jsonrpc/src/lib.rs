@@ -351,7 +351,7 @@ impl JsonRpcHandler {
             }
             "EXPERIMENTAL_changes" => {
                 let rpc_state_changes_request =
-                    near_jsonrpc_primitives::types::changes::RpcStateChangesInBlockRequest::parse(
+                    near_jsonrpc_primitives::types::changes::RpcStateChangesInBlockByTypeRequest::parse(
                         request.params,
                     )?;
                 let state_changes =
@@ -361,7 +361,7 @@ impl JsonRpcHandler {
             }
             "EXPERIMENTAL_changes_in_block" => {
                 let rpc_state_changes_request =
-                    near_jsonrpc_primitives::types::changes::RpcStateChangesRequest::parse(
+                    near_jsonrpc_primitives::types::changes::RpcStateChangesInBlockRequest::parse(
                         request.params,
                     )?;
                 let state_changes = self.changes_in_block(rpc_state_changes_request).await?;
@@ -840,9 +840,9 @@ impl JsonRpcHandler {
 
     async fn changes_in_block(
         &self,
-        request: near_jsonrpc_primitives::types::changes::RpcStateChangesRequest,
+        request: near_jsonrpc_primitives::types::changes::RpcStateChangesInBlockRequest,
     ) -> Result<
-        near_jsonrpc_primitives::types::changes::RpcStateChangesInBlockResponse,
+        near_jsonrpc_primitives::types::changes::RpcStateChangesInBlockByTypeResponse,
         near_jsonrpc_primitives::types::changes::RpcStateChangesError,
     > {
         let block = self.view_client_addr.send(GetBlock(request.block_reference.into())).await??;
@@ -850,7 +850,7 @@ impl JsonRpcHandler {
         let block_hash = block.header.hash.clone();
         let changes = self.view_client_addr.send(GetStateChangesInBlock { block_hash }).await??;
 
-        Ok(near_jsonrpc_primitives::types::changes::RpcStateChangesInBlockResponse {
+        Ok(near_jsonrpc_primitives::types::changes::RpcStateChangesInBlockByTypeResponse {
             block_hash: block.header.hash,
             changes,
         })
@@ -858,9 +858,9 @@ impl JsonRpcHandler {
 
     async fn changes_in_block_by_type(
         &self,
-        request: near_jsonrpc_primitives::types::changes::RpcStateChangesInBlockRequest,
+        request: near_jsonrpc_primitives::types::changes::RpcStateChangesInBlockByTypeRequest,
     ) -> Result<
-        near_jsonrpc_primitives::types::changes::RpcStateChangesResponse,
+        near_jsonrpc_primitives::types::changes::RpcStateChangesInBlockResponse,
         near_jsonrpc_primitives::types::changes::RpcStateChangesError,
     > {
         let block = self.view_client_addr.send(GetBlock(request.block_reference.into())).await??;
@@ -874,7 +874,7 @@ impl JsonRpcHandler {
             })
             .await??;
 
-        Ok(near_jsonrpc_primitives::types::changes::RpcStateChangesResponse {
+        Ok(near_jsonrpc_primitives::types::changes::RpcStateChangesInBlockResponse {
             block_hash: block.header.hash,
             changes,
         })
@@ -1202,18 +1202,30 @@ fn get_cors(cors_allowed_origins: &[String]) -> Cors {
         .max_age(3600)
 }
 
+/// Starts HTTP server(s) listening for RPC requests.
+///
+/// Starts an HTTP server which handles JSON RPC calls as well as states
+/// endpoints such as `/status`, `/health`, `/metrics` etc.  Depending on
+/// configuration may also start another HTTP server just for providing
+/// Prometheus metrics (i.e. covering the `/metrics` path).
+///
+/// Returns a vector of servers that have been started.  Each server is returned
+/// as a tuple containing a name of the server (e.g. `"JSON RPC"`) which can be
+/// used in diagnostic messages and a [`actix_web::dev::Server`] object which
+/// can be used to control the server (most notably stop it).
 pub fn start_http(
     config: RpcConfig,
     genesis_config: GenesisConfig,
     client_addr: Addr<ClientActor>,
     view_client_addr: Addr<ViewClientActor>,
-) {
+) -> Vec<(&'static str, actix_web::dev::Server)> {
     let RpcConfig { addr, prometheus_addr, cors_allowed_origins, polling_config, limits_config } =
         config;
     let prometheus_addr = prometheus_addr.filter(|it| it != &addr);
     let cors_allowed_origins_clone = cors_allowed_origins.clone();
     info!(target:"network", "Starting http server at {}", addr);
-    HttpServer::new(move || {
+    let mut servers = Vec::new();
+    let server = HttpServer::new(move || {
         App::new()
             .wrap(get_cors(&cors_allowed_origins))
             .data(JsonRpcHandler {
@@ -1242,13 +1254,16 @@ pub fn start_http(
     .unwrap()
     .workers(4)
     .shutdown_timeout(5)
+    .disable_signals()
     .run();
+
+    servers.push(("JSON RPC", server));
 
     if let Some(prometheus_addr) = prometheus_addr {
         info!(target:"network", "Starting http monitoring server at {}", prometheus_addr);
         // Export only the /metrics service. It's a read-only service and can have very relaxed
         // access restrictions.
-        HttpServer::new(move || {
+        let server = HttpServer::new(move || {
             App::new()
                 .wrap(get_cors(&cors_allowed_origins_clone))
                 .wrap(middleware::Logger::default())
@@ -1258,6 +1273,10 @@ pub fn start_http(
         .unwrap()
         .workers(2)
         .shutdown_timeout(5)
+        .disable_signals()
         .run();
+        servers.push(("Prometheus Metrics", server));
     }
+
+    servers
 }

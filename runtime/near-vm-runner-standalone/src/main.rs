@@ -7,7 +7,6 @@
 //! Optional `--context-file=/tmp/context.json --config-file=/tmp/config.json` could be added
 //! to provide custom context and VM config.
 mod script;
-mod tracing_timings;
 
 use crate::script::Script;
 use clap::Clap;
@@ -121,7 +120,7 @@ fn main() {
     let cli_args = CliArgs::parse();
 
     if cli_args.timings {
-        tracing_timings::enable();
+        tracing_span_tree::span_tree().enable();
     }
 
     let mut script = Script::default();
@@ -172,15 +171,10 @@ fn main() {
     let mut results = script.run();
     let (outcome, err) = results.outcomes.pop().unwrap();
 
-    let all_gas = match &outcome {
-        Some(outcome) => outcome.burnt_gas,
-        _ => 1,
-    };
-
     println!(
         "{}",
         serde_json::to_string(&StandaloneOutput {
-            outcome,
+            outcome: outcome.clone(),
             err,
             receipts: results.state.get_receipt_create_calls().clone(),
             state: State(results.state.fake_trie),
@@ -188,6 +182,10 @@ fn main() {
         .unwrap()
     );
 
-    assert_eq!(all_gas, results.profile.all_gas());
-    println!("{:#?}", results.profile);
+    match &outcome {
+        Some(outcome) => {
+            println!("{:#?}", outcome.profile);
+        }
+        _ => {}
+    }
 }

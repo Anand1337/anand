@@ -14,6 +14,7 @@ use near_primitives::errors::InvalidTxError;
 use near_primitives::hash::CryptoHash;
 use near_primitives::merkle::{MerklePath, PartialMerkleTree};
 use near_primitives::receipt::{Receipt, ReceiptResult};
+use near_primitives::shard_layout::{get_block_shard_uid, ShardUId};
 use near_primitives::sharding::{
     ChunkHash, EncodedShardChunk, PartialEncodedChunk, ReceiptProof, ShardChunk, ShardChunkHeader,
     StateSyncInfo,
@@ -137,7 +138,7 @@ pub trait ChainStoreAccess {
     fn get_chunk_extra(
         &mut self,
         block_hash: &CryptoHash,
-        shard_id: ShardId,
+        shard_uid: &ShardUId,
     ) -> Result<&ChunkExtra, Error>;
     /// Get block header.
     fn get_block_header(&mut self, h: &CryptoHash) -> Result<&BlockHeader, Error>;
@@ -853,16 +854,16 @@ impl ChainStoreAccess for ChainStore {
     fn get_chunk_extra(
         &mut self,
         block_hash: &CryptoHash,
-        shard_id: ShardId,
+        shard_uid: &ShardUId,
     ) -> Result<&ChunkExtra, Error> {
         option_to_not_found(
             read_with_cache(
                 &*self.store,
                 ColChunkExtra,
                 &mut self.chunk_extras,
-                &get_block_shard_id(block_hash, shard_id),
+                &get_block_shard_uid(block_hash, shard_uid),
             ),
-            &format!("CHUNK EXTRA: {}:{}", block_hash, shard_id),
+            &format!("CHUNK EXTRA: {}:{:?}", block_hash, shard_uid),
         )
     }
 
@@ -1107,7 +1108,7 @@ struct ChainStoreCacheUpdate {
     blocks: HashMap<CryptoHash, Block>,
     headers: HashMap<CryptoHash, BlockHeader>,
     block_extras: HashMap<CryptoHash, BlockExtra>,
-    chunk_extras: HashMap<(CryptoHash, ShardId), ChunkExtra>,
+    chunk_extras: HashMap<(CryptoHash, ShardUId), ChunkExtra>,
     chunks: HashMap<ChunkHash, ShardChunk>,
     partial_chunks: HashMap<ChunkHash, PartialEncodedChunk>,
     block_hash_per_height: HashMap<BlockHeight, HashMap<EpochId, HashSet<CryptoHash>>>,
@@ -1328,14 +1329,14 @@ impl<'a> ChainStoreAccess for ChainStoreUpdate<'a> {
     fn get_chunk_extra(
         &mut self,
         block_hash: &CryptoHash,
-        shard_id: ShardId,
+        shard_uid: &ShardUId,
     ) -> Result<&ChunkExtra, Error> {
         if let Some(chunk_extra) =
-            self.chain_store_cache_update.chunk_extras.get(&(*block_hash, shard_id))
+            self.chain_store_cache_update.chunk_extras.get(&(*block_hash, *shard_uid))
         {
             Ok(chunk_extra)
         } else {
-            self.chain_store.get_chunk_extra(block_hash, shard_id)
+            self.chain_store.get_chunk_extra(block_hash, shard_uid)
         }
     }
 
@@ -1720,10 +1721,10 @@ impl<'a> ChainStoreUpdate<'a> {
     pub fn save_chunk_extra(
         &mut self,
         block_hash: &CryptoHash,
-        shard_id: ShardId,
+        shard_uid: &ShardUId,
         chunk_extra: ChunkExtra,
     ) {
-        self.chain_store_cache_update.chunk_extras.insert((*block_hash, shard_id), chunk_extra);
+        self.chain_store_cache_update.chunk_extras.insert((*block_hash, *shard_uid), chunk_extra);
     }
 
     pub fn save_chunk(&mut self, chunk: ShardChunk) {
@@ -2007,15 +2008,18 @@ impl<'a> ChainStoreUpdate<'a> {
             GCMode::Fork(tries) => {
                 // If the block is on a fork, we delete the state that's the result of applying this block
                 for shard_id in 0..header.chunk_mask().len() as ShardId {
+                    // TODO: pass in the actual shard version that this block uses
+                    // https://github.com/near/nearcore/issues/4710
+                    let shard_uid = ShardUId { version: 0, shard_id: shard_id as u32 };
                     self.store()
-                        .get_ser(ColTrieChanges, &get_block_shard_id(&block_hash, shard_id))?
+                        .get_ser(ColTrieChanges, &get_block_shard_uid(&block_hash, &shard_uid))?
                         .map(|trie_changes: TrieChanges| {
                             tries
-                                .revert_insertions(&trie_changes, shard_id, &mut store_update)
+                                .revert_insertions(&trie_changes, shard_uid, &mut store_update)
                                 .map(|_| {
                                     self.gc_col(
                                         ColTrieChanges,
-                                        &get_block_shard_id(&block_hash, shard_id),
+                                        &get_block_shard_uid(&block_hash, &shard_uid),
                                     );
                                     self.inc_gc_col_state();
                                 })
@@ -2027,15 +2031,18 @@ impl<'a> ChainStoreUpdate<'a> {
             GCMode::Canonical(tries) => {
                 // If the block is on canonical chain, we delete the state that's before applying this block
                 for shard_id in 0..header.chunk_mask().len() as ShardId {
+                    // TODO: pass in the actual shard version that this block uses
+                    // https://github.com/near/nearcore/issues/4710
+                    let shard_uid = ShardUId { version: 0, shard_id: shard_id as u32 };
                     self.store()
-                        .get_ser(ColTrieChanges, &get_block_shard_id(&block_hash, shard_id))?
+                        .get_ser(ColTrieChanges, &get_block_shard_uid(&block_hash, &shard_uid))?
                         .map(|trie_changes: TrieChanges| {
                             tries
-                                .apply_deletions(&trie_changes, shard_id, &mut store_update)
+                                .apply_deletions(&trie_changes, shard_uid, &mut store_update)
                                 .map(|_| {
                                     self.gc_col(
                                         ColTrieChanges,
-                                        &get_block_shard_id(&block_hash, shard_id),
+                                        &get_block_shard_uid(&block_hash, &shard_uid),
                                     );
                                     self.inc_gc_col_state();
                                 })
@@ -2048,8 +2055,11 @@ impl<'a> ChainStoreUpdate<'a> {
             }
             GCMode::StateSync { .. } => {
                 // Not apply the data from ColTrieChanges
+                // TODO: pass in the actual shard version that this block uses
+                // https://github.com/near/nearcore/issues/4710
                 for shard_id in 0..header.chunk_mask().len() as ShardId {
-                    self.gc_col(ColTrieChanges, &get_block_shard_id(&block_hash, shard_id));
+                    let shard_uid = ShardUId { version: 0, shard_id: shard_id as u32 };
+                    self.gc_col(ColTrieChanges, &get_block_shard_uid(&block_hash, &shard_uid));
                 }
             }
         }
@@ -2067,7 +2077,11 @@ impl<'a> ChainStoreUpdate<'a> {
             self.gc_col(ColIncomingReceipts, &block_shard_id);
             self.gc_col(ColChunkPerHeightShard, &block_shard_id);
             self.gc_col(ColNextBlockWithNewChunk, &block_shard_id);
-            self.gc_col(ColChunkExtra, &block_shard_id);
+
+            // TODO: use the real shard version https://github.com/near/nearcore/issues/4710
+            let shard_uid = ShardUId { version: 0, shard_id: shard_id as u32 };
+            let block_shard_uid = get_block_shard_uid(&block_hash, &shard_uid);
+            self.gc_col(ColChunkExtra, &block_shard_uid);
 
             // For incoming State Parts it's done in chain.clear_downloaded_parts()
             // The following code is mostly for outgoing State Parts.
@@ -2474,12 +2488,12 @@ impl<'a> ChainStoreUpdate<'a> {
         for (height, hash_set) in header_hashes_by_height {
             store_update.set_ser(ColHeaderHashesByHeight, &index_to_bytes(height), &hash_set)?;
         }
-        for ((block_hash, shard_id), chunk_extra) in
+        for ((block_hash, shard_uid), chunk_extra) in
             self.chain_store_cache_update.chunk_extras.iter()
         {
             store_update.set_ser(
                 ColChunkExtra,
-                &get_block_shard_id(block_hash, *shard_id),
+                &get_block_shard_uid(block_hash, shard_uid),
                 chunk_extra,
             )?;
         }
@@ -2759,8 +2773,8 @@ impl<'a> ChainStoreUpdate<'a> {
         for (hash, block_extra) in block_extras {
             self.chain_store.block_extras.cache_set(hash.into(), block_extra);
         }
-        for ((block_hash, shard_id), chunk_extra) in chunk_extras {
-            let key = get_block_shard_id(&block_hash, shard_id);
+        for ((block_hash, shard_uid), chunk_extra) in chunk_extras {
+            let key = get_block_shard_uid(&block_hash, &shard_uid);
             self.chain_store.chunk_extras.cache_set(key, chunk_extra);
         }
         for (hash, chunk) in chunks {
@@ -2787,7 +2801,9 @@ impl<'a> ChainStoreUpdate<'a> {
             }
         }
         for (account_id, approval) in last_approvals_per_account {
-            self.chain_store.last_approvals_per_account.cache_set(account_id.into(), approval);
+            self.chain_store
+                .last_approvals_per_account
+                .cache_set(account_id.as_ref().into(), approval);
         }
         for (block_hash, next_hash) in next_block_hashes {
             self.chain_store.next_block_hashes.cache_set(block_hash.into(), next_hash);
@@ -2889,7 +2905,9 @@ mod tests {
             store.clone(),
             validators
                 .into_iter()
-                .map(|inner| inner.into_iter().map(Into::into).collect())
+                .map(|inner| {
+                    inner.into_iter().map(|account_id| account_id.parse().unwrap()).collect()
+                })
                 .collect(),
             1,
             1,
@@ -2903,8 +2921,11 @@ mod tests {
         let transaction_validity_period = 5;
         let mut chain = get_chain();
         let genesis = chain.get_block_by_height(0).unwrap().clone();
-        let signer =
-            Arc::new(InMemoryValidatorSigner::from_seed("test1", KeyType::ED25519, "test1"));
+        let signer = Arc::new(InMemoryValidatorSigner::from_seed(
+            "test1".parse().unwrap(),
+            KeyType::ED25519,
+            "test1",
+        ));
         let short_fork = vec![Block::empty_with_height(&genesis, 1, &*signer.clone())];
         let mut store_update = chain.mut_store().store_update();
         store_update.save_block_header(short_fork[0].header().clone()).unwrap();
@@ -2958,8 +2979,11 @@ mod tests {
         let transaction_validity_period = 5;
         let mut chain = get_chain();
         let genesis = chain.get_block_by_height(0).unwrap().clone();
-        let signer =
-            Arc::new(InMemoryValidatorSigner::from_seed("test1", KeyType::ED25519, "test1"));
+        let signer = Arc::new(InMemoryValidatorSigner::from_seed(
+            "test1".parse().unwrap(),
+            KeyType::ED25519,
+            "test1",
+        ));
         let mut blocks = vec![];
         let mut prev_block = genesis.clone();
         for i in 1..(transaction_validity_period + 2) {
@@ -3009,8 +3033,11 @@ mod tests {
         let transaction_validity_period = 5;
         let mut chain = get_chain();
         let genesis = chain.get_block_by_height(0).unwrap().clone();
-        let signer =
-            Arc::new(InMemoryValidatorSigner::from_seed("test1", KeyType::ED25519, "test1"));
+        let signer = Arc::new(InMemoryValidatorSigner::from_seed(
+            "test1".parse().unwrap(),
+            KeyType::ED25519,
+            "test1",
+        ));
         let mut short_fork = vec![];
         let mut prev_block = genesis.clone();
         for i in 1..(transaction_validity_period + 2) {
@@ -3056,8 +3083,11 @@ mod tests {
     fn test_cache_invalidation() {
         let mut chain = get_chain();
         let genesis = chain.get_block_by_height(0).unwrap().clone();
-        let signer =
-            Arc::new(InMemoryValidatorSigner::from_seed("test1", KeyType::ED25519, "test1"));
+        let signer = Arc::new(InMemoryValidatorSigner::from_seed(
+            "test1".parse().unwrap(),
+            KeyType::ED25519,
+            "test1",
+        ));
         let block1 = Block::empty_with_height(&genesis, 1, &*signer.clone());
         let mut block2 = block1.clone();
         block2.mut_header().get_mut().inner_lite.epoch_id = EpochId(hash(&[1, 2, 3]));
@@ -3097,8 +3127,11 @@ mod tests {
     fn test_clear_old_data() {
         let mut chain = get_chain_with_epoch_length(1);
         let genesis = chain.get_block_by_height(0).unwrap().clone();
-        let signer =
-            Arc::new(InMemoryValidatorSigner::from_seed("test1", KeyType::ED25519, "test1"));
+        let signer = Arc::new(InMemoryValidatorSigner::from_seed(
+            "test1".parse().unwrap(),
+            KeyType::ED25519,
+            "test1",
+        ));
         let mut prev_block = genesis.clone();
         let mut blocks = vec![prev_block.clone()];
         for i in 1..15 {
@@ -3191,8 +3224,11 @@ mod tests {
     fn test_clear_old_data_fixed_height() {
         let mut chain = get_chain();
         let genesis = chain.get_block_by_height(0).unwrap().clone();
-        let signer =
-            Arc::new(InMemoryValidatorSigner::from_seed("test1", KeyType::ED25519, "test1"));
+        let signer = Arc::new(InMemoryValidatorSigner::from_seed(
+            "test1".parse().unwrap(),
+            KeyType::ED25519,
+            "test1",
+        ));
         let mut prev_block = genesis.clone();
         let mut blocks = vec![prev_block.clone()];
         for i in 1..10 {
@@ -3267,8 +3303,11 @@ mod tests {
     fn test_clear_old_data_too_many_heights_common(gc_blocks_limit: NumBlocks) {
         let mut chain = get_chain_with_epoch_length(1);
         let genesis = chain.get_block_by_height(0).unwrap().clone();
-        let signer =
-            Arc::new(InMemoryValidatorSigner::from_seed("test1", KeyType::ED25519, "test1"));
+        let signer = Arc::new(InMemoryValidatorSigner::from_seed(
+            "test1".parse().unwrap(),
+            KeyType::ED25519,
+            "test1",
+        ));
         let mut prev_block = genesis.clone();
         let mut blocks = vec![prev_block.clone()];
         {

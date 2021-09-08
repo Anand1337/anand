@@ -1,21 +1,23 @@
 use crate::cases::ratio_to_gas_signed;
-use crate::testbed_runners::{end_count, start_count, GasMetric, Consumed};
+use crate::testbed_runners::{end_count, start_count, Consumed, GasMetric};
 use crate::vm_estimator::{create_context, least_squares_method};
+use near_logger_utils::init_test_logger;
 use near_primitives::config::VMConfig;
 use near_primitives::contract::ContractCode;
-use near_primitives::profile::ProfileData;
 use near_primitives::runtime::fees::RuntimeFeesConfig;
 use near_primitives::types::{CompiledContractCache, ProtocolVersion};
 use near_store::{create_store, StoreCompiledContractCache};
-use near_test_contracts::{aurora_contract, get_aurora_contract_data, get_multisig_contract_data, get_voting_contract_data, get_rs_contract_data};
+use near_test_contracts::{
+    aurora_contract, get_aurora_contract_data, get_multisig_contract_data, get_rs_contract_data,
+    get_voting_contract_data,
+};
 use near_vm_logic::mocks::mock_external::MockedExternal;
-use near_vm_runner::{run_vm, VMKind, precompile_contract};
+use near_vm_logic::ExtCostsConfig;
+use near_vm_runner::{precompile_contract, run_vm, VMKind};
 use nearcore::get_store_path;
 use num_rational::Ratio;
 use std::fmt::Write;
 use std::sync::Arc;
-use near_vm_logic::ExtCostsConfig;
-use near_logger_utils::init_test_logger;
 
 const REPEATS: u64 = 50;
 
@@ -28,8 +30,14 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         let contract = make_many_methods_contract(method_count);
         println!("LEN = {}", contract.get_code().len());
         let cost = compute_function_call_cost(metric, vm_kind, REPEATS, &contract, "hello0", None);
-        println!("{:?} {:?} {} {} {}", vm_kind, metric, method_count, cost / REPEATS,
-                 ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128)));
+        println!(
+            "{:?} {:?} {} {} {}",
+            vm_kind,
+            metric,
+            method_count,
+            cost / REPEATS,
+            ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128))
+        );
         xs.push(contract.get_code().len() as u64);
         ys.push(cost / REPEATS);
     }
@@ -85,7 +93,6 @@ fn measure_function_call_1s(vm_kind: VMKind) {
             vm_kind,
             ProtocolVersion::MAX,
             cache,
-            ProfileData::new(),
         );
         i += 1;
         assert!(result.1.is_none());
@@ -142,11 +149,16 @@ fn compare_function_call_icount() {
     let runtime_fees_config = RuntimeFeesConfig::default();
     let ext_costs_config = ExtCostsConfig::default();
 
-    let old_function_call_fee = runtime_fees_config.action_creation_config.function_call_cost.execution;
+    let old_function_call_fee =
+        runtime_fees_config.action_creation_config.function_call_cost.execution;
     println!("old_function_call_fee = {}", old_function_call_fee);
 
-    let contracts_data =
-        vec![get_aurora_contract_data(), get_multisig_contract_data(), get_voting_contract_data(), get_rs_contract_data()];
+    let contracts_data = vec![
+        get_aurora_contract_data(),
+        get_multisig_contract_data(),
+        get_voting_contract_data(),
+        get_rs_contract_data(),
+    ];
     for (contract, method_name, init_args) in contracts_data.iter().cloned() {
         println!("{}", method_name);
 
@@ -168,7 +180,9 @@ fn compare_function_call_icount() {
         // println!("actual = {}", actual_gas);
 
         // Old estimation
-        let fee = old_function_call_fee + ext_costs_config.contract_compile_base + ext_costs_config.contract_compile_bytes * contract_len as u64;
+        let fee = old_function_call_fee
+            + ext_costs_config.contract_compile_base
+            + ext_costs_config.contract_compile_bytes * contract_len as u64;
         // runtime_fees_config.action_creation_config.function_call_cost_per_byte is negligible here
         // println!("old estimation = {}", fee);
 
@@ -187,14 +201,9 @@ fn compare_function_call_icount() {
 
 fn make_many_methods_contract(method_count: i32) -> ContractCode {
     let mut methods = String::new();
-    let long_drop =
-    for i in 0..method_count {
+    let long_drop = for i in 0..method_count {
         let mut body = String::new();
-        write!(
-            &mut body,
-            "i32.const {i} drop ",
-            i = i,
-        ).unwrap();
+        write!(&mut body, "i32.const {i} drop ", i = i,).unwrap();
         if i != 0 {
             body = body.repeat(100);
         };
@@ -257,14 +266,13 @@ pub fn compute_function_call_cost(
                 vm_kind,
                 ProtocolVersion::MAX,
                 cache,
-                ProfileData::new(),
             );
             if result.1.is_some() {
                 println!("{:?}", result);
                 return 0u64;
             }
             assert!(result.1.is_none());
-        },
+        }
         None => {}
     };
 
@@ -281,7 +289,6 @@ pub fn compute_function_call_cost(
             vm_kind,
             ProtocolVersion::MAX,
             cache,
-            ProfileData::new(),
         );
         if result.1.is_some() {
             println!("{:?}", result);
@@ -303,7 +310,6 @@ pub fn compute_function_call_cost(
             vm_kind,
             ProtocolVersion::MAX,
             cache,
-            ProfileData::new(),
         );
         assert!(result.1.is_none());
     }

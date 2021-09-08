@@ -14,6 +14,7 @@ use crate::logging;
 use crate::merkle::MerklePath;
 use crate::serialize::{base64_format, u128_dec_format_compatible};
 use crate::types::{AccountId, Balance, Gas, Nonce};
+use near_primitives_core::profile::ProfileData;
 
 pub type LogEntry = String;
 
@@ -328,7 +329,7 @@ impl From<ExecutionStatus> for PartialExecutionStatus {
 }
 
 /// Execution outcome for one signed transaction or one receipt.
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Clone, Default, Eq)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Clone, smart_default::SmartDefault, Eq)]
 pub struct ExecutionOutcome {
     /// Logs from this transaction or receipt.
     pub logs: Vec<LogEntry>,
@@ -342,6 +343,7 @@ pub struct ExecutionOutcome {
     pub tokens_burnt: Balance,
     /// The id of the account on which the execution happens. For transaction this is signer_id,
     /// for receipt this is receiver_id.
+    #[default(AccountId::test_account())]
     pub executor_id: AccountId,
     /// Execution status. Contains the result in case of successful execution.
     /// NOTE: Should be the latest field since it contains unparsable by light client
@@ -351,15 +353,18 @@ pub struct ExecutionOutcome {
     pub metadata: ExecutionMetadata,
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Clone, Eq, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Clone, Eq, Debug)]
 pub enum ExecutionMetadata {
     // V1: Empty Metadata
-    ExecutionMetadataV1,
+    V1,
+
+    // V2: With ProfileData
+    V2(ProfileData),
 }
 
 impl Default for ExecutionMetadata {
     fn default() -> Self {
-        ExecutionMetadata::ExecutionMetadataV1
+        ExecutionMetadata::V1
     }
 }
 
@@ -383,7 +388,7 @@ impl fmt::Debug for ExecutionOutcome {
             .field("burnt_gas", &self.gas_burnt)
             .field("tokens_burnt", &self.tokens_burnt)
             .field("status", &self.status)
-            .field("meatdata", &self.metadata)
+            .field("metadata", &self.metadata)
             .finish()
     }
 }
@@ -444,12 +449,12 @@ mod tests {
 
     #[test]
     fn test_verify_transaction() {
-        let signer = InMemorySigner::from_random("test".to_string(), KeyType::ED25519);
+        let signer = InMemorySigner::from_random(AccountId::test_account(), KeyType::ED25519);
         let transaction = Transaction {
-            signer_id: "".to_string(),
+            signer_id: AccountId::test_account(),
             public_key: signer.public_key(),
             nonce: 0,
-            receiver_id: "".to_string(),
+            receiver_id: AccountId::test_account(),
             block_hash: Default::default(),
             actions: vec![],
         }
@@ -472,10 +477,10 @@ mod tests {
     fn test_serialize_transaction() {
         let public_key: PublicKey = "22skMptHjFWNyuEWY22ftn2AbLPSYpmYwGJRGwpNHbTV".parse().unwrap();
         let transaction = Transaction {
-            signer_id: "test.near".to_string(),
+            signer_id: "test.near".parse().unwrap(),
             public_key: public_key.clone(),
             nonce: 1,
-            receiver_id: "123".to_string(),
+            receiver_id: "123".parse().unwrap(),
             block_hash: Default::default(),
             actions: vec![
                 Action::CreateAccount(CreateAccountAction {}),
@@ -494,13 +499,15 @@ mod tests {
                         nonce: 0,
                         permission: AccessKeyPermission::FunctionCall(FunctionCallPermission {
                             allowance: None,
-                            receiver_id: "zzz".to_string(),
+                            receiver_id: "zzz".parse().unwrap(),
                             method_names: vec!["www".to_string()],
                         }),
                     },
                 }),
                 Action::DeleteKey(DeleteKeyAction { public_key }),
-                Action::DeleteAccount(DeleteAccountAction { beneficiary_id: "123".to_string() }),
+                Action::DeleteAccount(DeleteAccountAction {
+                    beneficiary_id: "123".parse().unwrap(),
+                }),
             ],
         };
         let signed_tx = SignedTransaction::new(Signature::empty(KeyType::ED25519), transaction);
@@ -521,8 +528,8 @@ mod tests {
             receipt_ids: vec![],
             gas_burnt: 123,
             tokens_burnt: 1234000,
-            executor_id: "alice".to_string(),
-            metadata: ExecutionMetadata::ExecutionMetadataV1,
+            executor_id: "alice".parse().unwrap(),
+            metadata: ExecutionMetadata::V1,
         };
         let hashes = outcome.to_hashes();
         assert_eq!(hashes.len(), 3);

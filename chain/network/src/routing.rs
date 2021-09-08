@@ -411,7 +411,7 @@ impl RoutingTable {
         // Add account to store
         let mut update = self.store.store_update();
         if let Err(e) = update
-            .set_ser(ColAccountAnnouncements, account_id.as_bytes(), &announce_account)
+            .set_ser(ColAccountAnnouncements, account_id.as_ref().as_bytes(), &announce_account)
             .and_then(|_| update.commit())
         {
             warn!(target: "network", "Error saving announce account to store: {:?}", e);
@@ -719,7 +719,7 @@ impl RoutingTable {
             Some(announce_account.clone())
         } else {
             self.store
-                .get_ser(ColAccountAnnouncements, account_id.as_bytes())
+                .get_ser(ColAccountAnnouncements, account_id.as_ref().as_bytes())
                 .and_then(|res: Option<AnnounceAccount>| {
                     if let Some(announce_account) = res {
                         self.add_account(announce_account.clone());
@@ -733,22 +733,6 @@ impl RoutingTable {
                     None
                 })
         }
-    }
-
-    #[cfg(feature = "metric_recorder")]
-    pub fn get_raw_graph(&self) -> HashMap<PeerId, HashSet<PeerId>> {
-        let mut res = HashMap::with_capacity(self.raw_graph.adjacency.len());
-        for (key, neighbors) in self.raw_graph.adjacency.iter().enumerate() {
-            if self.raw_graph.used[key] {
-                let key = self.raw_graph.id2p[key].clone();
-                let neighbors = neighbors
-                    .iter()
-                    .map(|&node| self.raw_graph.id2p[node as usize].clone())
-                    .collect::<HashSet<_>>();
-                res.insert(key, neighbors);
-            }
-        }
-        res
     }
 }
 

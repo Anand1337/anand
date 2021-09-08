@@ -71,7 +71,16 @@ pub fn validate_chunk_proofs(chunk: &ShardChunk, runtime_adapter: &dyn RuntimeAd
     if height_created == 0 {
         return receipts.len() == 0 && outgoing_receipts_root == CryptoHash::default();
     } else {
-        let outgoing_receipts_hashes = runtime_adapter.build_receipts_hashes(receipts);
+        let epoch_id = {
+            let prev_block_hash = match chunk {
+                ShardChunk::V1(chunk) => chunk.header.inner.prev_block_hash,
+                ShardChunk::V2(chunk) => chunk.header.prev_block_hash(),
+            };
+            runtime_adapter.get_epoch_id_from_prev_block(&prev_block_hash).unwrap()
+        };
+        let shard_layout = runtime_adapter.get_shard_layout(&epoch_id).unwrap();
+        let outgoing_receipts_hashes =
+            runtime_adapter.build_receipts_hashes(receipts, &shard_layout);
         let (receipts_root, _) = merklize(&outgoing_receipts_hashes);
         if receipts_root != outgoing_receipts_root {
             byzantine_assert!(false);
@@ -156,7 +165,11 @@ pub fn validate_chunk_with_chunk_extra(
         chunk_header.shard_id(),
         prev_chunk_header.height_included(),
     )?;
-    let outgoing_receipts_hashes = runtime_adapter.build_receipts_hashes(&receipt_response.1);
+    let outgoing_receipts_hashes = {
+        let epoch_id = runtime_adapter.get_epoch_id_from_prev_block(prev_block_hash)?;
+        let shard_layout = runtime_adapter.get_shard_layout(&epoch_id)?;
+        runtime_adapter.build_receipts_hashes(&receipt_response.1, &shard_layout)
+    };
     let (outgoing_receipts_root, _) = merklize(&outgoing_receipts_hashes);
 
     if outgoing_receipts_root != chunk_header.outgoing_receipts_root() {
@@ -402,11 +415,12 @@ mod tests {
     use super::*;
 
     fn make_tx(account_id: &str, seed: &str, nonce: Nonce) -> SignedTransaction {
-        let signer = InMemorySigner::from_seed(account_id, KeyType::ED25519, seed);
+        let account_id: AccountId = account_id.parse().unwrap();
+        let signer = InMemorySigner::from_seed(account_id.clone(), KeyType::ED25519, seed);
         SignedTransaction::send_money(
             nonce,
-            account_id.to_string(),
-            "bob".to_string(),
+            account_id,
+            "bob".parse().unwrap(),
             &signer,
             10,
             CryptoHash::default(),
@@ -421,20 +435,20 @@ mod tests {
 
     #[test]
     pub fn test_transaction_order_one_tx() {
-        let transactions = vec![make_tx("A", "a", 1)];
+        let transactions = vec![make_tx("test_a", "test_A", 1)];
         assert!(validate_transactions_order(&transactions));
     }
 
     #[test]
     pub fn test_transaction_order_simple() {
         let transactions = vec![
-            make_tx("A", "a", 1),
-            make_tx("B", "a", 3),
-            make_tx("A", "b", 4),
-            make_tx("C", "a", 2),
-            make_tx("B", "a", 6), // 2nd batch
-            make_tx("C", "a", 5),
-            make_tx("C", "a", 6), // 3rd batch
+            make_tx("test_a", "test_A", 1),
+            make_tx("test_b", "test_A", 3),
+            make_tx("test_a", "test_B", 4),
+            make_tx("test_c", "test_A", 2),
+            make_tx("test_b", "test_A", 6), // 2nd batch
+            make_tx("test_c", "test_A", 5),
+            make_tx("test_c", "test_A", 6), // 3rd batch
         ];
         assert!(validate_transactions_order(&transactions));
     }
@@ -442,28 +456,28 @@ mod tests {
     #[test]
     pub fn test_transaction_order_bad_nonce() {
         let transactions = vec![
-            make_tx("A", "a", 2),
-            make_tx("B", "a", 3),
-            make_tx("C", "a", 2),
-            make_tx("A", "a", 1), // 2nd batch, nonce 1 < 2
-            make_tx("C", "a", 6),
+            make_tx("test_a", "test_A", 2),
+            make_tx("test_b", "test_A", 3),
+            make_tx("test_c", "test_A", 2),
+            make_tx("test_a", "test_A", 1), // 2nd batch, nonce 1 < 2
+            make_tx("test_c", "test_A", 6),
         ];
         assert!(!validate_transactions_order(&transactions));
     }
 
     #[test]
     pub fn test_transaction_order_same_tx() {
-        let transactions = vec![make_tx("A", "a", 1), make_tx("A", "a", 1)];
+        let transactions = vec![make_tx("test_a", "test_A", 1), make_tx("test_a", "test_A", 1)];
         assert!(!validate_transactions_order(&transactions));
     }
 
     #[test]
     pub fn test_transaction_order_skipped_in_first_batch() {
         let transactions = vec![
-            make_tx("A", "a", 2),
-            make_tx("C", "a", 2),
-            make_tx("A", "a", 4), // 2nd batch starts
-            make_tx("B", "a", 6), // Missing in the first batch
+            make_tx("test_a", "test_A", 2),
+            make_tx("test_c", "test_A", 2),
+            make_tx("test_a", "test_A", 4), // 2nd batch starts
+            make_tx("test_b", "test_A", 6), // Missing in the first batch
         ];
         assert!(!validate_transactions_order(&transactions));
     }
@@ -471,11 +485,11 @@ mod tests {
     #[test]
     pub fn test_transaction_order_skipped_in_2nd_batch() {
         let transactions = vec![
-            make_tx("A", "a", 2),
-            make_tx("C", "a", 2),
-            make_tx("A", "a", 4), // 2nd batch starts
-            make_tx("A", "a", 6), // 3rd batch starts
-            make_tx("C", "a", 6), // Not in the 2nd batch
+            make_tx("test_a", "test_A", 2),
+            make_tx("test_c", "test_A", 2),
+            make_tx("test_a", "test_A", 4), // 2nd batch starts
+            make_tx("test_a", "test_A", 6), // 3rd batch starts
+            make_tx("test_c", "test_A", 6), // Not in the 2nd batch
         ];
         assert!(!validate_transactions_order(&transactions));
     }

@@ -6,12 +6,10 @@ mod test {
     use std::time::Duration;
 
     use crate::*;
+    use integration_tests::node::{create_nodes_from_seeds, Node, NodeConfig, ThreadNode};
+    use integration_tests::test_helpers::heavy_test;
     use near_logger_utils::init_test_module_logger;
-    use testlib::node::{create_nodes_from_seeds, Node, NodeConfig, ThreadNode};
     use testlib::runtime_utils::alice_account;
-    #[cfg(feature = "protocol_feature_evm")]
-    use testlib::standard_evm_cases::*;
-    use testlib::test_helpers::heavy_test;
 
     fn create_thread_nodes_rpc() -> Vec<ThreadNode> {
         init_test_module_logger("runtime");
@@ -134,11 +132,6 @@ mod test {
     }
 
     #[test]
-    fn test_create_account_failure_invalid_name_testnet() {
-        run_testnet_test!(test_create_account_failure_invalid_name);
-    }
-
-    #[test]
     fn test_create_account_failure_already_exists_testnet() {
         run_testnet_test!(test_create_account_failure_already_exists);
     }
@@ -196,29 +189,5 @@ mod test {
     #[test]
     fn test_access_key_smart_contract_testnet() {
         run_testnet_test!(test_access_key_smart_contract);
-    }
-
-    #[cfg(feature = "protocol_feature_evm")]
-    #[test]
-    fn test_evm_deploy_call_testnet() {
-        run_testnet_test!(test_evm_deploy_call);
-    }
-
-    #[cfg(feature = "protocol_feature_evm")]
-    #[test]
-    fn test_evm_fibonacci_gas_limit_testnet() {
-        run_testnet_test!(test_evm_fibonacci_gas_limit);
-    }
-
-    #[cfg(feature = "protocol_feature_evm")]
-    #[test]
-    fn test_evm_fibonacci_16_testnet() {
-        run_testnet_test!(test_evm_fibonacci_16);
-    }
-
-    #[cfg(feature = "protocol_feature_evm")]
-    #[test]
-    fn test_evm_infinite_loop_gas_limit_testnet() {
-        run_testnet_test!(test_evm_infinite_loop_gas_limit);
     }
 }
