@@ -26,7 +26,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let mut xs = vec![];
     let mut ys = vec![];
     // for method_count in vec![5, 20, 30, 50, 100, 200, 1000] {
-    for method_count in vec![4500, 2000, 6000, 1000] {
+    for method_count in vec![5, 100, 4500] {
         let contract = make_many_methods_contract(method_count);
         println!("LEN = {}", contract.get_code().len());
         let cost = compute_function_call_cost(metric, vm_kind, REPEATS, &contract, "hello0", None);
@@ -77,7 +77,7 @@ fn measure_function_call_1s(vm_kind: VMKind) {
     let fees = RuntimeFeesConfig::default();
     let promise_results = vec![];
     let gas_metric = GasMetric::Time;
-    precompile_contract(&contract, &vm_config, cache);
+    // precompile_contract(&contract, &vm_config, cache);
 
     let start = start_count(gas_metric);
     let mut i = 0;
@@ -123,8 +123,8 @@ fn test_function_call_time() {
     // cargo test --release --lib function_call::test_function_call_time
     //    --features required  -- --exact --nocapture
     test_function_call(GasMetric::Time, VMKind::Wasmer0);
-    test_function_call(GasMetric::Time, VMKind::Wasmer1);
-    test_function_call(GasMetric::Time, VMKind::Wasmtime);
+    // test_function_call(GasMetric::Time, VMKind::Wasmer1);
+    // test_function_call(GasMetric::Time, VMKind::Wasmtime);
 }
 
 #[test]
@@ -249,7 +249,7 @@ pub fn compute_function_call_cost(
     let fake_context = create_context(vec![]);
     let fees = RuntimeFeesConfig::default();
     let promise_results = vec![];
-    precompile_contract(&contract, &vm_config, cache);
+    // precompile_contract(&contract, &vm_config, cache);
 
     match init_args {
         Some(args) => {

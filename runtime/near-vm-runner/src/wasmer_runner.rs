@@ -246,6 +246,27 @@ pub fn run_wasmer<'a>(
         Ok(x) => x,
         Err(err) => return (None, Some(err)),
     };
+    let module_info = module.info();
+    println!("-------");
+    println!("{}", module_info.memories.len());
+    println!("{}", module_info.globals.len());
+    println!("{}", module_info.tables.len());
+    println!("{}", module_info.imported_functions.len());
+    println!("{}", module_info.imported_memories.len());
+    println!("{}", module_info.imported_tables.len());
+    println!("{}", module_info.imported_globals.len());
+    println!("{}", module_info.exports.map.len());
+    println!("{}", module_info.data_initializers.len());
+    println!("{}", module_info.elem_initializers.len());
+    println!("{}", module_info.func_assoc.len());
+    println!("{}", module_info.signatures.len());
+    println!("{}", module_info.backend.len());
+    println!("{}", module_info.namespace_table.len());
+    println!("{}", module_info.name_table.len());
+    println!("{}", module_info.em_symbol_map.unwrap_or_default().len());
+    println!("{}", module_info.custom_sections.len());
+    println!("-------");
+
     let mut memory = WasmerMemory::new(
         wasm_config.limit_config.initial_memory_pages,
         wasm_config.limit_config.max_memory_pages,

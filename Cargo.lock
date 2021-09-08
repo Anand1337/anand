@@ -4410,6 +4410,7 @@ dependencies = [
  "libc",
  "near-chain-configs",
  "near-crypto",
+ "near-logger-utils",
  "near-primitives",
  "near-store",
  "near-test-contracts",
