@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-mod cache;
+pub mod cache;
 mod errors;
 mod imports;
 #[cfg(feature = "wasmer0_vm")]

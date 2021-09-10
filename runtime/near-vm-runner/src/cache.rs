@@ -148,11 +148,15 @@ pub mod wasmer0_cache {
     }
 
     fn _deserialize_compiler_for_backend() -> Box<dyn Compiler> {
-        let _span = tracing::debug_span!(target: "vm", "_deserialize_compiler_for_backend").entered();
+        let _span =
+            tracing::debug_span!(target: "vm", "_deserialize_compiler_for_backend").entered();
         compiler_for_backend(Backend::Singlepass).unwrap()
     }
 
-    unsafe fn _deserialize_load_cache_with(artifact: Artifact, compiler: &dyn Compiler) -> Result<Result<wasmer_runtime::Module, VMError>, CacheError> {
+    unsafe fn _deserialize_load_cache_with(
+        artifact: Artifact,
+        compiler: &dyn Compiler,
+    ) -> Result<Result<wasmer_runtime::Module, VMError>, CacheError> {
         let _span = tracing::debug_span!(target: "vm", "_deserialize_load_cache_with").entered();
         match load_cache_with(artifact, compiler) {
             Ok(module) => Ok(Ok(module)),
@@ -199,7 +203,7 @@ pub mod wasmer0_cache {
                 None => {
                     eprintln!("compile_and_serialize_wasmer");
                     compile_and_serialize_wasmer(wasm_code, config, &key, cache)
-                },
+                }
             },
             Err(_) => Err(VMError::CacheError(ReadError)),
         }
@@ -222,7 +226,7 @@ pub mod wasmer0_cache {
         }
     }
 
-    pub(crate) fn compile_module_cached_wasmer0(
+    pub fn compile_module_cached_wasmer0(
         code: &ContractCode,
         config: &VMConfig,
         cache: Option<&dyn CompiledContractCache>,
