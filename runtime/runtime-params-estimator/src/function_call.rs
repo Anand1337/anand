@@ -59,6 +59,9 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             None,
             args.clone(),
         );
+        let module_info = module.info();
+        let funcs = module_info.func_assoc.len();
+
         println!(
             "{:?} {:?} {} {} {} {}",
             vm_kind,
@@ -74,8 +77,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             None,
         )
         .unwrap();
-        let module_info = module.info();
-        let funcs = module_info.func_assoc.len();
+
         // args_len_xs.push(args.len() as u64);
         // code_len_xs.push(contract.code().len() as u64);
         // funcs_xs.push(funcs as u64);
