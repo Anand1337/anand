@@ -70,10 +70,10 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 
     // let x = Matrix<u64, 1, 1>::identity();
     let data = MatrixXx4::from_columns(&[
-        RowVector::from_vec(args_len_xs),
-        RowVector::from_vec(code_len_xs),
-        RowVector::from_vec(funcs_xs),
-        RowVector::from_vec(ys),
+        RowVector::<u64>::from_vec(args_len_xs),
+        RowVector::<u64>::from_vec(code_len_xs),
+        RowVector::<u64>::from_vec(funcs_xs),
+        RowVector::<u64>::from_vec(ys),
     ]);
     let xs = data.columns(0, 4).into_owned();
     let ys = data.column(4).into_owned();
