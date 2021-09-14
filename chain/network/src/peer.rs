@@ -193,9 +193,12 @@ pub struct Peer {
     peer_counter: Arc<AtomicUsize>,
     /// The last time a Epoch Sync request was received from this peer
     last_time_received_epoch_sync_request: Instant,
+    /// The last time a partial encoded chunk request was received from this peer
+    last_time_received_pec_request: Instant,
 }
 
 impl Peer {
+    const MIN_PEC_REQUEST_DELAY: Duration = Duration::from_millis(50);
     pub fn new(
         node_info: PeerInfo,
         peer_addr: SocketAddr,
@@ -233,6 +236,7 @@ impl Peer {
             peer_counter,
             last_time_received_epoch_sync_request: Instant::now()
                 - Duration::from_millis(EPOCH_SYNC_PEER_TIMEOUT_MS),
+            last_time_received_pec_request: Instant::now(),
         }
     }
 
@@ -529,6 +533,13 @@ impl Peer {
                         NetworkClientMessages::StateResponse(info)
                     }
                     RoutedMessageBody::PartialEncodedChunkRequest(request) => {
+                        let now = Instant::now();
+                        if now - self.last_time_received_pec_request <= Self::MIN_PEC_REQUEST_DELAY {
+                            debug!(target: "network", "received partial encoded chunk request for {:?} from {} less than 50ms ago", request.chunk_hash, self.node_info.id);
+                            return;
+                        } else {
+                            self.last_time_received_pec_request = now;
+                        }
                         NetworkClientMessages::PartialEncodedChunkRequest(request, msg_hash)
                     }
                     RoutedMessageBody::PartialEncodedChunkResponse(response) => {
