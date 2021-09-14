@@ -1,6 +1,6 @@
 use crate::cases::ratio_to_gas_signed;
 use crate::testbed_runners::{end_count, start_count, Consumed, GasMetric};
-use crate::vm_estimator::{create_context, least_squares_method};
+use crate::vm_estimator::{create_context, least_squares_method_2, least_squares_method};
 use near_logger_utils::init_test_logger;
 use near_primitives::config::VMConfig;
 use near_primitives::contract::ContractCode;
@@ -24,13 +24,22 @@ const REPEATS: u64 = 50;
 
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
-    let mut xs = vec![];
+    let mut xs: &[mut Vec<u64>; 3] = &[vec![], vec![], vec![]];
     let mut ys = vec![];
     for method_count in vec![5, 20, 30, 50, 100, 200] {
         // for method_count in vec![5, 100, 4500] {
         let contract = make_many_methods_contract(method_count);
+        let args = vec![];
         println!("LEN = {}", contract.code().len());
-        let cost = compute_function_call_cost(metric, vm_kind, REPEATS, &contract, "hello0", None);
+        let cost = compute_function_call_cost(
+            metric,
+            vm_kind,
+            REPEATS,
+            &contract,
+            "hello0",
+            None,
+            args.clone(),
+        );
         println!(
             "{:?} {:?} {} {} {}",
             vm_kind,
@@ -47,8 +56,9 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         .unwrap();
         let module_info = module.info();
         let funcs = module_info.func_assoc.len();
-        // xs.push(contract.code().len() as u64);
-        xs.push(funcs as u64);
+        xs[0].push(args.len() as u64);
+        xs[1].push(contract.code().len() as u64);
+        xs[2].push(funcs as u64);
         ys.push(cost / REPEATS);
     }
 
@@ -57,7 +67,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         return;
     }
 
-    let (cost_base, cost_byte, _) = least_squares_method(&xs, &ys);
+    // let (cost_base, cost_byte, _) = least_squares_method_2(&xs, &ys);
+    let (cost_base, cost_byte, _) = least_squares_method(&xs[1], &ys);
 
     println!(
         "{:?} {:?} function call base {} gas, per byte {} gas",
@@ -249,6 +260,7 @@ pub fn compute_function_call_cost(
     contract: &ContractCode,
     method_name: &str,
     init_args: Option<Vec<u8>>,
+    args: Vec<u8>,
 ) -> u64 {
     let workdir = tempfile::Builder::new().prefix("runtime_testbed").tempdir().unwrap();
     let store = create_store(&get_store_path(workdir.path()));
@@ -256,7 +268,7 @@ pub fn compute_function_call_cost(
     let cache: Option<&dyn CompiledContractCache> = Some(cache_store.as_ref());
     let vm_config = VMConfig::default();
     let mut fake_external = MockedExternal::new();
-    let fake_context = create_context(vec![]);
+    let fake_context = create_context(args);
     let fees = RuntimeFeesConfig::default();
     let promise_results = vec![];
     // precompile_contract(&contract, &vm_config, cache);
