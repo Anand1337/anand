@@ -27,7 +27,8 @@ const REPEATS: u64 = 50;
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let (mut args_len_xs, mut code_len_xs, mut funcs_xs) = (vec![], vec![], vec![]);
     let mut ys = vec![];
-    for method_count in vec![5, 20, 30, 50, 100, 200] {
+    for method_count in vec![5, 10] {
+        // for method_count in vec![5, 20, 30, 50, 100, 200] {
         // for method_count in vec![5, 100, 4500] {
         let contract = make_many_methods_contract(method_count);
         let args = vec![];
