@@ -1,6 +1,7 @@
 use crate::cases::ratio_to_gas_signed;
 use crate::testbed_runners::{end_count, start_count, Consumed, GasMetric};
 use crate::vm_estimator::{create_context, least_squares_method, least_squares_method_2};
+use nalgebra::{Matrix3, RowVector};
 use near_logger_utils::init_test_logger;
 use near_primitives::config::VMConfig;
 use near_primitives::contract::ContractCode;
@@ -67,8 +68,13 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         return;
     }
 
-    // let (cost_base, cost_byte, _) = least_squares_method_2(&xs, &ys);
-    let (cost_base, cost_byte, _) = least_squares_method(&funcs_xs, &ys);
+    let xs = Matrix3::from_rows(&[
+        RowVector::from_vec(args_len_xs),
+        RowVector::from_vec(code_len_xs),
+        RowVector::from_vec(funcs_xs),
+    ]);
+    let (cost_base, cost_byte, _) = least_squares_method_2(&xs, &RowVector::from_vec(ys));
+    // let (cost_base, cost_byte, _) = least_squares_method(&funcs_xs, &ys);
 
     println!(
         "{:?} {:?} function call base {} gas, per byte {} gas",

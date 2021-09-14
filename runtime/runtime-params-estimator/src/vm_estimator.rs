@@ -20,8 +20,8 @@ use walrus::{Module, Result};
 // use nalgebra::{Matrix3, DVector, Scalar};
 // use nalgebra::Matrix3;
 // use nalgebra::OMatrix;
-use nalgebra as na;
-use nalgebra::{Matrix3, RowVector3};
+// use nalgebra as na;
+use nalgebra::{Matrix, Matrix3, RowVector, Vector};
 use smartcore::model_selection::train_test_split;
 
 const CURRENT_ACCOUNT_ID: &str = "alice";
@@ -204,16 +204,18 @@ pub(crate) fn least_squares_method(
     (a, b, errs)
 }
 
-pub(crate) fn least_squares_method_2(xs: &[Vec<u64>; 3], ys: &Vec<u64>) {
+pub(crate) fn least_squares_method_2(xs: &Matrix3<u64>, ys: &Vector<u64>) {
     // nalgebra::DMatrix::from_data()
     // let x = Matrix3::from_rows();
     // OMatrix::from_rows()
     // na::Matrix3::from_rows();
-    let m = Matrix3::from_rows(&[
-        RowVector3::new(1.0, 2.0, 3.0),
-        RowVector3::new(4.0, 5.0, 6.0),
-        RowVector3::new(7.0, 8.0, 9.0),
-    ]);
+    // let m = Matrix3::from_rows(&[
+    //     RowVector::from_vec((1.0, 2.0, 3.0),
+    //     RowVector::new(4.0, 5.0, 6.0),
+    //     RowVector::new(7.0, 8.0, 9.0),
+    // ]);
+    println!(xs.shape());
+    println!(ys.shape());
     // xs.into_iter().flatten().collect();
     // let (x_train, x_test, y_train, y_test) = train_test_split(&x, &y.transpose(), 0.2, true);
 }
