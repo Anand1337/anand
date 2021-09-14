@@ -29,9 +29,6 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let mut ys = vec![];
     let mut rows = 0;
     let mut data = Vec::new();
-    //
-    for method_count in vec![5, 10, 20, 30] {
-        for body_repeat in vec![1, 10, 100]
     for (method_count, body_repeat) in vec![
         (5, 1),
         (5, 10),
@@ -44,7 +41,9 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         (200, 10),
         (1000, 1),
         (2000, 1),
-    ] {
+    ]
+    .iter()
+    {
         // for method_count in vec![5, 20, 30, 50, 100, 200] {
         // for method_count in vec![5, 100, 4500] {
         let contract = make_many_methods_contract(method_count, body_repeat);
