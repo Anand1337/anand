@@ -207,17 +207,18 @@ pub(crate) fn least_squares_method(
 pub(crate) fn least_squares_method_2(
     xs: &DMatrix<f64>,
     ys: &DVector<f64>,
+    cols: usize,
 ) -> (Ratio<i128>, Ratio<i128>, Vec<i128>) {
     println!("{:?}", xs.shape());
     println!("{:?}", ys.shape());
     // xs.into_iter().flatten().collect();
     let x_train = xs;
     let y_train = ys.transpose();
-    let a = x_train.clone().insert_column(3, 1.0).into_owned();
+    let a = x_train.clone().insert_column(cols - 1, 1.0).into_owned();
     let b = y_train.clone().transpose();
     let x = (a.transpose() * &a).try_inverse().unwrap() * &a.transpose() * &b;
-    let coeff = x.rows(0, 13);
-    let intercept = x[(13, 0)];
+    let coeff = x.rows(0, cols);
+    let intercept = x[(cols, 0)];
     println!("coeff: {}, intercept: {}", coeff, intercept);
     // let (x_train, x_test, y_train, y_test) = train_test_split(&x, &y.transpose(), 0.2, true);
     (Ratio::new(0, 1), Ratio::new(0, 1), vec![])

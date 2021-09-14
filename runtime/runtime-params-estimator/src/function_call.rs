@@ -65,8 +65,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         // funcs_xs.push(funcs as u64);
         // ys.push(cost / REPEATS);
 
-        data.push(args.len() as f64);
-        data.push(contract.code().len() as f64);
+        // data.push(args.len() as f64);
+        // data.push(contract.code().len() as f64);
         data.push(funcs as f64);
         data.push((cost / REPEATS) as f64);
 
@@ -78,12 +78,13 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         return;
     }
 
-    let m: DMatrix<f64> = DMatrix::from_row_slice(rows, 4, &data);
+    let COLS = 2;
+    let m: DMatrix<f64> = DMatrix::from_row_slice(rows, COLS, &data);
 
     println!("{:?}", m.shape());
-    let xs = m.columns(0, 3).into_owned();
-    let ys = m.column(3).into_owned();
-    let (cost_base, cost_byte, _) = least_squares_method_2(&xs, &ys);
+    let xs = m.columns(0, COLS - 1).into_owned();
+    let ys = m.column(COLS - 1).into_owned();
+    let (cost_base, cost_byte, _) = least_squares_method_2(&xs, &ys, COLS);
     // let (cost_base, cost_byte, _) = least_squares_method(&funcs_xs, &ys);
 
     println!(
