@@ -207,11 +207,11 @@ pub(crate) fn least_squares_method(
     (a, b, errs)
 }
 
-pub(crate) fn least_squares_method_2(
+pub(crate) fn least_squares_method_2<S>(
     xs: &DMatrix<f64>,
     ys: &DVector<f64>,
     cols: usize,
-) -> (SMatrix<f64, Const<1_usize>, Dynamic>, f64) {
+) -> (RowVector<f64, cols, S>, f64) {
     let x_train = xs;
     let y_train = ys.transpose();
     let a = x_train.clone().insert_column(cols - 1, 1.0).into_owned();
