@@ -263,8 +263,8 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
     let mut methods = String::new();
     for i in 0..method_count {
         let mut body = String::new();
-        write!(&mut body, "i32.const {i} drop ", i = i,).unwrap();
-        if i != 0 {
+        write!(&mut body, "i32.const {i} drop ", i = i).unwrap();
+        if i > 0 || method_count == 1 {
             body = body.repeat(body_repeat);
         };
         write!(
