@@ -23,7 +23,7 @@ use walrus::{Module, Result};
 // use nalgebra as na;
 use nalgebra::{
     Const, DMatrix, DVector, Dynamic, Matrix, Matrix3, MatrixSlice, MatrixXx1, MatrixXx3,
-    RowVector, SMatrix, Vector,
+    RowVector, SMatrix, SliceStorage, Vector,
 };
 use smartcore::model_selection::train_test_split;
 
@@ -211,14 +211,14 @@ pub(crate) fn least_squares_method_2(
     xs: &DMatrix<f64>,
     ys: &DVector<f64>,
     cols: usize,
-) -> (MatrixSlice<f64, Dynamic, Dynamic>, f64) {
+) -> (Vec<f64>, f64) {
     let x_train = xs;
     let y_train = ys.transpose();
     let a = x_train.clone().insert_column(cols - 1, 1.0).into_owned();
     let b = y_train.clone().transpose();
     let x = (a.transpose() * &a).try_inverse().unwrap() * &a.transpose() * &b;
-    let coeff = x.columns(0, cols - 1);
-    println!("{:?}", coeff.shape());
+    let coeff = x.columns(0, cols - 1).iter().collect();
+    println!("{:?}", coeff.len());
     let intercept = x[(cols - 1, 0)];
     (coeff, intercept)
 }
