@@ -211,9 +211,9 @@ pub(crate) fn least_squares_method_2(
     println!("{:?}", xs.shape());
     println!("{:?}", ys.shape());
     // xs.into_iter().flatten().collect();
-    let x_train = x;
-    let y_train = y.transpose();
-    let a = x_train.clone().insert_column(13, 1.0).into_owned();
+    let x_train = xs;
+    let y_train = ys.transpose();
+    let a = x_train.clone().insert_column(3, 1).into_owned();
     let b = y_train.clone().transpose();
     let x = (a.transpose() * &a).try_inverse().unwrap() * &a.transpose() * &b;
     let coeff = x.rows(0, 13);
