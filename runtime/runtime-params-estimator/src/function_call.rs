@@ -21,7 +21,7 @@ use num_rational::Ratio;
 use std::fmt::Write;
 use std::sync::Arc;
 
-const REPEATS: u64 = 2; //50;
+const REPEATS: u64 = 50;
 
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
@@ -122,7 +122,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             gas += gas_coeff[j] * (xs[(i, j)] as i64);
         }
         let real_gas = ratio_to_gas_signed(metric, Ratio::new(ys[i] as i128, 1));
-        println!("est = {}, real = {} | coeff = {}", gas, real_gas, xs.row(i));
+        println!("est = {}, real = {} | xs = {}", gas, real_gas, xs.row(i));
     }
 
     // let (cost_base, cost_byte, _) = least_squares_method(&funcs_xs, &ys);
