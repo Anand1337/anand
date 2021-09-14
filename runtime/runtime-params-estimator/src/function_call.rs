@@ -80,11 +80,17 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     println!("{:?}", x.shape());
     // let x = Matrix<u64, 1, 1>::identity();
     let data = MatrixXx4::from_columns(&[
-        DVector::<u64>::from_vec(args_len_xs),
-        DVector::<u64>::from_vec(code_len_xs),
-        DVector::<u64>::from_vec(funcs_xs),
-        DVector::<u64>::from_vec(ys),
+        Vector2::new(1.1, 2.1),
+        Vector2::new(1.2, 2.2),
+        Vector2::new(1.3, 2.3),
+        Vector2::new(1.1, 2.1),
     ]);
+    // let data = MatrixXx4::from_columns(&[
+    //     DVector::<u64>::from_vec(args_len_xs),
+    //     DVector::<u64>::from_vec(code_len_xs),
+    //     DVector::<u64>::from_vec(funcs_xs),
+    //     DVector::<u64>::from_vec(ys),
+    // ]);
     let xs = data.columns(0, 4).into_owned();
     let ys = data.column(4).into_owned();
     let (cost_base, cost_byte, _) = least_squares_method_2(&xs, &ys);
