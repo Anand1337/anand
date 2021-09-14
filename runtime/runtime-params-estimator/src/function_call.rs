@@ -43,6 +43,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         (2000, 1),
     ]
     .iter()
+    .cloned()
     {
         // for method_count in vec![5, 20, 30, 50, 100, 200] {
         // for method_count in vec![5, 100, 4500] {
