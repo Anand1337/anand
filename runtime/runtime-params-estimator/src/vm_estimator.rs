@@ -217,8 +217,8 @@ pub(crate) fn least_squares_method_2(
     let a = x_train.clone().insert_column(cols - 1, 1.0).into_owned();
     let b = y_train.clone().transpose();
     let x = (a.transpose() * &a).try_inverse().unwrap() * &a.transpose() * &b;
-    let coeff = x.rows(0, cols);
-    let intercept = x[(cols, 0)];
+    let coeff = x.rows(0, cols - 1);
+    let intercept = x[(cols - 1, 0)];
     println!("coeff: {}, intercept: {}", coeff, intercept);
     // let (x_train, x_test, y_train, y_test) = train_test_split(&x, &y.transpose(), 0.2, true);
     (Ratio::new(0, 1), Ratio::new(0, 1), vec![])
