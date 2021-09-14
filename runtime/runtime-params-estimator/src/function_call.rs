@@ -69,6 +69,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         data.push(contract.code().len() as u64);
         data.push(funcs as u64);
         data.push(cost / REPEATS);
+
+        rows += 1;
     }
 
     // Regression analysis only makes sense for additive metrics.
