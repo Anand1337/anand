@@ -68,7 +68,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     }
 
     // let (cost_base, cost_byte, _) = least_squares_method_2(&xs, &ys);
-    let (cost_base, cost_byte, _) = least_squares_method(&xs[1], &ys);
+    let (cost_base, cost_byte, _) = least_squares_method(&funcs_xs, &ys);
 
     println!(
         "{:?} {:?} function call base {} gas, per byte {} gas",
