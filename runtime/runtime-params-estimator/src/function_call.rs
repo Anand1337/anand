@@ -1,7 +1,7 @@
 use crate::cases::ratio_to_gas_signed;
 use crate::testbed_runners::{end_count, start_count, Consumed, GasMetric};
 use crate::vm_estimator::{create_context, least_squares_method, least_squares_method_2};
-use nalgebra::{Matrix, MatrixXx4, RowVector};
+use nalgebra::{DVector, Matrix, MatrixXx4, RowVector, Vector};
 use near_logger_utils::init_test_logger;
 use near_primitives::config::VMConfig;
 use near_primitives::contract::ContractCode;
@@ -70,10 +70,10 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 
     // let x = Matrix<u64, 1, 1>::identity();
     let data = MatrixXx4::from_columns(&[
-        Vector::<u64>::from_vec(args_len_xs),
-        Vector::<u64>::from_vec(code_len_xs),
-        Vector::<u64>::from_vec(funcs_xs),
-        Vector::<u64>::from_vec(ys),
+        DVector::<u64>::from_vec(args_len_xs),
+        DVector::<u64>::from_vec(code_len_xs),
+        DVector::<u64>::from_vec(funcs_xs),
+        DVector::<u64>::from_vec(ys),
     ]);
     let xs = data.columns(0, 4).into_owned();
     let ys = data.column(4).into_owned();
