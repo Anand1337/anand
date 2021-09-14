@@ -30,6 +30,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let mut rows = 0;
     let mut data = Vec::new();
     for (method_count, body_repeat) in vec![
+        (1, 100),
+        (1, 10000),
         (5, 1),
         (5, 10),
         (5, 100),
@@ -41,6 +43,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         (200, 10),
         (1000, 1),
         (2000, 1),
+        (5000, 1),
     ]
     .iter()
     .cloned()
