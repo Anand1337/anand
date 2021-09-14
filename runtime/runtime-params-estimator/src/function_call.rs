@@ -25,8 +25,8 @@ const REPEATS: u64 = 2; //50;
 
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
-    let (mut args_len_xs, mut code_len_xs, mut funcs_xs) = (vec![], vec![], vec![]);
-    let mut ys = vec![];
+    // let (mut args_len_xs, mut code_len_xs, mut funcs_xs) = (vec![], vec![], vec![]);
+    // let mut ys = vec![];
     let mut rows = 0;
     let mut data = Vec::new();
     for method_count in vec![5, 10, 20, 30] {
