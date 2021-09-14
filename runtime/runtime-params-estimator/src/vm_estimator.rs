@@ -208,18 +208,17 @@ pub(crate) fn least_squares_method_2(
     xs: &DMatrix<u64>,
     ys: &DVector<u64>,
 ) -> (Ratio<i128>, Ratio<i128>, Vec<i128>) {
-    // nalgebra::DMatrix::from_data()
-    // let x = Matrix3::from_rows();
-    // OMatrix::from_rows()
-    // na::Matrix3::from_rows();
-    // let m = Matrix3::from_rows(&[
-    //     RowVector::from_vec((1.0, 2.0, 3.0),
-    //     RowVector::new(4.0, 5.0, 6.0),
-    //     RowVector::new(7.0, 8.0, 9.0),
-    // ]);
     println!("{:?}", xs.shape());
     println!("{:?}", ys.shape());
     // xs.into_iter().flatten().collect();
+    let x_train = x;
+    let y_train = y.transpose();
+    let a = x_train.clone().insert_column(13, 1.0).into_owned();
+    let b = y_train.clone().transpose();
+    let x = (a.transpose() * &a).try_inverse().unwrap() * &a.transpose() * &b;
+    let coeff = x.rows(0, 13);
+    let intercept = x[(13, 0)];
+    println!("coeff: {}, intercept: {}", coeff, intercept);
     // let (x_train, x_test, y_train, y_test) = train_test_split(&x, &y.transpose(), 0.2, true);
     (Ratio::new(0, 1), Ratio::new(0, 1), vec![])
 }

@@ -29,7 +29,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let mut ys = vec![];
     let mut rows = 0;
     let mut data = Vec::new();
-    for method_count in vec![5, 10] {
+    for method_count in vec![5, 10, 20, 30] {
         // for method_count in vec![5, 20, 30, 50, 100, 200] {
         // for method_count in vec![5, 100, 4500] {
         let contract = make_many_methods_contract(method_count);
@@ -60,10 +60,10 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         .unwrap();
         let module_info = module.info();
         let funcs = module_info.func_assoc.len();
-        args_len_xs.push(args.len() as u64);
-        code_len_xs.push(contract.code().len() as u64);
-        funcs_xs.push(funcs as u64);
-        ys.push(cost / REPEATS);
+        // args_len_xs.push(args.len() as u64);
+        // code_len_xs.push(contract.code().len() as u64);
+        // funcs_xs.push(funcs as u64);
+        // ys.push(cost / REPEATS);
 
         data.push(args.len() as u64);
         data.push(contract.code().len() as u64);
@@ -79,28 +79,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     }
 
     let m: DMatrix<u64> = DMatrix::from_row_slice(rows, 4, &data);
-    // let m2 = Matrix2x3::from_columns(&[
-    //     Vector2::new(1.1, 2.1),
-    //     Vector2::new(1.2, 2.2),
-    //     Vector2::new(1.3, 2.3),
-    // ]);
-    println!("{:?}", m.shape());
 
-    // let x = DVector::<u64>::from_vec(args_len_xs.clone());
-    // println!("{:?}", x.shape());
-    // let x = Matrix<u64, 1, 1>::identity();
-    // let data = MatrixXx4::from_columns(&[
-    //     DVector::new(1.1, 2.1),
-    //     Vector2::new(1.2, 2.2),
-    //     Vector2::new(1.3, 2.3),
-    //     Vector2::new(1.1, 2.1),
-    // ]);
-    // let data = MatrixXx4::from_columns(&[
-    //     DVector::<u64>::from_vec(args_len_xs),
-    //     DVector::<u64>::from_vec(code_len_xs),
-    //     DVector::<u64>::from_vec(funcs_xs),
-    //     DVector::<u64>::from_vec(ys),
-    // ]);
+    println!("{:?}", m.shape());
     let xs = m.columns(0, 3).into_owned();
     let ys = m.column(3).into_owned();
     let (cost_base, cost_byte, _) = least_squares_method_2(&xs, &ys);
