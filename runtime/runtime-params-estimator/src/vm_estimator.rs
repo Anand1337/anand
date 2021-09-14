@@ -206,7 +206,7 @@ pub(crate) fn least_squares_method(
 
 pub(crate) fn least_squares_method_2(
     xs: &DMatrix<u64>,
-    ys: &DMatrix<u64>,
+    ys: &Vector<u64>,
 ) -> (Ratio<i128>, Ratio<i128>, Vec<i128>) {
     // nalgebra::DMatrix::from_data()
     // let x = Matrix3::from_rows();
@@ -221,7 +221,7 @@ pub(crate) fn least_squares_method_2(
     println!("{:?}", ys.shape());
     // xs.into_iter().flatten().collect();
     // let (x_train, x_test, y_train, y_test) = train_test_split(&x, &y.transpose(), 0.2, true);
-    (Ratio::new(0, 1), Ratio::new(0, 1), Ratio::new(0, 1))
+    (Ratio::new(0, 1), Ratio::new(0, 1), vec![])
 }
 
 /// Returns `(a, b)` - approximation coefficients for formula `a + b * x`
