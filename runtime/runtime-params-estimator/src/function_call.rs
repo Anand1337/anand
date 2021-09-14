@@ -1,6 +1,6 @@
 use crate::cases::ratio_to_gas_signed;
 use crate::testbed_runners::{end_count, start_count, Consumed, GasMetric};
-use crate::vm_estimator::{create_context, least_squares_method_2, least_squares_method};
+use crate::vm_estimator::{create_context, least_squares_method, least_squares_method_2};
 use near_logger_utils::init_test_logger;
 use near_primitives::config::VMConfig;
 use near_primitives::contract::ContractCode;
@@ -24,7 +24,7 @@ const REPEATS: u64 = 50;
 
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
-    let mut xs: &[mut Vec<u64>; 3] = &[vec![], vec![], vec![]];
+    let (mut args_len_xs, mut code_len_xs, mut funcs_xs) = (vec![], vec![], vec![]);
     let mut ys = vec![];
     for method_count in vec![5, 20, 30, 50, 100, 200] {
         // for method_count in vec![5, 100, 4500] {
@@ -56,9 +56,9 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         .unwrap();
         let module_info = module.info();
         let funcs = module_info.func_assoc.len();
-        xs[0].push(args.len() as u64);
-        xs[1].push(contract.code().len() as u64);
-        xs[2].push(funcs as u64);
+        args_len_xs.push(args.len() as u64);
+        code_len_xs.push(contract.code().len() as u64);
+        funcs_xs.push(funcs as u64);
         ys.push(cost / REPEATS);
     }
 
@@ -195,6 +195,7 @@ fn compare_function_call_icount() {
             &contract,
             method_name,
             init_args,
+            vec![],
         );
         let actual_gas =
             ratio_to_gas_signed(GasMetric::ICount, Ratio::new(cost as i128, REPEATS as i128));

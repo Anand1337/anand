@@ -215,7 +215,7 @@ pub(crate) fn least_squares_method_2(xs: &[Vec<u64>; 3], ys: &Vec<u64>) {
         RowVector3::new(7.0, 8.0, 9.0),
     ]);
     xs.into_iter().flatten().collect();
-    let (x_train, x_test, y_train, y_test) = train_test_split(&x, &y.transpose(), 0.2, true);
+    // let (x_train, x_test, y_train, y_test) = train_test_split(&x, &y.transpose(), 0.2, true);
 }
 
 /// Returns `(a, b)` - approximation coefficients for formula `a + b * x`
