@@ -111,6 +111,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     for x in coeff.iter().cloned() {
         gas_coeff.push(ratio_to_gas_signed(metric, Ratio::new((x * 1_000_000) as i128, 1_000_000)));
     }
+    println!("gas_coeff: {:?}", gas_coeff);
     let gas_intercept = ratio_to_gas_signed(metric, Ratio::new(intercept as i128, 1));
     // let (x_train, x_test, y_train, y_test) = train_test_split(&x, &y.transpose(), 0.2, true);
 
