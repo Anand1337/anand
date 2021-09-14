@@ -1,7 +1,7 @@
 use crate::cases::ratio_to_gas_signed;
 use crate::testbed_runners::{end_count, start_count, Consumed, GasMetric};
 use crate::vm_estimator::{create_context, least_squares_method, least_squares_method_2};
-use nalgebra::{DVector, Matrix, MatrixXx4, RowVector, Vector};
+use nalgebra::{DVector, Matrix, Matrix2x3, MatrixXx4, RowVector, Vector, Vector2};
 use near_logger_utils::init_test_logger;
 use near_primitives::config::VMConfig;
 use near_primitives::contract::ContractCode;
@@ -68,6 +68,13 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     if metric == GasMetric::Time {
         return;
     }
+
+    let m2 = Matrix2x3::from_columns(&[
+        Vector2::new(1.1, 2.1),
+        Vector2::new(1.2, 2.2),
+        Vector2::new(1.3, 2.3),
+    ]);
+    println!("{:?}", m2.shape());
 
     let x = DVector::<u64>::from_vec(args_len_xs.clone());
     println!("{:?}", x.shape());
