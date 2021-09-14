@@ -219,13 +219,15 @@ pub(crate) fn least_squares_method_2(
     let x = (a.transpose() * &a).try_inverse().unwrap() * &a.transpose() * &b;
     println!("aaaaaaaaa");
     println!("{:?}", x.shape());
-    let coeff = x.columns(0, cols - 1);
+    // let x_iter = x;
+    let mut coeff: Vec<f64> = x.iter().cloned().collect();
+    let intercept = coeff.pop().unwrap();
     println!("aaaaaaaaa");
-    let coeff: Vec<f64> = x.columns(0, cols - 1).iter().cloned().collect();
+    // let coeff: Vec<f64> = x.columns(0, cols - 1).iter().cloned().collect();
     println!("aaaaaaaaa");
     println!("{:?}", coeff.len());
     println!("aaaaaaaaa");
-    let intercept = x[(cols - 1, 0)];
+    // let intercept = x[(cols - 1, 0)];
     (coeff, intercept)
 }
 
