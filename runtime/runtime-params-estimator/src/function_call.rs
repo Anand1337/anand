@@ -29,50 +29,64 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let mut ys = vec![];
     let mut rows = 0;
     let mut data = Vec::new();
+    //
     for method_count in vec![5, 10, 20, 30] {
-        for body_repeat in vec![1, 10, 100] {
-            // for method_count in vec![5, 20, 30, 50, 100, 200] {
-            // for method_count in vec![5, 100, 4500] {
-            let contract = make_many_methods_contract(method_count, body_repeat);
-            let args = vec![];
-            println!("LEN = {}", contract.code().len());
-            let cost = compute_function_call_cost(
-                metric,
-                vm_kind,
-                REPEATS,
-                &contract,
-                "hello0",
-                None,
-                args.clone(),
-            );
-            println!(
-                "{:?} {:?} {} {} {}",
-                vm_kind,
-                metric,
-                contract.code().len(),
-                cost / REPEATS,
-                ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128))
-            );
-            let module = cache::wasmer0_cache::compile_module_cached_wasmer0(
-                &contract,
-                &VMConfig::default(),
-                None,
-            )
-            .unwrap();
-            let module_info = module.info();
-            let funcs = module_info.func_assoc.len();
-            // args_len_xs.push(args.len() as u64);
-            // code_len_xs.push(contract.code().len() as u64);
-            // funcs_xs.push(funcs as u64);
-            // ys.push(cost / REPEATS);
+        for body_repeat in vec![1, 10, 100]
+    for (method_count, body_repeat) in vec![
+        (5, 1),
+        (5, 10),
+        (5, 100),
+        (5, 1000),
+        (20, 10),
+        (20, 100),
+        (50, 1),
+        (50, 100),
+        (200, 10),
+        (1000, 1),
+        (2000, 1),
+    ] {
+        // for method_count in vec![5, 20, 30, 50, 100, 200] {
+        // for method_count in vec![5, 100, 4500] {
+        let contract = make_many_methods_contract(method_count, body_repeat);
+        let args = vec![];
+        println!("LEN = {}", contract.code().len());
+        let cost = compute_function_call_cost(
+            metric,
+            vm_kind,
+            REPEATS,
+            &contract,
+            "hello0",
+            None,
+            args.clone(),
+        );
+        println!(
+            "{:?} {:?} {} {} {} {}",
+            vm_kind,
+            metric,
+            contract.code().len(),
+            funcs,
+            cost / REPEATS,
+            ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128))
+        );
+        let module = cache::wasmer0_cache::compile_module_cached_wasmer0(
+            &contract,
+            &VMConfig::default(),
+            None,
+        )
+        .unwrap();
+        let module_info = module.info();
+        let funcs = module_info.func_assoc.len();
+        // args_len_xs.push(args.len() as u64);
+        // code_len_xs.push(contract.code().len() as u64);
+        // funcs_xs.push(funcs as u64);
+        // ys.push(cost / REPEATS);
 
-            // data.push(args.len() as f64);
-            data.push(contract.code().len() as f64);
-            data.push(funcs as f64);
-            data.push((cost / REPEATS) as f64);
+        // data.push(args.len() as f64);
+        data.push(contract.code().len() as f64);
+        data.push(funcs as f64);
+        data.push((cost / REPEATS) as f64);
 
-            rows += 1;
-        }
+        rows += 1;
     }
 
     // Regression analysis only makes sense for additive metrics.
