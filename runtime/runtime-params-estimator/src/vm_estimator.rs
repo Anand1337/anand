@@ -206,7 +206,7 @@ pub(crate) fn least_squares_method(
 
 pub(crate) fn least_squares_method_2(
     xs: &DMatrix<u64>,
-    ys: &DVector<u64>,
+    ys: &DMatrix<u64>,
 ) -> (Ratio<i128>, Ratio<i128>, Vec<i128>) {
     // nalgebra::DMatrix::from_data()
     // let x = Matrix3::from_rows();

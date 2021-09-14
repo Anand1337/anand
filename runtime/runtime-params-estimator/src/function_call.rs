@@ -1,7 +1,7 @@
 use crate::cases::ratio_to_gas_signed;
 use crate::testbed_runners::{end_count, start_count, Consumed, GasMetric};
 use crate::vm_estimator::{create_context, least_squares_method, least_squares_method_2};
-use nalgebra::{DVector, Matrix, Matrix2x3, MatrixXx4, RowVector, Vector, Vector2};
+use nalgebra::{DMatrix, DVector, Matrix, Matrix2x3, MatrixXx4, RowVector, Vector, Vector2};
 use near_logger_utils::init_test_logger;
 use near_primitives::config::VMConfig;
 use near_primitives::contract::ContractCode;
@@ -27,6 +27,8 @@ const REPEATS: u64 = 2; //50;
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let (mut args_len_xs, mut code_len_xs, mut funcs_xs) = (vec![], vec![], vec![]);
     let mut ys = vec![];
+    let mut rows = 0;
+    let mut data = Vec::new();
     for method_count in vec![5, 10] {
         // for method_count in vec![5, 20, 30, 50, 100, 200] {
         // for method_count in vec![5, 100, 4500] {
@@ -62,6 +64,11 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         code_len_xs.push(contract.code().len() as u64);
         funcs_xs.push(funcs as u64);
         ys.push(cost / REPEATS);
+
+        data.push(args.len() as u64);
+        data.push(contract.code().len() as u64);
+        data.push(funcs as u64);
+        data.push(cost / REPEATS);
     }
 
     // Regression analysis only makes sense for additive metrics.
@@ -69,30 +76,31 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         return;
     }
 
-    let m2 = Matrix2x3::from_columns(&[
-        Vector2::new(1.1, 2.1),
-        Vector2::new(1.2, 2.2),
-        Vector2::new(1.3, 2.3),
-    ]);
-    println!("{:?}", m2.shape());
+    let m: DMatrix<u64> = DMatrix::from_row_slice(rows, 4, &data);
+    // let m2 = Matrix2x3::from_columns(&[
+    //     Vector2::new(1.1, 2.1),
+    //     Vector2::new(1.2, 2.2),
+    //     Vector2::new(1.3, 2.3),
+    // ]);
+    println!("{:?}", m.shape());
 
-    let x = DVector::<u64>::from_vec(args_len_xs.clone());
-    println!("{:?}", x.shape());
+    // let x = DVector::<u64>::from_vec(args_len_xs.clone());
+    // println!("{:?}", x.shape());
     // let x = Matrix<u64, 1, 1>::identity();
-    let data = MatrixXx4::from_columns(&[
-        Vector2::new(1.1, 2.1),
-        Vector2::new(1.2, 2.2),
-        Vector2::new(1.3, 2.3),
-        Vector2::new(1.1, 2.1),
-    ]);
+    // let data = MatrixXx4::from_columns(&[
+    //     DVector::new(1.1, 2.1),
+    //     Vector2::new(1.2, 2.2),
+    //     Vector2::new(1.3, 2.3),
+    //     Vector2::new(1.1, 2.1),
+    // ]);
     // let data = MatrixXx4::from_columns(&[
     //     DVector::<u64>::from_vec(args_len_xs),
     //     DVector::<u64>::from_vec(code_len_xs),
     //     DVector::<u64>::from_vec(funcs_xs),
     //     DVector::<u64>::from_vec(ys),
     // ]);
-    let xs = data.columns(0, 4).into_owned();
-    let ys = data.column(4).into_owned();
+    let xs = m.columns(0, 3).into_owned();
+    let ys = m.column(3).into_owned();
     let (cost_base, cost_byte, _) = least_squares_method_2(&xs, &ys);
     // let (cost_base, cost_byte, _) = least_squares_method(&funcs_xs, &ys);
 
