@@ -65,10 +65,10 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         // funcs_xs.push(funcs as u64);
         // ys.push(cost / REPEATS);
 
-        data.push(args.len() as u64);
-        data.push(contract.code().len() as u64);
-        data.push(funcs as u64);
-        data.push(cost / REPEATS);
+        data.push(args.len() as f64);
+        data.push(contract.code().len() as f64);
+        data.push(funcs as f64);
+        data.push(cost / REPEATS as f64);
 
         rows += 1;
     }
