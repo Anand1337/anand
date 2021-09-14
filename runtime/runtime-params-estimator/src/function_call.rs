@@ -59,6 +59,12 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             None,
             args.clone(),
         );
+        let module = cache::wasmer0_cache::compile_module_cached_wasmer0(
+            &contract,
+            &VMConfig::default(),
+            None,
+        )
+        .unwrap();
         let module_info = module.info();
         let funcs = module_info.func_assoc.len();
 
@@ -71,12 +77,6 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             cost / REPEATS,
             ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128))
         );
-        let module = cache::wasmer0_cache::compile_module_cached_wasmer0(
-            &contract,
-            &VMConfig::default(),
-            None,
-        )
-        .unwrap();
 
         // args_len_xs.push(args.len() as u64);
         // code_len_xs.push(contract.code().len() as u64);
