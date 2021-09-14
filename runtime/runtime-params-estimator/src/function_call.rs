@@ -117,7 +117,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     for i in 0..rows {
         let mut gas = gas_intercept;
         for j in 0..COLS - 1 {
-            gas += gas_coeff[j] * xs[(i, j)];
+            gas += gas_coeff[j] * (xs[(i, j)] as i64);
         }
         println!("est = {}, real = {} | coeff = {}", gas, ys[i], xs.row(i));
     }
