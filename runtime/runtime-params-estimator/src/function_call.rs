@@ -109,7 +109,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     println!("coeff: {}, intercept: {}", coeff, intercept);
     let mut gas_coeff = vec![];
     for x in coeff.iter().cloned() {
-        gas_coeff.push(ratio_to_gas_signed(metric, Ratio::new((x * 1_000_000) as i128, 1_000_000)));
+        gas_coeff
+            .push(ratio_to_gas_signed(metric, Ratio::new((x * 1_000_000f64) as i128, 1_000_000)));
     }
     println!("gas_coeff: {:?}", gas_coeff);
     let gas_intercept = ratio_to_gas_signed(metric, Ratio::new(intercept as i128, 1));
