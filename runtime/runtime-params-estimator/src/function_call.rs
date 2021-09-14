@@ -105,16 +105,32 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     println!("{:?}", m.shape());
     let xs = m.columns(0, COLS - 1).into_owned();
     let ys = m.column(COLS - 1).into_owned();
-    let (cost_base, cost_byte, _) = least_squares_method_2(&xs, &ys, COLS);
+    let (coeff, intercept) = least_squares_method_2(&xs, &ys, COLS);
+    println!("coeff: {}, intercept: {}", coeff, intercept);
+    let mut gas_coeff = vec![];
+    for x in coeff.iter().cloned() {
+        gas_coeff.push(ratio_to_gas_signed(metric, Ratio::new((x * 1_000_000) as i128, 1_000_000)));
+    }
+    let gas_intercept = ratio_to_gas_signed(metric, Ratio::new(intercept as i128, 1));
+    // let (x_train, x_test, y_train, y_test) = train_test_split(&x, &y.transpose(), 0.2, true);
+
+    for i in 0..rows {
+        let mut gas = gas_intercept;
+        for j in 0..COLS - 1 {
+            gas += gas_coeff[j] * xs[(i, j)];
+        }
+        println!("est = {}, real = {} | coeff = {}", gas, ys[i], xs.row(i));
+    }
+
     // let (cost_base, cost_byte, _) = least_squares_method(&funcs_xs, &ys);
 
-    println!(
-        "{:?} {:?} function call base {} gas, per byte {} gas",
-        vm_kind,
-        metric,
-        ratio_to_gas_signed(metric, cost_base),
-        ratio_to_gas_signed(metric, cost_byte),
-    );
+    // println!(
+    //     "{:?} {:?} function call base {} gas, per byte {} gas",
+    //     vm_kind,
+    //     metric,
+    //     ratio_to_gas_signed(metric, cost_base),
+    //     ratio_to_gas_signed(metric, cost_byte),
+    // );
 }
 
 fn measure_function_call_1s(vm_kind: VMKind) {
