@@ -22,8 +22,8 @@ use walrus::{Module, Result};
 // use nalgebra::OMatrix;
 // use nalgebra as na;
 use nalgebra::{
-    Const, DMatrix, DVector, Dynamic, Matrix, Matrix3, MatrixXx1, MatrixXx3, RowVector, SMatrix,
-    Vector,
+    Const, DMatrix, DVector, Dynamic, Matrix, Matrix3, MatrixSlice, MatrixXx1, MatrixXx3,
+    RowVector, SMatrix, Vector,
 };
 use smartcore::model_selection::train_test_split;
 
@@ -211,7 +211,7 @@ pub(crate) fn least_squares_method_2(
     xs: &DMatrix<f64>,
     ys: &DVector<f64>,
     cols: usize,
-) -> (Matrix<f64>, f64) {
+) -> (MatrixSlice<f64, Dynamic, Dynamic>, f64) {
     let x_train = xs;
     let y_train = ys.transpose();
     let a = x_train.clone().insert_column(cols - 1, 1.0).into_owned();
