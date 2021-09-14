@@ -121,7 +121,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         for j in 0..COLS - 1 {
             gas += gas_coeff[j] * (xs[(i, j)] as i64);
         }
-        println!("est = {}, real = {} | coeff = {}", gas, ys[i], xs.row(i));
+        let real_gas = ratio_to_gas_signed(metric, Ratio::new(ys[i] as i128, 1));
+        println!("est = {}, real = {} | coeff = {}", gas, real_gas, xs.row(i));
     }
 
     // let (cost_base, cost_byte, _) = least_squares_method(&funcs_xs, &ys);
