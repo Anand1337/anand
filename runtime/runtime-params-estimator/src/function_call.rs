@@ -69,6 +69,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         return;
     }
 
+    let x = DVector::<u64>::from_vec(args_len_xs.clone());
+    println!("{:?}", x.shape());
     // let x = Matrix<u64, 1, 1>::identity();
     let data = MatrixXx4::from_columns(&[
         DVector::<u64>::from_vec(args_len_xs),
