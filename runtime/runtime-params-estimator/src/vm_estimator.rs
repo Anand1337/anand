@@ -218,7 +218,7 @@ pub(crate) fn least_squares_method_2(
     let b = y_train.clone().transpose();
     let x = (a.transpose() * &a).try_inverse().unwrap() * &a.transpose() * &b;
     let coeff = x.columns(0, cols - 1);
-    println!("{}", coeff.shape());
+    println!("{:?}", coeff.shape());
     let intercept = x[(cols - 1, 0)];
     (coeff, intercept)
 }
