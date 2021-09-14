@@ -21,7 +21,7 @@ use walrus::{Module, Result};
 // use nalgebra::Matrix3;
 // use nalgebra::OMatrix;
 // use nalgebra as na;
-use nalgebra::{Matrix, Matrix3, RowVector, Vector};
+use nalgebra::{Matrix, Matrix3, MatrixXx1, MatrixXx3, RowVector, Vector};
 use smartcore::model_selection::train_test_split;
 
 const CURRENT_ACCOUNT_ID: &str = "alice";
@@ -204,7 +204,7 @@ pub(crate) fn least_squares_method(
     (a, b, errs)
 }
 
-pub(crate) fn least_squares_method_2(xs: &Matrix<u64>, ys: &Matrix<u64>) {
+pub(crate) fn least_squares_method_2(xs: &MatrixXx3<u64>, ys: &MatrixXx1<u64>) {
     // nalgebra::DMatrix::from_data()
     // let x = Matrix3::from_rows();
     // OMatrix::from_rows()
