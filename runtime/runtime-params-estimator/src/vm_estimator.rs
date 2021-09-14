@@ -204,7 +204,7 @@ pub(crate) fn least_squares_method(
     (a, b, errs)
 }
 
-pub(crate) fn least_squares_method_2(xs: &Matrix3<u64>, ys: &Matrix3<u64>) {
+pub(crate) fn least_squares_method_2(xs: &Matrix<u64>, ys: &Matrix<u64>) {
     // nalgebra::DMatrix::from_data()
     // let x = Matrix3::from_rows();
     // OMatrix::from_rows()
