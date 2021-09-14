@@ -21,7 +21,10 @@ use walrus::{Module, Result};
 // use nalgebra::Matrix3;
 // use nalgebra::OMatrix;
 // use nalgebra as na;
-use nalgebra::{DMatrix, DVector, Matrix, Matrix3, MatrixXx1, MatrixXx3, RowVector, Vector};
+use nalgebra::{
+    Const, DMatrix, DVector, Dynamic, Matrix, Matrix3, MatrixXx1, MatrixXx3, RowVector, SMatrix,
+    Vector,
+};
 use smartcore::model_selection::train_test_split;
 
 const CURRENT_ACCOUNT_ID: &str = "alice";
@@ -208,13 +211,14 @@ pub(crate) fn least_squares_method_2(
     xs: &DMatrix<f64>,
     ys: &DVector<f64>,
     cols: usize,
-) -> (DVector<f64>, f64) {
+) -> (SMatrix<f64, Const<1_usize>, Dynamic>, f64) {
     let x_train = xs;
     let y_train = ys.transpose();
     let a = x_train.clone().insert_column(cols - 1, 1.0).into_owned();
     let b = y_train.clone().transpose();
     let x = (a.transpose() * &a).try_inverse().unwrap() * &a.transpose() * &b;
-    let coeff = x.row(0).columns(0, cols - 1);
+    let coeff = x.columns(0, cols - 1);
+    println!("{}", coeff.shape());
     let intercept = x[(cols - 1, 0)];
     (coeff, intercept)
 }
