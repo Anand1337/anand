@@ -78,7 +78,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         return;
     }
 
-    let m: DMatrix<u64> = DMatrix::from_row_slice(rows, 4, &data);
+    let m: DMatrix<f64> = DMatrix::from_row_slice(rows, 4, &data);
 
     println!("{:?}", m.shape());
     let xs = m.columns(0, 3).into_owned();

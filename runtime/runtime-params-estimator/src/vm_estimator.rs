@@ -205,8 +205,8 @@ pub(crate) fn least_squares_method(
 }
 
 pub(crate) fn least_squares_method_2(
-    xs: &DMatrix<u64>,
-    ys: &DVector<u64>,
+    xs: &DMatrix<f64>,
+    ys: &DVector<f64>,
 ) -> (Ratio<i128>, Ratio<i128>, Vec<i128>) {
     println!("{:?}", xs.shape());
     println!("{:?}", ys.shape());
