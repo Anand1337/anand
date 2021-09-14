@@ -220,6 +220,10 @@ pub(crate) fn least_squares_method_2(
     let coeff = x.rows(0, cols - 1);
     let intercept = x[(cols - 1, 0)];
     println!("coeff: {}, intercept: {}", coeff, intercept);
+    for x in coeff.iter() {
+        println!("{}", ratio_to_gas_signed(GasMetric::ICount, Ratio::new(x as i128, 1)));
+    }
+    println!("{}", ratio_to_gas_signed(GasMetric::ICount, Ratio::new(intercept as i128, 1)));
     // let (x_train, x_test, y_train, y_test) = train_test_split(&x, &y.transpose(), 0.2, true);
     (Ratio::new(0, 1), Ratio::new(0, 1), vec![])
 }

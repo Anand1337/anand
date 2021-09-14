@@ -49,7 +49,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
                 "{:?} {:?} {} {} {}",
                 vm_kind,
                 metric,
-                method_count,
+                contract.code().len(),
                 cost / REPEATS,
                 ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128))
             );
