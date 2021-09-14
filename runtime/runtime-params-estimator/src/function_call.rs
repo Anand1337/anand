@@ -108,7 +108,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let (coeff, intercept) = least_squares_method_2(&xs, &ys, COLS);
     println!("coeff: {}, intercept: {}", coeff, intercept);
     let mut gas_coeff = vec![];
-    for x in coeff.iter().cloned() {
+    for x in coeff.row(0).iter().cloned() {
         gas_coeff
             .push(ratio_to_gas_signed(metric, Ratio::new((x * 1_000_000f64) as i128, 1_000_000)));
     }
