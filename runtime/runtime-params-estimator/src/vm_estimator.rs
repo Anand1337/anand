@@ -217,17 +217,8 @@ pub(crate) fn least_squares_method_2(
     let a = x_train.clone().insert_column(cols - 1, 1.0).into_owned();
     let b = y_train.clone().transpose();
     let x = (a.transpose() * &a).try_inverse().unwrap() * &a.transpose() * &b;
-    println!("aaaaaaaaa");
-    println!("{:?}", x.shape());
-    // let x_iter = x;
     let mut coeff: Vec<f64> = x.iter().cloned().collect();
     let intercept = coeff.pop().unwrap();
-    println!("aaaaaaaaa");
-    // let coeff: Vec<f64> = x.columns(0, cols - 1).iter().cloned().collect();
-    println!("aaaaaaaaa");
-    println!("{:?}", coeff.len());
-    println!("aaaaaaaaa");
-    // let intercept = x[(cols - 1, 0)];
     (coeff, intercept)
 }
 

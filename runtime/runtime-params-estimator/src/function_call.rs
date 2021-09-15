@@ -105,6 +105,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     println!("{:?}", m.shape());
     let xs = m.columns(0, COLS - 1).into_owned();
     let ys = m.column(COLS - 1).into_owned();
+    // let (x_train, x_test, y_train, y_test) = train_test_split(&x, &y.transpose(), 0.2, true);
+
     let (coeff, intercept) = least_squares_method_2(&xs, &ys, COLS);
     println!("coeff: {:?}, intercept: {}", coeff, intercept);
     let mut gas_coeff = vec![];
@@ -112,9 +114,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         gas_coeff
             .push(ratio_to_gas_signed(metric, Ratio::new((x * 1_000_000f64) as i128, 1_000_000)));
     }
-    println!("gas_coeff: {:?}", gas_coeff);
     let gas_intercept = ratio_to_gas_signed(metric, Ratio::new(intercept as i128, 1));
-    // let (x_train, x_test, y_train, y_test) = train_test_split(&x, &y.transpose(), 0.2, true);
+    println!("gas_coeff: {:?}, gas_intercept = {:?}", gas_coeff, gas_intercept);
 
     for i in 0..rows {
         let mut gas = gas_intercept;
