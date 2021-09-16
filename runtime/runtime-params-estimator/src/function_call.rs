@@ -18,6 +18,7 @@ use near_vm_runner::cache;
 use near_vm_runner::{precompile_contract, run_vm, VMKind};
 use nearcore::get_store_path;
 use num_rational::Ratio;
+use std::cmp::max;
 use std::fmt::Write;
 use std::sync::Arc;
 
@@ -67,8 +68,10 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             vec![],
         );
 
-        let cost_per_function =
-            Ratio::new((cost_2 - cost_1) as i128, REPEATS as i128 * (funcs_2 - funcs_1) as i128);
+        let cost_per_function = Ratio::new(
+            max((cost_2 - cost_1) as i128, 0i128),
+            REPEATS as i128 * (funcs_2 - funcs_1) as i128,
+        );
         let gas_cost_per_function = ratio_to_gas_signed(metric, cost_per_function);
 
         println!("SHOULD BE CLOSE: {} {}", contract_1.code().len(), contract_2.code().len());
