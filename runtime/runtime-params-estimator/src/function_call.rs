@@ -43,7 +43,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let mc_2 = 18; //157;
 
     let brs: Vec<usize> = (1..11).rev().map(|x| 10 * x).collect();
-    let repeats = 50;
+    let repeats = 100;
     // let brs: Vec<usize> = (1..11).map(|x| 100 + x * 20).collect();
     for br_1 in brs.iter().cloned() {
         let mc_2 = br_1 / 6 + 2;
