@@ -23,16 +23,37 @@ use std::sync::Arc;
 
 const REPEATS: u64 = 50;
 
+fn get_func_number(contract: &ContractCode) -> usize {
+    let module =
+        cache::wasmer0_cache::compile_module_cached_wasmer0(&contract, &VMConfig::default(), None)
+            .unwrap();
+    let module_info = module.info();
+    module_info.func_assoc.len()
+}
+
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let (mut args_len_xs, mut code_len_xs, mut funcs_xs) = (vec![], vec![], vec![]);
     // let mut ys = vec![];
     let mut rows = 0;
     let mut data = Vec::new();
-    for (method_count, body_repeat) in vec![(1, 1000), (160, 1)].iter().cloned() {
-        let contract = make_many_methods_contract(method_count, body_repeat);
-        println!("{} {} {}", method_count, body_repeat, contract.code().len());
-    }
+
+    let contract_1 = make_many_methods_contract(1, 1000);
+    let funcs_1 = get_func_number(&contract_1);
+    let cost_1 =
+        compute_function_call_cost(metric, vm_kind, REPEATS, &contract_1, "hello0", None, vec![]);
+
+    let contract_2 = make_many_methods_contract(157, 1);
+    let funcs_2 = get_func_number(&contract_1);
+    let cost_2 =
+        compute_function_call_cost(metric, vm_kind, REPEATS, &contract_2, "hello0", None, vec![]);
+
+    let cost_per_function =
+        Ratio::new((cost_2 - cost_1) as i128, REPEATS as i128 * (funcs_2 - funcs_1));
+    let gas_cost_per_function = ratio_to_gas_signed(metric, cost_per_function);
+
+    println!("SHOULD BE CLOSE: {} {}", contract_1.code().len(), contract_2.code().len());
+    println!("costs: {} {}", cost_per_function, gas_cost_per_function);
 
     for (method_count, body_repeat) in vec![
         (1, 100),
