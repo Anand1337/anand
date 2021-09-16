@@ -42,9 +42,9 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let br_1 = 100; //1000;
     // let mc_2 = 18; //157;
 
-    let brs: Vec<usize> = (1..11).rev().map(|x| 10 * x).collect();
+    // let brs: Vec<usize> = (1..11).rev().map(|x| 10 * x).collect();
     let repeats = 100;
-    // let brs: Vec<usize> = (1..11).map(|x| 100 + x * 20).collect();
+    let brs: Vec<usize> = (1..11).map(|x| 100 + x * 20).collect();
     for br_1 in brs.iter().cloned() {
         let mc_2 = br_1 / 6 + 2;
         let contract_1 = make_many_methods_contract(1, br_1);
