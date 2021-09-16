@@ -42,9 +42,9 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let br_1 = 100; //1000;
     // let mc_2 = 18; //157;
 
-    // let brs: Vec<usize> = (1..11).rev().map(|x| 10 * x).collect();
+    let brs: Vec<usize> = (1..11).rev().map(|x| 10 * x).collect();
     let repeats = 50;
-    let brs: Vec<usize> = (1..11).map(|x| 1000 * x).collect();
+    // let brs: Vec<usize> = (1..11).map(|x| 1000 * x).collect();
     for br_1 in brs.iter().cloned() {
         let mc_2 = br_1 / 6 + 2;
         let contract_1 = make_many_methods_contract(1, br_1);
@@ -78,6 +78,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         let gas_cost_per_function = ratio_to_gas_signed(metric, cost_per_function);
 
         println!("SHOULD BE CLOSE: {} {}", contract_1.code().len(), contract_2.code().len());
+        println!("funcs: {} {}", funcs_1, funcs_2);
         println!("costs: {} {}", cost_per_function, gas_cost_per_function);
     }
 
