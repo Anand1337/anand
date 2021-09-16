@@ -29,7 +29,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let mut ys = vec![];
     let mut rows = 0;
     let mut data = Vec::new();
-    for (method_count, body_repeat) in vec![(1, 1000), (180, 1)].iter().cloned() {
+    for (method_count, body_repeat) in vec![(1, 1000), (160, 1)].iter().cloned() {
         let contract = make_many_methods_contract(method_count, body_repeat);
         println!("{} {} {}", method_count, body_repeat, contract.code().len());
     }
