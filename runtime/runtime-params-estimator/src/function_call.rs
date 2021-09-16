@@ -42,12 +42,12 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let br_1 = 100; //1000;
     // let mc_2 = 18; //157;
 
-    let brs: Vec<usize> = (0..11).rev().map(|x| 75 + 5 * x).collect();
+    let brs: Vec<usize> = (1..11).rev().map(|x| 100 + 5 * x).collect();
     let repeats = 50;
     // let brs: Vec<usize> = (1..11).map(|x| 1000 * x).collect();
     for br_1 in brs.iter().cloned() {
         let mc_2 = br_1 / 6 + 2;
-        let contract_1 = make_many_methods_contract(1, br_1);
+        let contract_1 = make_many_methods_contract(2, br_1);
         let funcs_1 = get_func_number(&contract_1);
         let cost_1 = compute_function_call_cost(
             metric,
@@ -83,8 +83,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     }
 
     for (method_count, body_repeat) in vec![
-        (1, 100),
-        (1, 10000),
+        (2, 100),
+        (2, 10000),
         (5, 1),
         (5, 10),
         (5, 100),
@@ -333,11 +333,12 @@ fn compare_function_call_icount() {
 }
 
 fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> ContractCode {
+    assert!(method_count > 1);
     let mut methods = String::new();
     for i in 0..method_count {
         let mut body = String::new();
         write!(&mut body, "i32.const {i} drop ", i = i).unwrap();
-        if body_repeat > 0 && (i > 0 || method_count == 1) {
+        if i > 0 {
             body = body.repeat(body_repeat);
         }
         write!(
