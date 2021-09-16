@@ -42,9 +42,9 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let br_1 = 100; //1000;
     // let mc_2 = 18; //157;
 
-    // let brs: Vec<usize> = (1..11).map(|x| 10 * x).collect();
+    let brs: Vec<usize> = (1..11).rev().map(|x| 10 * x).collect();
     let repeats = 20;
-    let brs: Vec<usize> = (1..11).map(|x| 100 + x * 20).collect();
+    // let brs: Vec<usize> = (1..11).map(|x| 100 + x * 20).collect();
     for br_1 in brs.iter().cloned() {
         let mc_2 = br_1 / 6 + 2;
         let contract_1 = make_many_methods_contract(1, br_1);
@@ -382,7 +382,7 @@ pub fn compute_function_call_cost(
     let fake_context = create_context(args);
     let fees = RuntimeFeesConfig::default();
     let promise_results = vec![];
-    // precompile_contract(&contract, &vm_config, cache);
+    precompile_contract(&contract, &vm_config, cache);
 
     match init_args {
         Some(args) => {
@@ -448,7 +448,11 @@ pub fn compute_function_call_cost(
     }
     let total_raw = end_count(gas_metric, &start) as i128;
 
-    println!("cost is {}", total_raw);
+    println!(
+        "total cost = {}, average gas cost = {}",
+        total_raw,
+        ratio_to_gas_signed(gas_metric, Ratio::new(total_raw as i128, repeats as i128))
+    );
 
     total_raw as u64
 }
