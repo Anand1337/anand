@@ -29,7 +29,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let mut ys = vec![];
     let mut rows = 0;
     let mut data = Vec::new();
-    for (method_count, body_repeat) in vec![(1, 100), (10, 1)].iter().cloned() {
+    for (method_count, body_repeat) in vec![(1, 100), (18, 1)].iter().cloned() {
         let contract = make_many_methods_contract(method_count, body_repeat);
         println!("{} {} {}", method_count, body_repeat, contract.code().len());
     }
@@ -289,9 +289,9 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
     for i in 0..method_count {
         let mut body = String::new();
         write!(&mut body, "i32.const {i} drop ", i = i).unwrap();
-        if i > 0 || method_count == 1 {
+        if body_repeat > 0 && (i > 0 || method_count == 1) {
             body = body.repeat(body_repeat);
-        };
+        }
         write!(
             &mut methods,
             "
