@@ -44,7 +44,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         compute_function_call_cost(metric, vm_kind, REPEATS, &contract_1, "hello0", None, vec![]);
 
     let contract_2 = make_many_methods_contract(157, 1);
-    let funcs_2 = get_func_number(&contract_1);
+    let funcs_2 = get_func_number(&contract_2);
     let cost_2 =
         compute_function_call_cost(metric, vm_kind, REPEATS, &contract_2, "hello0", None, vec![]);
 
