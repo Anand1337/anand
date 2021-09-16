@@ -49,7 +49,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         compute_function_call_cost(metric, vm_kind, REPEATS, &contract_2, "hello0", None, vec![]);
 
     let cost_per_function =
-        Ratio::new((cost_2 - cost_1) as i128, REPEATS as i128 * (funcs_2 - funcs_1));
+        Ratio::new((cost_2 - cost_1) as i128, REPEATS as i128 * (funcs_2 - funcs_1) as i128);
     let gas_cost_per_function = ratio_to_gas_signed(metric, cost_per_function);
 
     println!("SHOULD BE CLOSE: {} {}", contract_1.code().len(), contract_2.code().len());
