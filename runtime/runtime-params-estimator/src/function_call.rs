@@ -43,7 +43,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     for br_1 in brs.iter().cloned() {
         // let br_1 = 100; //1000;
         // let mc_2 = 18; //157;
-        let mc_2 = br_1 / 6;
+        let mc_2 = br_1 / 6 + 1;
         let contract_1 = make_many_methods_contract(1, br_1);
         let funcs_1 = get_func_number(&contract_1);
         let cost_1 = compute_function_call_cost(
