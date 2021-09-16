@@ -38,12 +38,14 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let mut rows = 0;
     let mut data = Vec::new();
 
-    let contract_1 = make_many_methods_contract(1, 1000);
+    let br_1 = 100; //1000;
+    let mc_2 = 18; //157;
+    let contract_1 = make_many_methods_contract(1, br_1);
     let funcs_1 = get_func_number(&contract_1);
     let cost_1 =
         compute_function_call_cost(metric, vm_kind, REPEATS, &contract_1, "hello0", None, vec![]);
 
-    let contract_2 = make_many_methods_contract(157, 1);
+    let contract_2 = make_many_methods_contract(mc_2, 1);
     let funcs_2 = get_func_number(&contract_2);
     let cost_2 =
         compute_function_call_cost(metric, vm_kind, REPEATS, &contract_2, "hello0", None, vec![]);
