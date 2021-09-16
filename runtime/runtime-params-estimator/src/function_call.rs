@@ -43,22 +43,37 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let mc_2 = 18; //157;
 
     // let brs: Vec<usize> = (1..11).map(|x| 10 * x).collect();
+    let repeats = 20;
     let brs: Vec<usize> = (1..11).map(|x| 100 + x * 20).collect();
     for br_1 in brs.iter().cloned() {
         let mc_2 = br_1 / 6 + 2;
         let contract_1 = make_many_methods_contract(1, br_1);
         let funcs_1 = get_func_number(&contract_1);
-        let cost_1 =
-            compute_function_call_cost(metric, vm_kind, 20, &contract_1, "hello0", None, vec![]);
+        let cost_1 = compute_function_call_cost(
+            metric,
+            vm_kind,
+            repeats,
+            &contract_1,
+            "hello0",
+            None,
+            vec![],
+        );
 
         let contract_2 = make_many_methods_contract(mc_2, 1);
         let funcs_2 = get_func_number(&contract_2);
-        let cost_2 =
-            compute_function_call_cost(metric, vm_kind, 20, &contract_2, "hello0", None, vec![]);
+        let cost_2 = compute_function_call_cost(
+            metric,
+            vm_kind,
+            repeats,
+            &contract_2,
+            "hello0",
+            None,
+            vec![],
+        );
 
         let cost_per_function = Ratio::new(
             max((cost_2 - cost_1) as i128, 0i128),
-            REPEATS as i128 * (funcs_2 - funcs_1) as i128,
+            repeats as i128 * (funcs_2 - funcs_1) as i128,
         );
         let gas_cost_per_function = ratio_to_gas_signed(metric, cost_per_function);
 
