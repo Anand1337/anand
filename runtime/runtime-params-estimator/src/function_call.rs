@@ -38,7 +38,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let mut rows = 0;
     let mut data = Vec::new();
 
-    let brs: Vec<usize> = (0..11).map(|x| 10 * x).collect();
+    let brs: Vec<usize> = (1..11).map(|x| 10 * x).collect();
     for br_1 in brs.iter().cloned() {
         // let br_1 = 100; //1000;
         // let mc_2 = 18; //157;
