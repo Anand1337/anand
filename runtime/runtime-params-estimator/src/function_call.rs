@@ -46,7 +46,16 @@ fn get_func_number(contract: &ContractCode) -> usize {
     println!("{}", module_info.backend.len());
     println!("{}", module_info.custom_sections.len());
     println!("-------");
-    println!("{:?}", module_info.imported_functions);
+    let namespace_table = &module_info.namespace_table;
+    let table = &module_info.name_table;
+    println!(
+        "{:?}",
+        module_info
+            .imported_functions
+            .values()
+            .map(|i| (namespace_table.get(i.namespace_index), table.get(i.name_index)))
+            .collect()
+    );
 
     module_info.func_assoc.len()
 }
