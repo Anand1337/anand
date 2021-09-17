@@ -401,7 +401,14 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
         ("env", "gas"),
     ];
     for i in imports.iter().cloned() {
-        write!(&mut methods, "(import \"{}\" \"{}\" (memory 1)", i.0, i.1).unwrap();
+        write!(
+            &mut methods,
+            "
+                    (import \"{}\" \"{}\" (memory 1))
+            ",
+            i.0, i.1
+        )
+        .unwrap();
     }
     for i in 0..method_count {
         let mut body = String::new();
