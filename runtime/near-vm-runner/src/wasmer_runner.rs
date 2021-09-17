@@ -13,6 +13,7 @@ fn check_method(module: &Module, method_name: &str) -> Result<(), VMError> {
     let info = module.info();
     use wasmer_runtime_core::module::ExportIndex::Func;
     if let Some(Func(index)) = info.exports.map.get(method_name) {
+        println!("checking {}", method_name);
         let func = info.func_assoc.get(index.clone()).unwrap();
         let sig = info.signatures.get(func.clone()).unwrap();
         if sig.params().is_empty() && sig.returns().is_empty() {
