@@ -29,6 +29,25 @@ fn get_func_number(contract: &ContractCode) -> usize {
         cache::wasmer0_cache::compile_module_cached_wasmer0(&contract, &VMConfig::default(), None)
             .unwrap();
     let module_info = module.info();
+
+    let module_info = module.info();
+    println!("-------");
+    println!("{}", module_info.memories.len());
+    println!("{}", module_info.globals.len());
+    println!("{}", module_info.tables.len());
+    println!("{}", module_info.imported_functions.len());
+    println!("{}", module_info.imported_memories.len());
+    println!("{}", module_info.imported_tables.len());
+    println!("{}", module_info.imported_globals.len());
+    println!("{}", module_info.exports.map.len());
+    println!("{}", module_info.data_initializers.len());
+    println!("{}", module_info.elem_initializers.len());
+    println!("{}", module_info.func_assoc.len());
+    println!("{}", module_info.signatures.len());
+    println!("{}", module_info.backend.len());
+    println!("{}", module_info.custom_sections.len());
+    println!("-------");
+
     module_info.func_assoc.len()
 }
 
