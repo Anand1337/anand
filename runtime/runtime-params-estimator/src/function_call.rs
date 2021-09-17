@@ -410,12 +410,12 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
     //     )
     //     .unwrap();
     // }
-    // write!(
-    //     &mut methods,
-    //     "
-    //             (import \"env\" \"gas\" (func (param i32)))
-    //     "
-    // );
+    write!(
+        &mut methods,
+        "
+                (import \"env\" \"gas\" (func (param i32)))
+        "
+    );
     for i in 0..method_count {
         let mut body = String::new();
         write!(&mut body, "i32.const {i} drop ", i = i).unwrap();

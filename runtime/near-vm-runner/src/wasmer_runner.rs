@@ -16,6 +16,7 @@ fn check_method(module: &Module, method_name: &str) -> Result<(), VMError> {
         println!("checking {}", method_name);
         let func = info.func_assoc.get(index.clone()).unwrap();
         let sig = info.signatures.get(func.clone()).unwrap();
+        println!("params = {:?}, returns = {:?}", sig.params(), sig.returns());
         if sig.params().is_empty() && sig.returns().is_empty() {
             Ok(())
         } else {
