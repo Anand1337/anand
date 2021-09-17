@@ -123,7 +123,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         // (1000, 1),
         // (2000, 1),
         // (5000, 1),
-        (500000, 1),
+        (50000, 1),
         (20000, 1),
     ]
     .iter()
