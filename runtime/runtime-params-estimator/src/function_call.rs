@@ -287,9 +287,9 @@ fn compare_function_call_icount() {
 
     let contracts_data = vec![
         get_aurora_contract_data(),
-        get_multisig_contract_data(),
-        get_voting_contract_data(),
-        get_rs_contract_data(),
+        // get_multisig_contract_data(),
+        // get_voting_contract_data(),
+        // get_rs_contract_data(),
     ];
     for (contract, method_name, init_args) in contracts_data.iter().cloned() {
         println!("{}", method_name);
