@@ -22,7 +22,7 @@ use std::cmp::max;
 use std::fmt::Write;
 use std::sync::Arc;
 
-const REPEATS: u64 = 20;
+const REPEATS: u64 = 3;
 
 fn get_func_number(contract: &ContractCode) -> usize {
     let module =
@@ -123,7 +123,6 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         // (1000, 1),
         // (2000, 1),
         // (5000, 1),
-        (50000, 1),
         (20000, 1),
     ]
     .iter()
@@ -470,9 +469,7 @@ pub fn compute_function_call_cost(
     // Run with gas metering.
     let start = start_count(gas_metric);
     for i in 0..repeats {
-        if i % 5 == 0 {
-            print!("{} ", i);
-        }
+        print!("{} ", i);
         let result = run_vm(
             &contract,
             method_name,
