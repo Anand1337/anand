@@ -30,7 +30,6 @@ fn get_func_number(contract: &ContractCode) -> usize {
             .unwrap();
     let module_info = module.info();
 
-    let module_info = module.info();
     println!("-------");
     println!("{}", module_info.memories.len());
     println!("{}", module_info.globals.len());
@@ -102,20 +101,22 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     }
 
     for (method_count, body_repeat) in vec![
-        (2, 100),
-        (2, 10000),
-        (5, 1),
-        (5, 10),
-        (5, 100),
-        (5, 1000),
-        (20, 10),
-        (20, 100),
-        (50, 1),
-        (50, 100),
-        (200, 10),
-        (1000, 1),
-        (2000, 1),
-        (5000, 1),
+        // (2, 100),
+        // (2, 10000),
+        // (5, 1),
+        // (5, 10),
+        // (5, 100),
+        // (5, 1000),
+        // (20, 10),
+        // (20, 100),
+        // (50, 1),
+        // (50, 100),
+        // (200, 10),
+        // (1000, 1),
+        // (2000, 1),
+        // (5000, 1),
+        (100000, 1),
+        (50000, 1),
     ]
     .iter()
     .cloned()
@@ -316,6 +317,8 @@ fn compare_function_call_icount() {
         // Actual cost
         let contract = ContractCode::new(contract.iter().cloned().collect(), None);
         let contract_len = contract.code().len();
+        let func = get_func_number(&contract);
+
         println!("contract length = {}", contract_len);
 
         let cost = compute_function_call_cost(
@@ -344,7 +347,6 @@ fn compare_function_call_icount() {
         // Newly:
         // Wasmer0 ICount function call base 48080046101 gas, per byte 207939579 gas
         // let new_fee = 48_080_046_101 + 207_939_579 * contract_len;
-        let func = get_func_number(&contract);
         let new_fee = 8_300_000_000 + 428_000 * contract_len + 2_200_000_000 * func;
 
         // println!("new estimation = {}", new_fee);
