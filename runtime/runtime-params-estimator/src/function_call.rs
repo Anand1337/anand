@@ -341,10 +341,12 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
         if i > 0 {
             body = body.repeat(body_repeat);
         }
+        if i == 0 {
+            write!(&mut methods, "(export \"hello{i}\" (func {i}))", i = i,).unwrap();
+        }
         write!(
             &mut methods,
-            "
-            (export \"hello{}\" (func {i}))
+            "            
               (func (;{i};)
                 {body}
                 return
