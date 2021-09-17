@@ -324,11 +324,16 @@ fn compare_function_call_icount() {
         // let new_fee = 37_732_719_837 + 76_128_437 * contract.code().len();
         // Newly:
         // Wasmer0 ICount function call base 48080046101 gas, per byte 207939579 gas
-        let new_fee = 48_080_046_101 + 207_939_579 * contract_len;
+        // let new_fee = 48_080_046_101 + 207_939_579 * contract_len;
+        let func = get_func_number(&contract);
+        let new_fee = 8_300_000_000 + 428_000 * contract_len + 2_200_000_000 * func;
 
         // println!("new estimation = {}", new_fee);
 
-        println!("{},{},{},{},{}", method_name, contract_len, actual_gas, fee, new_fee);
+        println!(
+            "{}, len = {}, actual gas = {}, old fee = {}, new fee = {}",
+            method_name, contract_len, actual_gas, fee, new_fee
+        );
     }
 }
 
