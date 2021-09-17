@@ -368,48 +368,54 @@ fn compare_function_call_icount() {
 fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> ContractCode {
     assert!(method_count > 1);
     let mut methods = String::new();
-    let imports = [
-        ("env", "log_utf8"),
-        ("env", "promise_create"),
-        ("env", "storage_read"),
-        ("env", "register_len"),
-        ("env", "block_timestamp"),
-        ("env", "block_index"),
-        ("env", "read_register"),
-        ("env", "keccak256"),
-        ("env", "ecrecover"),
-        ("env", "sha256"),
-        ("env", "current_account_id"),
-        ("env", "predecessor_account_id"),
-        ("env", "storage_write"),
-        ("env", "storage_has_key"),
-        ("env", "value_return"),
-        ("env", "promise_then"),
-        ("env", "promise_return"),
-        ("env", "storage_remove"),
-        ("env", "signer_account_id"),
-        ("env", "ripemd160"),
-        ("env", "input"),
-        ("env", "panic_utf8"),
-        ("env", "promise_batch_create"),
-        ("env", "promise_batch_action_deploy_contract"),
-        ("env", "promise_batch_action_function_call"),
-        ("env", "promise_results_count"),
-        ("env", "promise_result"),
-        ("env", "attached_deposit"),
-        ("env", "promise_batch_action_transfer"),
-        ("env", "gas"),
-    ];
-    for i in imports.iter().cloned() {
-        write!(
-            &mut methods,
-            "
-                    (import \"{}\" \"{}\" (memory 1))
-            ",
-            i.0, i.1
-        )
-        .unwrap();
-    }
+    // let imports = [
+    //     ("env", "log_utf8"),
+    //     ("env", "promise_create"),
+    //     ("env", "storage_read"),
+    //     ("env", "register_len"),
+    //     ("env", "block_timestamp"),
+    //     ("env", "block_index"),
+    //     ("env", "read_register"),
+    //     ("env", "keccak256"),
+    //     ("env", "ecrecover"),
+    //     ("env", "sha256"),
+    //     ("env", "current_account_id"),
+    //     ("env", "predecessor_account_id"),
+    //     ("env", "storage_write"),
+    //     ("env", "storage_has_key"),
+    //     ("env", "value_return"),
+    //     ("env", "promise_then"),
+    //     ("env", "promise_return"),
+    //     ("env", "storage_remove"),
+    //     ("env", "signer_account_id"),
+    //     ("env", "ripemd160"),
+    //     ("env", "input"),
+    //     ("env", "panic_utf8"),
+    //     ("env", "promise_batch_create"),
+    //     ("env", "promise_batch_action_deploy_contract"),
+    //     ("env", "promise_batch_action_function_call"),
+    //     ("env", "promise_results_count"),
+    //     ("env", "promise_result"),
+    //     ("env", "attached_deposit"),
+    //     ("env", "promise_batch_action_transfer"),
+    //     ("env", "gas"),
+    // ];
+    // for i in imports.iter().cloned() {
+    //     write!(
+    //         &mut methods,
+    //         "
+    //                 (import \"{}\" \"{}\" (memory 1))
+    //         ",
+    //         i.0, i.1
+    //     )
+    //     .unwrap();
+    // }
+    write!(
+        &mut methods,
+        "
+                (import \"env\" \"log_utf8\" (func $log_utf8 (param i32)))
+        "
+    );
     for i in 0..method_count {
         let mut body = String::new();
         write!(&mut body, "i32.const {i} drop ", i = i).unwrap();
