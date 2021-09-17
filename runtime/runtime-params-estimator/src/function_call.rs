@@ -46,6 +46,7 @@ fn get_func_number(contract: &ContractCode) -> usize {
     println!("{}", module_info.backend.len());
     println!("{}", module_info.custom_sections.len());
     println!("-------");
+    println!("{:?}", module_info.imported_functions);
 
     module_info.func_assoc.len()
 }
