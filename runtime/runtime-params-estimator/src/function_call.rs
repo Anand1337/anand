@@ -48,14 +48,12 @@ fn get_func_number(contract: &ContractCode) -> usize {
     println!("-------");
     let namespace_table = &module_info.namespace_table;
     let table = &module_info.name_table;
-    println!(
-        "{:?}",
-        module_info
-            .imported_functions
-            .values()
-            .map(|i| (namespace_table.get(i.namespace_index), table.get(i.name_index)))
-            .collect()
-    );
+    let imported_funcs: Vec<_> = module_info
+        .imported_functions
+        .values()
+        .map(|i| (namespace_table.get(i.namespace_index), table.get(i.name_index)))
+        .collect();
+    println!("{:?}", imported_funcs);
 
     module_info.func_assoc.len()
 }
