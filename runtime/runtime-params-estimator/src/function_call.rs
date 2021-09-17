@@ -60,7 +60,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let br_1 = 100; //1000;
     // let mc_2 = 18; //157;
 
-    let brs: Vec<usize> = (1..14).rev().map(|x| 10 * x).collect();
+    let brs = vec![]; // Vec<usize> = (1..14).rev().map(|x| 10 * x).collect();
     let repeats = 50;
     // let brs: Vec<usize> = (1..11).map(|x| 1000 * x).collect();
     for br_1 in brs.iter().cloned() {
