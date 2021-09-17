@@ -46,7 +46,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let repeats = 50;
     // let brs: Vec<usize> = (1..11).map(|x| 1000 * x).collect();
     for br_1 in brs.iter().cloned() {
-        let mc_2 = br_1 / 3;
+        let mc_2 = br_1 / 7 + 3;
         let contract_1 = make_many_methods_contract(2, br_1);
         let funcs_1 = get_func_number(&contract_1);
         let cost_1 = compute_function_call_cost(
