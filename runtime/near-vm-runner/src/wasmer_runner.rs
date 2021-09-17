@@ -295,9 +295,11 @@ pub fn run_wasmer<'a>(
 
     let import_object = imports::build_wasmer(memory_copy, &mut logic, current_protocol_version);
 
+    println!("entering");
     if let Err(e) = check_method(&module, method_name) {
         return (None, Some(e));
     }
+    println!("ending");
 
     let err = run_method(&module, &import_object, method_name).err();
     (Some(logic.outcome()), err)
