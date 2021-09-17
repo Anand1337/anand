@@ -413,7 +413,7 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
     write!(
         &mut methods,
         "
-                (import \"env\" \"log_utf8\" (func $log_utf8 (param i32)))
+                (import \"env\" \"gas\" (func (param i32)))
         "
     );
     for i in 0..method_count {
