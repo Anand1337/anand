@@ -22,7 +22,7 @@ use std::cmp::max;
 use std::fmt::Write;
 use std::sync::Arc;
 
-const REPEATS: u64 = 3;
+const REPEATS: u64 = 50;
 
 fn get_func_number(contract: &ContractCode) -> usize {
     let module =
@@ -115,10 +115,10 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         // (5, 10),
         // (5, 100),
         // (5, 1000),
-        // (20, 10),
-        // (20, 100),
-        // (50, 1),
-        // (50, 100),
+        (20, 10),
+        (20, 100),
+        (50, 1),
+        (50, 100),
         // (200, 10),
         // (1000, 1),
         // (2000, 1),
