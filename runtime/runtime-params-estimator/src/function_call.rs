@@ -319,6 +319,7 @@ fn compare_function_call_icount() {
         // get_rs_contract_data(),
     ];
     for (contract, method_name, init_args) in contracts_data.iter().cloned() {
+        // wat::wasm2wat
         println!("{}", method_name);
 
         // Actual cost
@@ -412,7 +413,7 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
     // }
     write!(
         &mut methods,
-        '
+        "
                   (type (;0;) (func (param i32) (result i32)))
   (type (;1;) (func (param i32 i32) (result i32)))
   (type (;2;) (func (param i32 i32)))
@@ -442,22 +443,22 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
   (type (;26;) (func (param i32) (result f64)))
   (type (;27;) (func (param i64 i64) (result f64)))
   (type (;28;) (func (param f64 i32) (result f64)))
-  (import "env" "abort" (func (;0;) (type 14)))
-  (import "env" "input" (func (;1;) (type 9)))
-  (import "env" "register_len" (func (;2;) (type 23)))
-  (import "env" "panic" (func (;3;) (type 4)))
-  (import "env" "read_register" (func (;4;) (type 8)))
-  (import "env" "signer_account_id" (func (;5;) (type 9)))
-  (import "env" "storage_has_key" (func (;6;) (type 12)))
-  (import "env" "storage_read" (func (;7;) (type 13)))
-  (import "env" "storage_write" (func (;8;) (type 24)))
-  (import "env" "value_return" (func (;9;) (type 8)))
-  (import "env" "storage_remove" (func (;10;) (type 13)))
-  (import "env" "attached_deposit" (func (;11;) (type 9)))
-  (import "env" "promise_create" (func (;12;) (type 25)))
-  (import "env" "promise_batch_create" (func (;13;) (type 12)))
-  (import "env" "promise_batch_action_transfer" (func (;14;) (type 8)))
-        '
+  (import \"env\" \"abort\" (func (;0;) (type 14)))
+  (import \"env\" \"input\" (func (;1;) (type 9)))
+  (import \"env\" \"register_len\" (func (;2;) (type 23)))
+  (import \"env\" \"panic\" (func (;3;) (type 4)))
+  (import \"env\" \"read_register\" (func (;4;) (type 8)))
+  (import \"env\" \"signer_account_id\" (func (;5;) (type 9)))
+  (import \"env\" \"storage_has_key\" (func (;6;) (type 12)))
+  (import \"env\" \"storage_read\" (func (;7;) (type 13)))
+  (import \"env\" \"storage_write\" (func (;8;) (type 24)))
+  (import \"env\" \"value_return\" (func (;9;) (type 8)))
+  (import \"env\" \"storage_remove\" (func (;10;) (type 13)))
+  (import \"env\" \"attached_deposit\" (func (;11;) (type 9)))
+  (import \"env\" \"promise_create\" (func (;12;) (type 25)))
+  (import \"env\" \"promise_batch_create\" (func (;13;) (type 12)))
+  (import \"env\" \"promise_batch_action_transfer\" (func (;14;) (type 8)))
+        "
     );
     for i in 0..method_count {
         let mut body = String::new();
