@@ -320,12 +320,8 @@ fn compare_function_call_icount() {
         // get_rs_contract_data(),
     ];
     for (contract, method_name, init_args) in contracts_data.iter().cloned() {
-        let wat_contract = wat::parse_bytes(contract).unwrap().into_owned();
-        match str::from_utf8(&wat_contract) {
-            Ok(v) => println!("{}", v),
-            Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
-        };
-        // println!("{}", wat_contract.to_str().unwrap());
+        let wat_contract = wabt::wasm2wat(contract).unwrap();
+        println!("{}", wat_contract);
         println!("{}", method_name);
 
         // Actual cost
