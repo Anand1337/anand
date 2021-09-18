@@ -21,7 +21,7 @@ use num_rational::Ratio;
 use std::cmp::max;
 use std::fmt::Write;
 use std::fs::OpenOptions;
-use std::io::prelude::*;
+use std::io::Write;
 use std::str;
 use std::sync::Arc;
 
