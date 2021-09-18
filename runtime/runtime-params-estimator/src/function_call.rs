@@ -322,11 +322,7 @@ fn compare_function_call_icount() {
     ];
     for (contract, method_name, init_args) in contracts_data.iter().cloned() {
         let wat_contract = wabt::wasm2wat(contract).unwrap();
-        let mut file = OpenOptions::new().write(true).open("/host/nearcore/aurora.wat").unwrap();
-
-        if let Err(e) = writeln!(file, "{}", &wat_contract) {
-            eprintln!("Couldn't write to file: {}", e);
-        }
+        std::fs::write("/host/nearcore/aurora.wat", wat_contract).expect("Unable to write file");
         println!("{}", method_name);
 
         // Actual cost
