@@ -20,6 +20,7 @@ use nearcore::get_store_path;
 use num_rational::Ratio;
 use std::cmp::max;
 use std::fmt::Write;
+use std::str;
 use std::sync::Arc;
 
 const REPEATS: u64 = 50;
@@ -320,7 +321,11 @@ fn compare_function_call_icount() {
     ];
     for (contract, method_name, init_args) in contracts_data.iter().cloned() {
         let wat_contract = wat::parse_bytes(contract).unwrap().into_owned();
-        println!("{}", wat_contract.to_str().unwrap());
+        match str::from_utf8(buf) {
+            Ok(v) => println!("{}", v),
+            Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+        };
+        // println!("{}", wat_contract.to_str().unwrap());
         println!("{}", method_name);
 
         // Actual cost
