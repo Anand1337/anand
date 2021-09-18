@@ -19,8 +19,8 @@ use near_vm_runner::{precompile_contract, run_vm, VMKind};
 use nearcore::get_store_path;
 use num_rational::Ratio;
 use std::cmp::max;
-use std::fmt::Write;
 use std::fs::OpenOptions;
+use std::io::Write;
 use std::str;
 use std::sync::Arc;
 
