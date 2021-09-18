@@ -13,10 +13,8 @@ fn check_method(module: &Module, method_name: &str) -> Result<(), VMError> {
     let info = module.info();
     use wasmer_runtime_core::module::ExportIndex::Func;
     if let Some(Func(index)) = info.exports.map.get(method_name) {
-        println!("checking {}", method_name);
         let func = info.func_assoc.get(index.clone()).unwrap();
         let sig = info.signatures.get(func.clone()).unwrap();
-        println!("params = {:?}, returns = {:?}", sig.params(), sig.returns());
         if sig.params().is_empty() && sig.returns().is_empty() {
             Ok(())
         } else {
@@ -296,11 +294,9 @@ pub fn run_wasmer<'a>(
 
     let import_object = imports::build_wasmer(memory_copy, &mut logic, current_protocol_version);
 
-    println!("entering");
     if let Err(e) = check_method(&module, method_name) {
         return (None, Some(e));
     }
-    println!("ending");
 
     let err = run_method(&module, &import_object, method_name).err();
     (Some(logic.outcome()), err)

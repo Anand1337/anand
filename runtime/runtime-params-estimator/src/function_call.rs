@@ -412,9 +412,52 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
     // }
     write!(
         &mut methods,
-        "
-                (import \"env\" \"gas\" (func (param i32)))
-        "
+        '
+                  (type (;0;) (func (param i32) (result i32)))
+  (type (;1;) (func (param i32 i32) (result i32)))
+  (type (;2;) (func (param i32 i32)))
+  (type (;3;) (func (param i32 i32 i32)))
+  (type (;4;) (func))
+  (type (;5;) (func (param i32)))
+  (type (;6;) (func (result i32)))
+  (type (;7;) (func (param i32 i32 i32) (result i32)))
+  (type (;8;) (func (param i64 i64)))
+  (type (;9;) (func (param i64)))
+  (type (;10;) (func (param i32 i64)))
+  (type (;11;) (func (param i64 i64 i64 i64) (result i64)))
+  (type (;12;) (func (param i64 i64) (result i64)))
+  (type (;13;) (func (param i64 i64 i64) (result i64)))
+  (type (;14;) (func (param i32 i32 i32 i32)))
+  (type (;15;) (func (param i32 i32 f64)))
+  (type (;16;) (func (param i32 f64)))
+  (type (;17;) (func (param f64) (result i32)))
+  (type (;18;) (func (param i32 i32 i32 i32 i32) (result i32)))
+  (type (;19;) (func (param i32 i64 i64) (result i32)))
+  (type (;20;) (func (param i64 i32 i64 i32 i64 i32) (result i32)))
+  (type (;21;) (func (param i64 i64) (result i32)))
+  (type (;22;) (func (param i32) (result i64)))
+  (type (;23;) (func (param i64) (result i64)))
+  (type (;24;) (func (param i64 i64 i64 i64 i64) (result i64)))
+  (type (;25;) (func (param i64 i64 i64 i64 i64 i64 i64 i64) (result i64)))
+  (type (;26;) (func (param i32) (result f64)))
+  (type (;27;) (func (param i64 i64) (result f64)))
+  (type (;28;) (func (param f64 i32) (result f64)))
+  (import "env" "abort" (func (;0;) (type 14)))
+  (import "env" "input" (func (;1;) (type 9)))
+  (import "env" "register_len" (func (;2;) (type 23)))
+  (import "env" "panic" (func (;3;) (type 4)))
+  (import "env" "read_register" (func (;4;) (type 8)))
+  (import "env" "signer_account_id" (func (;5;) (type 9)))
+  (import "env" "storage_has_key" (func (;6;) (type 12)))
+  (import "env" "storage_read" (func (;7;) (type 13)))
+  (import "env" "storage_write" (func (;8;) (type 24)))
+  (import "env" "value_return" (func (;9;) (type 8)))
+  (import "env" "storage_remove" (func (;10;) (type 13)))
+  (import "env" "attached_deposit" (func (;11;) (type 9)))
+  (import "env" "promise_create" (func (;12;) (type 25)))
+  (import "env" "promise_batch_create" (func (;13;) (type 12)))
+  (import "env" "promise_batch_action_transfer" (func (;14;) (type 8)))
+        '
     );
     for i in 0..method_count {
         let mut body = String::new();
@@ -423,7 +466,7 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
             body = body.repeat(body_repeat);
         }
         if i == 0 {
-            write!(&mut methods, "(export \"hello{i}\" (func {index}))", i = i, index = i + 1)
+            write!(&mut methods, "(export \"hello{i}\" (func {index}))", i = i, index = i + 15)
                 .unwrap();
         }
         write!(
@@ -434,7 +477,7 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
                 return
               )
             ",
-            index = i + 1,
+            index = i + 15,
             body = body,
         )
         .unwrap();
