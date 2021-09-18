@@ -319,7 +319,8 @@ fn compare_function_call_icount() {
         // get_rs_contract_data(),
     ];
     for (contract, method_name, init_args) in contracts_data.iter().cloned() {
-        // wat::wasm2wat
+        let wat_contract = wat::parse_bytes(contract).unwrap().into_owned();
+        println!("{}", wat_contract.to_str().unwrap());
         println!("{}", method_name);
 
         // Actual cost
