@@ -20,6 +20,8 @@ use nearcore::get_store_path;
 use num_rational::Ratio;
 use std::cmp::max;
 use std::fmt::Write;
+use std::fs::OpenOptions;
+use std::io::prelude::*;
 use std::str;
 use std::sync::Arc;
 
@@ -321,7 +323,11 @@ fn compare_function_call_icount() {
     ];
     for (contract, method_name, init_args) in contracts_data.iter().cloned() {
         let wat_contract = wabt::wasm2wat(contract).unwrap();
-        println!("{}", wat_contract);
+        let mut file = OpenOptions::new().write(true).open("/host/nearcore/aurora.wat").unwrap();
+
+        if let Err(e) = writeln!(file, "{}", wat_contract) {
+            eprintln!("Couldn't write to file: {}", e);
+        }
         println!("{}", method_name);
 
         // Actual cost
