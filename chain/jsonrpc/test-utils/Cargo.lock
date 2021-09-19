@@ -1617,7 +1617,7 @@ dependencies = [
  "near-chain-configs",
  "near-client",
  "near-crypto",
- "near-jsonrpc-client",
+ "near-jsonrpc-client-old",
  "near-metrics",
  "near-network",
  "near-primitives",
@@ -1631,7 +1631,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "near-jsonrpc-client"
+name = "near-jsonrpc-client-old"
 version = "0.1.0"
 dependencies = [
  "actix-web",

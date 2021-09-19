@@ -17,7 +17,7 @@ use crate::user::rpc_user::RpcUser;
 use crate::user::User;
 use actix::{Actor, System};
 use futures::{FutureExt, TryFutureExt};
-use near_jsonrpc_client::new_client;
+use near_jsonrpc_client_old::new_client;
 use near_network::test_utils::WaitOrTimeout;
 
 pub enum ProcessNodeState {

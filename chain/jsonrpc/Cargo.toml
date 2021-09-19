@@ -28,7 +28,7 @@ near-primitives = { path = "../../core/primitives" }
 near-metrics = { path = "../../core/metrics" }
 near-client = { path = "../client" }
 near-network = { path = "../network" }
-near-jsonrpc-client = { path = "client" }
+near-jsonrpc-client-old = { path = "client" }
 near-jsonrpc-primitives = { path = "../jsonrpc-primitives" }
 near-jsonrpc-adversarial-primitives = { path = "../jsonrpc-adversarial-primitives", optional = true }
 near-rpc-error-macro = { path = "../../tools/rpctypegen/macro" }

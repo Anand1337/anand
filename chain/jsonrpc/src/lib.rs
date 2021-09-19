@@ -32,7 +32,7 @@ use near_jsonrpc_adversarial_primitives::SetRoutingTableRequest;
     feature = "protocol_feature_routing_exchange_algorithm"
 ))]
 use near_jsonrpc_adversarial_primitives::StartRoutingTableSyncRequest;
-pub use near_jsonrpc_client as client;
+pub use near_jsonrpc_client_old as client;
 use near_jsonrpc_primitives::errors::RpcError;
 use near_jsonrpc_primitives::message::{Message, Request};
 use near_jsonrpc_primitives::types::config::RpcProtocolConfigResponse;
