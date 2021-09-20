@@ -487,18 +487,20 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
   (import \"env\" \"promise_return\" (func (;16;) (type 13)))
   (import \"env\" \"storage_remove\" (func (;17;) (type 8)))
   (import \"env\" \"signer_account_id\" (func (;18;) (type 13)))
-  (import \"env\" \"ripemd160\" (func (;19;) (type 11)))
-  (import \"env\" \"input\" (func (;20;) (type 13)))
-  (import \"env\" \"panic_utf8\" (func (;21;) (type 6)))
-  (import \"env\" \"promise_batch_create\" (func (;22;) (type 15)))
-  (import \"env\" \"promise_batch_action_deploy_contract\" (func (;23;) (type 11)))
-  (import \"env\" \"promise_batch_action_function_call\" (func (;24;) (type 17)))
-  (import \"env\" \"promise_results_count\" (func (;25;) (type 10)))
-  (import \"env\" \"promise_result\" (func (;26;) (type 15)))
-  (import \"env\" \"attached_deposit\" (func (;27;) (type 13)))
-  (import \"env\" \"promise_batch_action_transfer\" (func (;28;) (type 6)))
         "
     );
+    /*
+    (import \"env\" \"ripemd160\" (func (;19;) (type 11)))
+    (import \"env\" \"input\" (func (;20;) (type 13)))
+    (import \"env\" \"panic_utf8\" (func (;21;) (type 6)))
+    (import \"env\" \"promise_batch_create\" (func (;22;) (type 15)))
+    (import \"env\" \"promise_batch_action_deploy_contract\" (func (;23;) (type 11)))
+    (import \"env\" \"promise_batch_action_function_call\" (func (;24;) (type 17)))
+    (import \"env\" \"promise_results_count\" (func (;25;) (type 10)))
+    (import \"env\" \"promise_result\" (func (;26;) (type 15)))
+    (import \"env\" \"attached_deposit\" (func (;27;) (type 13)))
+    (import \"env\" \"promise_batch_action_transfer\" (func (;28;) (type 6)))
+      */
     for i in 0..method_count {
         let mut body = String::new();
         write!(&mut body, "i32.const {i} drop ", i = i).unwrap();
@@ -506,7 +508,7 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
             body = body.repeat(body_repeat);
         }
         if i == 0 {
-            write!(&mut methods, "(export \"hello{i}\" (func {index}))", i = i, index = i + 29)
+            write!(&mut methods, "(export \"hello{i}\" (func {index}))", i = i, index = i + 19)
                 .unwrap();
         }
         write!(
@@ -517,7 +519,7 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
                 return
               )
             ",
-            index = i + 29,
+            index = i + 19,
             body = body,
         )
         .unwrap();
