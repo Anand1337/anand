@@ -3,7 +3,7 @@ use std::convert::{Into, TryFrom};
 use std::fmt;
 use std::net::{AddrParseError, IpAddr, SocketAddr};
 use std::str::FromStr;
-use std::time::Duration;
+use std::time::{Duration,SystemTime};
 
 use actix::dev::{MessageResponse, ResponseChannel};
 use actix::{Actor, Message};
@@ -376,9 +376,10 @@ impl RawRoutedMessage {
         routed_message_ttl: u8,
     ) -> RoutedMessage {
         let target = self.target.peer_id_or_hash().unwrap();
-        let hash = RoutedMessage::build_hash(&target, &author, &self.body);
+        let creation_timestamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or(Duration::ZERO).as_nanos() as u64;
+        let hash = RoutedMessage::build_hash(&target, &author, &self.body, &creation_timestamp);
         let signature = secret_key.sign(hash.as_ref());
-        RoutedMessage { target, author, signature, ttl: routed_message_ttl, body: self.body }
+        RoutedMessage { target, author, signature, ttl: routed_message_ttl, body: self.body, creation_timestamp }
     }
 }
 
@@ -387,6 +388,7 @@ pub struct RoutedMessageNoSignature<'a> {
     target: &'a PeerIdOrHash,
     author: &'a PeerId,
     body: &'a RoutedMessageBody,
+    creation_timestamp: &'a u64,
 }
 
 /// RoutedMessage represent a package that will travel the network towards a specific peer id.
@@ -411,6 +413,7 @@ pub struct RoutedMessage {
     pub ttl: u8,
     /// Message
     pub body: RoutedMessageBody,
+    pub creation_timestamp: u64,
 }
 
 impl RoutedMessage {
@@ -418,16 +421,17 @@ impl RoutedMessage {
         target: &PeerIdOrHash,
         source: &PeerId,
         body: &RoutedMessageBody,
+        creation_timestamp: &u64,
     ) -> CryptoHash {
         hash(
-            &RoutedMessageNoSignature { target, author: source, body }
+            &RoutedMessageNoSignature { target, author: source, body, creation_timestamp }
                 .try_to_vec()
                 .expect("Failed to serialize"),
         )
     }
 
     pub fn hash(&self) -> CryptoHash {
-        RoutedMessage::build_hash(&self.target, &self.author, &self.body)
+        RoutedMessage::build_hash(&self.target, &self.author, &self.body, &self.creation_timestamp)
     }
 
     pub fn verify(&self) -> bool {

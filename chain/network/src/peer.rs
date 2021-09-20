@@ -5,7 +5,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,
 };
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use actix::{
     Actor, ActorContext, ActorFuture, Addr, Arbiter, AsyncContext, Context, ContextFutureSpawner,
@@ -498,6 +498,8 @@ impl Peer {
             // All Routed messages received at this point are for us.
             PeerMessage::Routed(routed_message) => {
                 let msg_hash = routed_message.hash();
+                let msg_creation_timestamp = SystemTime::UNIX_EPOCH.checked_add(Duration::from_nanos(routed_message.creation_timestamp)).unwrap_or(SystemTime::UNIX_EPOCH);
+                debug!(target: "network", "Message delivery latency: {:?}", SystemTime::now().duration_since(msg_creation_timestamp).unwrap_or(Duration::ZERO));
 
                 match routed_message.body {
                     RoutedMessageBody::BlockApproval(approval) => {
