@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::fmt;
 use std::fs::{self, File};
@@ -30,6 +30,7 @@ use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{BlockHeight, ShardId, StateRoot};
 use near_store::test_utils::create_test_store;
 use near_store::{create_store, Store, TrieIterator};
+use nearcore::migrations::load_migration_data;
 use nearcore::{get_default_home, get_store_path, load_config, NearConfig, NightshadeRuntime};
 use node_runtime::adapter::ViewRuntimeAdapter;
 use state_dump::state_dump;
@@ -278,6 +279,11 @@ fn apply_chain_range(
     verbose: bool,
     progress: u64,
 ) {
+    let migration_data = load_migration_data(&String::from("mainnet"));
+    let restored_receipts = migration_data.restored_receipts;
+    let mut receipt_ids: HashSet<CryptoHash> =
+        restored_receipts.get(&shard_id).unwrap().iter().map(|r| r.receipt_id).collect();
+
     let mut chain_store = ChainStore::new(store.clone(), near_config.genesis.config.genesis_height);
     let runtime_adapter: Arc<dyn RuntimeAdapter> = Arc::new(NightshadeRuntime::new(
         &home_dir,
@@ -405,6 +411,12 @@ fn apply_chain_range(
                 .unwrap()
         };
 
+        for outcome in apply_result.outcomes.iter() {
+            let receipt_id = outcome.id;
+            if receipt_ids.contains(&receipt_id) {
+                receipt_ids.remove(&receipt_id);
+            }
+        }
         let (outcome_root, _) =
             ApplyTransactionResult::compute_outcomes_proof(&apply_result.outcomes);
         let chunk_extra = ChunkExtra::new(
@@ -453,6 +465,7 @@ fn apply_chain_range(
     println!("Receipt gas burnt stats:    {}", receipts_gas_burnt_stats);
     println!("Receipt tokens burnt stats: {}", receipts_tokens_burnt_stats);
     println!("Applied blocks: {}. Skipped blocks: {}.", applied_blocks, skipped_blocks);
+    println!("Restored receipts left: {}", receipt_ids.len());
 }
 
 fn apply_block_at_height(
