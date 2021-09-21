@@ -498,7 +498,7 @@ fn apply_block_at_height(
             shard_id,
         )
         .unwrap();
-        runtime_adapter
+        let result = runtime_adapter
             .apply_transactions(
                 shard_id,
                 chunk_inner.prev_state_root(),
@@ -517,7 +517,8 @@ fn apply_block_at_height(
                 is_first_block_with_chunk_of_version,
                 None,
             )
-            .unwrap()
+            .unwrap();
+        println!("{:?}", result.outcomes);
     } else {
         let chunk_extra =
             chain_store.get_chunk_extra(block.header().prev_hash(), &shard_uid).unwrap().clone();
