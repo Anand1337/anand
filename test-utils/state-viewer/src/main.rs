@@ -519,6 +519,7 @@ fn apply_block_at_height(
             )
             .unwrap();
         println!("{:?}", result.outcomes);
+        result
     } else {
         let chunk_extra =
             chain_store.get_chunk_extra(block.header().prev_hash(), &shard_uid).unwrap().clone();
