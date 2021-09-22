@@ -392,7 +392,7 @@ fn compare_function_call_icount() {
 
         let cost = compute_function_call_cost(
             GasMetric::ICount,
-            VMKind::Wasmer1,
+            VMKind::Wasmer0,
             REPEATS,
             &contract,
             method_name,
