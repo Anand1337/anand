@@ -75,7 +75,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let brs: Vec<usize> = (1..11).map(|x| 1000 * x).collect();
     for br_1 in brs.iter().cloned() {
         let mc_2 = br_1 * 5 / 12;
-        let contract_1 = make_many_methods_contract(2, br_1);
+        let contract_1 = make_many_methods_contract(2, br_1, false);
         let funcs_1 = get_func_number(&contract_1);
         let cost_1 = compute_function_call_cost(
             metric,
@@ -87,7 +87,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             vec![],
         );
 
-        let contract_2 = make_many_methods_contract(mc_2, 1);
+        let contract_2 = make_many_methods_contract(mc_2, 1, false);
         let funcs_2 = get_func_number(&contract_2);
         let cost_2 = compute_function_call_cost(
             metric,
@@ -110,29 +110,31 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         println!("costs: {} {}", cost_per_function, gas_cost_per_function);
     }
 
-    for (method_count, body_repeat) in vec![
-        (2, 100),
-        (2, 10000),
-        (5, 1),
-        (5, 10),
-        (5, 100),
-        (5, 1000),
-        (20, 10),
-        (20, 100),
-        (50, 1),
-        (50, 100),
-        (200, 10),
-        (1000, 1),
-        (2000, 1),
-        (5000, 1),
-        (20000, 1),
+    for (method_count, body_repeat, add_type) in vec![
+        (2, 1, false),
+        (2, 1, true),
+        // (2, 10000),
+        // (5, 1),
+        // (5, 10),
+        // (5, 100),
+        // (5, 1000),
+        // (20, 10),
+        // (20, 100),
+        // (50, 1),
+        // (50, 100),
+        // (200, 10),
+        // (1000, 1),
+        // (2000, 1),
+        // (5000, 1),
+        // (20000, 1),
     ]
     .iter()
     .cloned()
     {
         // for method_count in vec![5, 20, 30, 50, 100, 200] {
         // for method_count in vec![5, 100, 4500] {
-        let contract = make_many_methods_contract(method_count, body_repeat);
+        let contract = make_many_methods_contract(method_count, body_repeat, add_type);
+        let funcs = get_func_number(&contract);
         let args = vec![];
         println!("LEN = {}", contract.code().len());
         let cost = compute_function_call_cost(
@@ -369,7 +371,11 @@ fn compare_function_call_icount() {
     }
 }
 
-fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> ContractCode {
+fn make_many_methods_contract(
+    method_count: usize,
+    body_repeat: usize,
+    add_type: bool,
+) -> ContractCode {
     assert!(method_count > 1);
     let mut methods = String::new();
     // let imports = [
@@ -501,6 +507,14 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
     (import \"env\" \"attached_deposit\" (func (;27;) (type 13)))
     (import \"env\" \"promise_batch_action_transfer\" (func (;28;) (type 6)))
       */
+    if add_type {
+        write!(
+            &mut methods,
+            "
+        (type (;0;) (func (param i32 i32 i32 i64 i64 i32 i32)))
+            ",
+        );
+    }
     for i in 0..method_count {
         let mut body = String::new();
         write!(&mut body, "i32.const {i} drop ", i = i).unwrap();
