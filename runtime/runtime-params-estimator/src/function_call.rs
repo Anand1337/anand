@@ -102,6 +102,8 @@ fn get_complexity(contract: &ContractCode) -> usize {
         + module_info.globals.len()
         + module_info.exports.map.len()
         + module_info.elem_initializers.len()
+    + 0 // code section
+    + module_info.data_initializers.len()
 }
 
 #[allow(dead_code)]
@@ -119,7 +121,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let brs: Vec<usize> = (1..11).map(|x| 1000 * x).collect();
     for br_1 in brs.iter().cloned() {
         let mc_2 = br_1 * 5 / 12;
-        let contract_1 = make_many_methods_contract(2, br_1, false);
+        let contract_1 = make_many_methods_contract(2, br_1);
         let funcs_1 = get_func_number(&contract_1);
         let cost_1 = compute_function_call_cost(
             metric,
@@ -131,7 +133,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             vec![],
         );
 
-        let contract_2 = make_many_methods_contract(mc_2, 1, false);
+        let contract_2 = make_many_methods_contract(mc_2, 1);
         let funcs_2 = get_func_number(&contract_2);
         let cost_2 = compute_function_call_cost(
             metric,
@@ -154,31 +156,30 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         println!("costs: {} {}", cost_per_function, gas_cost_per_function);
     }
 
-    for (method_count, body_repeat, add_type) in vec![
-        (2, 1, false),
-        (2, 1, true),
-        // (2, 10000),
-        // (5, 1),
-        // (5, 10),
-        // (5, 100),
-        // (5, 1000),
-        // (20, 10),
-        // (20, 100),
-        // (50, 1),
-        // (50, 100),
-        // (200, 10),
-        // (1000, 1),
-        // (2000, 1),
-        // (5000, 1),
-        // (20000, 1),
+    for (method_count, body_repeat) in vec![
+        (2, 100),
+        (2, 10000),
+        (5, 1),
+        (5, 10),
+        (5, 100),
+        (5, 1000),
+        (20, 10),
+        (20, 100),
+        (50, 1),
+        (50, 100),
+        (200, 10),
+        (1000, 1),
+        (2000, 1),
+        (5000, 1),
+        (20000, 1),
     ]
     .iter()
     .cloned()
     {
         // for method_count in vec![5, 20, 30, 50, 100, 200] {
         // for method_count in vec![5, 100, 4500] {
-        let contract = make_many_methods_contract(method_count, body_repeat, add_type);
-        let funcs = get_func_number(&contract);
+        let contract = make_many_methods_contract(method_count, body_repeat);
+        let complexity = get_complexity(&contract);
         let args = vec![];
         println!("LEN = {}", contract.code().len());
         let cost = compute_function_call_cost(
@@ -200,11 +201,12 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         let funcs = module_info.func_assoc.len();
 
         println!(
-            "{:?} {:?} {} {} {} {}",
+            "{:?} {:?} {} {} {} {} {}",
             vm_kind,
             metric,
             contract.code().len(),
             funcs,
+            complexity,
             cost / REPEATS,
             ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128))
         );
@@ -216,7 +218,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 
         // data.push(args.len() as f64);
         data.push(contract.code().len() as f64);
-        data.push(funcs as f64);
+        // data.push(funcs as f64);
+        data.push(complexity as f64);
         data.push((cost / REPEATS) as f64);
 
         rows += 1;
@@ -415,11 +418,7 @@ fn compare_function_call_icount() {
     }
 }
 
-fn make_many_methods_contract(
-    method_count: usize,
-    body_repeat: usize,
-    add_type: bool,
-) -> ContractCode {
+fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> ContractCode {
     assert!(method_count > 1);
     let mut methods = String::new();
     // let imports = [
