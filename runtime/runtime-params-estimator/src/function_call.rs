@@ -377,7 +377,7 @@ fn compare_function_call_icount() {
         // Actual cost
         let contract = ContractCode::new(contract.iter().cloned().collect(), None);
         let contract_len = contract.code().len();
-        let func = get_func_number(&contract);
+        let funcs = get_func_number(&contract);
         let complexity = get_complexity(&contract);
 
         println!("contract length = {}", contract_len);
@@ -408,7 +408,7 @@ fn compare_function_call_icount() {
         // Newly:
         // Wasmer0 ICount function call base 48080046101 gas, per byte 207939579 gas
         // let new_fee = 48_080_046_101 + 207_939_579 * contract_len;
-        // let new_fee = 8_300_000_000 + 428_000 * contract_len + 2_200_000_000 * func;
+        // let new_fee = 8_300_000_000 + 428_000 * contract_len + 2_200_000_000 * funcs;
         let new_fee = 2 * (293_728 * contract_len + 2_040_243_966 * complexity);
 
         // println!("new estimation = {}", new_fee);
