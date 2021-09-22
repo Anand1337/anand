@@ -550,14 +550,14 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
     (import \"env\" \"attached_deposit\" (func (;27;) (type 13)))
     (import \"env\" \"promise_batch_action_transfer\" (func (;28;) (type 6)))
       */
-    if add_type {
-        write!(
-            &mut methods,
-            "
-        (type (;0;) (func (param i32 i32 i32 i64 i64 i32 i32)))
-            ",
-        );
-    }
+    // if add_type {
+    //     write!(
+    //         &mut methods,
+    //         "
+    //     (type (;0;) (func (param i32 i32 i32 i64 i64 i32 i32)))
+    //         ",
+    //     );
+    // }
     for i in 0..method_count {
         let mut body = String::new();
         write!(&mut body, "i32.const {i} drop ", i = i).unwrap();
