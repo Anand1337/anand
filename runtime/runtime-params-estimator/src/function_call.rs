@@ -60,6 +60,50 @@ fn get_func_number(contract: &ContractCode) -> usize {
     module_info.func_assoc.len()
 }
 
+fn get_complexity(contract: &ContractCode) -> usize {
+    let module =
+        cache::wasmer0_cache::compile_module_cached_wasmer0(&contract, &VMConfig::default(), None)
+            .unwrap();
+    let module_info = module.info();
+
+    println!("-------");
+    println!("{}", module_info.memories.len());
+    println!("{}", module_info.globals.len());
+    println!("{}", module_info.tables.len());
+    println!("{}", module_info.imported_functions.len());
+    println!("{}", module_info.imported_memories.len());
+    println!("{}", module_info.imported_tables.len());
+    println!("{}", module_info.imported_globals.len());
+    println!("{}", module_info.exports.map.len());
+    println!("{}", module_info.data_initializers.len());
+    println!("{}", module_info.elem_initializers.len());
+    println!("{}", module_info.func_assoc.len());
+    println!("{}", module_info.signatures.len());
+    println!("{}", module_info.backend.len());
+    println!("{}", module_info.custom_sections.len());
+    println!("-------");
+    let namespace_table = &module_info.namespace_table;
+    let table = &module_info.name_table;
+    let imported_funcs: Vec<_> = module_info
+        .imported_functions
+        .values()
+        .map(|i| (namespace_table.get(i.namespace_index), table.get(i.name_index)))
+        .collect();
+    println!("{:?}", imported_funcs);
+
+    module_info.signatures.len()
+        + module_info.imported_functions.len()
+        + module_info.imported_memories.len()
+        + module_info.imported_tables.len()
+        + module_info.imported_globals.len()
+        + module_info.func_assoc.len()
+        + module_info.tables.len()
+        + module_info.memories.len()
+        + module_info.globals.len()
+        + module_info.exports.map.len()
+        + module_info.elem_initializers.len()
+}
+
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let (mut args_len_xs, mut code_len_xs, mut funcs_xs) = (vec![], vec![], vec![]);
