@@ -26,6 +26,10 @@ serde_json = "1"
 near-client = { path = "../../chain/client" }
 
 [features]
+default = ["wasmer0_default"]
+
 sandbox = ["node-runtime/sandbox", "near-chain/sandbox", "near-network/sandbox", "near-client/sandbox"]
 nightly_protocol_features = ["nearcore/nightly_protocol_features"]
 nightly_protocol = ["nearcore/nightly_protocol"]
+wasmer2_default = ["nearcore/wasmer2_default"]
+wasmer0_default = ["nearcore/wasmer0_default"]
