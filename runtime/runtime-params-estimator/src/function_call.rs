@@ -357,7 +357,7 @@ fn test_function_call_icount() {
 
 fn get_aurora_small_contract_nodata_data() -> (&'static [u8], &'static str, Option<Vec<u8>>) {
     let contract_bytes = &include_bytes!("/host/nearcore/aurora_nodata.wat")[..];
-    let wasm_code = wat::parse_bytes(contract_bytes).unwrap().as_slice();
+    let wasm_code = wat::parse_bytes(contract_bytes).unwrap().as_ref();
     (wasm_code, "state_migration", None)
 }
 
