@@ -1,7 +1,6 @@
 use crate::cases::ratio_to_gas_signed;
 use crate::testbed_runners::{end_count, start_count, Consumed, GasMetric};
 use crate::vm_estimator::{create_context, least_squares_method, least_squares_method_2};
-use core::slice::SlicePattern;
 use nalgebra::{DMatrix, DVector, Matrix, Matrix2x3, MatrixXx4, RowVector, Vector, Vector2};
 use near_logger_utils::init_test_logger;
 use near_primitives::config::VMConfig;
@@ -11,8 +10,7 @@ use near_primitives::types::{CompiledContractCache, ProtocolVersion};
 use near_store::{create_store, StoreCompiledContractCache};
 use near_test_contracts::{
     aurora_contract, get_aurora_330_data, get_aurora_contract_data, get_aurora_small_contract_data,
-    get_aurora_with_deploy_data, get_multisig_contract_data, get_rs_contract_data,
-    get_voting_contract_data,
+    get_multisig_contract_data, get_rs_contract_data, get_voting_contract_data,
 };
 use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_logic::ExtCostsConfig;
