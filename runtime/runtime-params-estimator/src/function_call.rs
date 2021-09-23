@@ -9,7 +9,7 @@ use near_primitives::runtime::fees::RuntimeFeesConfig;
 use near_primitives::types::{CompiledContractCache, ProtocolVersion};
 use near_store::{create_store, StoreCompiledContractCache};
 use near_test_contracts::{
-    aurora_contract, get_aurora_contract_data, get_aurora_small_contract_data,
+    aurora_contract, get_aurora_330_data, get_aurora_contract_data, get_aurora_small_contract_data,
     get_aurora_with_deploy_data, get_multisig_contract_data, get_rs_contract_data,
     get_voting_contract_data,
 };
@@ -370,7 +370,8 @@ fn compare_function_call_icount() {
 
     let contracts_data = vec![
         get_aurora_small_contract_data(),
-        get_aurora_with_deploy_data(),
+        // get_aurora_with_deploy_data(),
+        get_aurora_330_data(),
         get_aurora_contract_data(),
         // get_multisig_contract_data(),
         // get_voting_contract_data(),

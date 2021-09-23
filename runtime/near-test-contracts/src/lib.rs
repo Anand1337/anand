@@ -55,6 +55,15 @@ pub fn get_aurora_with_deploy_data() -> (&'static [u8], &'static str, Option<Vec
     )
 }
 
+pub fn get_aurora_330_data() -> (&'static [u8], &'static str, Option<Vec<u8>>) {
+    static CONTRACT: OnceCell<Vec<u8>> = OnceCell::new();
+    (
+        CONTRACT.get_or_init(|| read_contract("aurora_engine_330.wasm")).as_slice(),
+        "state_migration",
+        None,
+    )
+}
+
 pub fn get_multisig_contract_data() -> (&'static [u8], &'static str, Option<Vec<u8>>) {
     static CONTRACT: OnceCell<Vec<u8>> = OnceCell::new();
     (
