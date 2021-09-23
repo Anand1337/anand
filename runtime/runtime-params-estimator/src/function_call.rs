@@ -368,7 +368,7 @@ fn compare_function_call_icount() {
     println!("old_function_call_fee = {}", old_function_call_fee);
 
     let contract_bytes = &include_bytes!("/host/nearcore/aurora_nodata.wat")[..];
-    let wasm_code = wat::parse_bytes(contract_bytes).unwrap().as_ref().clone();
+    let wasm_code = wat::parse_bytes(contract_bytes).unwrap().clone().as_ref().clone();
 
     let contracts_data = vec![
         get_aurora_small_contract_data(),
