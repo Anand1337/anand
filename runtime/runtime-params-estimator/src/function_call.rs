@@ -1,6 +1,7 @@
 use crate::cases::ratio_to_gas_signed;
 use crate::testbed_runners::{end_count, start_count, Consumed, GasMetric};
 use crate::vm_estimator::{create_context, least_squares_method, least_squares_method_2};
+use core::slice::SlicePattern;
 use nalgebra::{DMatrix, DVector, Matrix, Matrix2x3, MatrixXx4, RowVector, Vector, Vector2};
 use near_logger_utils::init_test_logger;
 use near_primitives::config::VMConfig;
@@ -363,8 +364,8 @@ fn run_wat2wasm() {
 
 fn get_aurora_small_contract_nodata_data() -> (&[u8], &'static str, Option<Vec<u8>>) {
     let contract_bytes = &include_bytes!("/host/nearcore/aurora_nodata.wat")[..];
-    let wasm_code = wat::parse_str(contract_bytes).unwrap();
-    (wasm_code.as_slice(), "state_migration", None)
+    let wasm_code = wat::parse_bytes(contract_bytes).unwrap().as_slice();
+    (wasm_code, "state_migration", None)
 }
 
 #[test]
