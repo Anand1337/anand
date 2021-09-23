@@ -8,6 +8,7 @@ use git_version::git_version;
 use lazy_static::lazy_static;
 use near_performance_metrics;
 use near_primitives::version::{Version, DB_VERSION, PROTOCOL_VERSION};
+use near_primitives::cpu_span::cpu_span;
 #[cfg(feature = "memory_stats")]
 use near_rust_allocator_proxy::allocator::MyAllocator;
 use nearcore::get_default_home;
@@ -45,5 +46,6 @@ fn main() {
     openssl_probe::init_ssl_cert_env_vars();
     near_performance_metrics::process::schedule_printing_performance_stats(60);
 
+    let _cpu_span = cpu_span();
     NeardCmd::parse_and_run()
 }
