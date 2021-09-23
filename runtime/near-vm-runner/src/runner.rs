@@ -59,6 +59,8 @@ pub fn run_vm(
 ) -> (Option<VMOutcome>, Option<VMError>) {
     let _span = tracing::debug_span!(target: "vm", "run_vm").entered();
 
+    println!("run vm: {:?}", vm_kind);
+
     #[cfg(feature = "wasmer0_vm")]
     use crate::wasmer_runner::run_wasmer;
 
