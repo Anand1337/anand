@@ -1,17 +1,19 @@
-mod cli;
-
 use std::env;
+use std::path::PathBuf;
 
-use self::cli::NeardCmd;
 use clap::crate_version;
 use git_version::git_version;
 use lazy_static::lazy_static;
-use near_performance_metrics;
-use near_primitives::version::{Version, DB_VERSION, PROTOCOL_VERSION};
 #[cfg(feature = "memory_stats")]
 use near_rust_allocator_proxy::allocator::MyAllocator;
+
+use near_performance_metrics;
+use near_primitives::version::{DB_VERSION, PROTOCOL_VERSION, Version};
 use nearcore::get_default_home;
-use std::path::PathBuf;
+
+use self::cli::NeardCmd;
+
+mod cli;
 
 pub fn get_version() -> String {
     match crate_version!() {

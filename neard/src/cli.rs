@@ -1,17 +1,21 @@
-use super::{DEFAULT_HOME, NEARD_VERSION, NEARD_VERSION_STRING, PROTOCOL_VERSION};
-use clap::{AppSettings, Clap};
-use futures::future::FutureExt;
-use near_primitives::types::{Gas, NumSeats, NumShards};
-use nearcore::get_store_path;
+use std::{env, fs, io};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::{env, fs, io};
+
+use clap::{AppSettings, Clap};
+use futures::future::FutureExt;
 use tracing::debug;
 #[cfg(feature = "adversarial")]
 use tracing::error;
 use tracing::info;
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::EnvFilter;
+
+use near_primitives::cpu_span::cpu_span;
+use near_primitives::types::{Gas, NumSeats, NumShards};
+use nearcore::get_store_path;
+
+use super::{DEFAULT_HOME, NEARD_VERSION, NEARD_VERSION_STRING, PROTOCOL_VERSION};
 
 /// NEAR Protocol Node
 #[derive(Clap)]
@@ -31,15 +35,15 @@ impl NeardCmd {
         info!(target: "neard", "Version: {}, Build: {}, Latest Protocol: {}", NEARD_VERSION.version, NEARD_VERSION.build, PROTOCOL_VERSION);
 
         #[cfg(feature = "adversarial")]
-        {
-            error!("THIS IS A NODE COMPILED WITH ADVERSARIAL BEHAVIORS. DO NOT USE IN PRODUCTION.");
+            {
+                error!("THIS IS A NODE COMPILED WITH ADVERSARIAL BEHAVIORS. DO NOT USE IN PRODUCTION.");
 
-            if env::var("ADVERSARY_CONSENT").unwrap_or_default() != "1" {
-                error!("To run a node with adversarial behavior enabled give your consent by setting variable:");
-                error!("ADVERSARY_CONSENT=1");
-                std::process::exit(1);
+                if env::var("ADVERSARY_CONSENT").unwrap_or_default() != "1" {
+                    error!("To run a node with adversarial behavior enabled give your consent by setting variable:");
+                    error!("ADVERSARY_CONSENT=1");
+                    std::process::exit(1);
+                }
             }
-        }
 
         let home_dir = neard_cmd.opts.home;
 
@@ -147,8 +151,8 @@ impl InitCmd {
         if (self.download_genesis || self.download_genesis_url.is_some()) && self.genesis.is_some()
         {
             panic!(
-                    "Please specify a local genesis file or download the NEAR genesis or specify your own."
-                );
+                "Please specify a local genesis file or download the NEAR genesis or specify your own."
+            );
         }
 
         nearcore::init_configs(
@@ -214,6 +218,7 @@ pub(super) struct RunCmd {
 
 impl RunCmd {
     pub(super) fn run(self, home_dir: &Path) {
+        let _cpu_span = cpu_span();
         // Load configs from home.
         let mut near_config = nearcore::config::load_config_without_genesis_records(home_dir);
         // Set current version in client config.
@@ -261,17 +266,17 @@ impl RunCmd {
         }
 
         #[cfg(feature = "sandbox")]
-        {
-            if near_config.client_config.chain_id == "mainnet"
-                || near_config.client_config.chain_id == "testnet"
-                || near_config.client_config.chain_id == "betanet"
             {
-                eprintln!(
-                    "Sandbox node can only run dedicate localnet, cannot connect to a network"
-                );
-                std::process::exit(1);
+                if near_config.client_config.chain_id == "mainnet"
+                    || near_config.client_config.chain_id == "testnet"
+                    || near_config.client_config.chain_id == "betanet"
+                {
+                    eprintln!(
+                        "Sandbox node can only run dedicate localnet, cannot connect to a network"
+                    );
+                    std::process::exit(1);
+                }
             }
-        }
 
         let sys = actix::System::new();
         sys.block_on(async move {
@@ -295,7 +300,7 @@ impl RunCmd {
                 server.stop(true).await;
                 debug!(target: "neard", "{} server stopped", name);
             }))
-            .await;
+                .await;
             actix::System::current().stop();
         });
         sys.run().unwrap();
@@ -400,6 +405,6 @@ mod tests {
             "--account-id=test.near",
             "--fast"
         ])
-        .is_err());
+            .is_err());
     }
 }

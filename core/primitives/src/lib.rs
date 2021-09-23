@@ -5,6 +5,7 @@ pub use near_primitives_core::account;
 pub mod block;
 pub mod block_header;
 pub mod challenge;
+pub mod cpu_span;
 pub use near_primitives_core::config;
 pub use near_primitives_core::contract;
 pub mod epoch_manager;
