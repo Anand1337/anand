@@ -7,14 +7,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use ansi_term::Color::Red;
-use borsh::BorshSerialize;
 use clap::{App, AppSettings, Arg, SubCommand};
 use tracing::info;
 
-use near_chain::{ChainStore, ChainStoreAccess, ChainStoreUpdate, RuntimeAdapter};
+use borsh::BorshSerialize;
 use near_chain::chain::collect_receipts_from_response;
 use near_chain::migrations::check_if_block_is_first_with_chunk_of_version;
 use near_chain::types::{ApplyTransactionResult, BlockHeaderInfo};
+use near_chain::{ChainStore, ChainStoreAccess, ChainStoreUpdate, RuntimeAdapter};
 use near_epoch_manager::EpochManager;
 use near_logger_utils::init_integration_logger;
 use near_network::peer_store::PeerStore;
@@ -26,10 +26,10 @@ use near_primitives::serialize::to_base;
 use near_primitives::shard_layout::ShardUId;
 use near_primitives::state_record::StateRecord;
 use near_primitives::trie_key::TrieKey;
-use near_primitives::types::{BlockHeight, ShardId, StateRoot};
 use near_primitives::types::chunk_extra::ChunkExtra;
-use near_store::{create_store, Store, TrieIterator};
+use near_primitives::types::{BlockHeight, ShardId, StateRoot};
 use near_store::test_utils::create_test_store;
+use near_store::{create_store, Store, TrieIterator};
 use nearcore::{get_default_home, get_store_path, load_config, NearConfig, NightshadeRuntime};
 use node_runtime::adapter::ViewRuntimeAdapter;
 use state_dump::state_dump;
@@ -329,7 +329,7 @@ fn apply_chain_range(
                 .clone();
 
             let prev_block = if let Ok(prev_block) =
-            chain_store.get_block(&block.header().prev_hash())
+                chain_store.get_block(&block.header().prev_hash())
             {
                 prev_block.clone()
             } else {
@@ -356,7 +356,7 @@ fn apply_chain_range(
                     block.header().prev_hash(),
                     shard_id,
                 )
-                    .unwrap();
+                .unwrap();
             runtime_adapter
                 .apply_transactions(
                     shard_id,
@@ -424,10 +424,6 @@ fn apply_chain_range(
             let existing_chunk_extra = chain_store.get_chunk_extra(&block_hash, &shard_uid);
             println!("existing_chunk_extra: {:#?}", existing_chunk_extra);
             println!("outcomes: {:#?}", apply_result.outcomes);
-            assert!(existing_chunk_extra.is_ok());
-            if let Ok(existing_chunk_extra) = existing_chunk_extra {
-                assert_eq!(*existing_chunk_extra,chunk_extra);
-            }
         }
 
         chunk_gas_used_stats.add_u64(chunk_extra.gas_used());
@@ -503,7 +499,7 @@ fn apply_block_at_height(
             block.header().prev_hash(),
             shard_id,
         )
-            .unwrap();
+        .unwrap();
         runtime_adapter
             .apply_transactions(
                 shard_id,
