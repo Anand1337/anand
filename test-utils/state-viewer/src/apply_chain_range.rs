@@ -15,6 +15,7 @@ use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{BlockHeight, ShardId};
 use near_store::Store;
 use nearcore::{NearConfig, NightshadeRuntime};
+use std::str::FromStr;
 
 pub fn apply_chain_range(
     store: Arc<Store>,
@@ -165,7 +166,8 @@ pub fn apply_chain_range(
         let existing_chunk_extra = chain_store.get_chunk_extra(&block_hash, &shard_uid);
         assert!(existing_chunk_extra.is_ok(), "Missing an existing chunk extra at block_height: {}, block_hash: {}", height, block_hash);
         if let Ok(existing_chunk_extra) = existing_chunk_extra {
-            if *existing_chunk_extra != chunk_extra {
+            if *existing_chunk_extra != chunk_extra &&
+                *chunk_extra.outcome_root() != CryptoHash::from_str("11111111111111111111111111111111").unwrap() {
                 eprintln!("Got a different ChunkExtra:\nblock_height: {}, block_hash: {}\nchunk_extra: {:#?}\nexisting_chunk_extra: {:#?}\noutcomes: {:#?}\n", height, block_hash, chunk_extra, existing_chunk_extra, apply_result.outcomes);
             }
         }
