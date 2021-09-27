@@ -2027,6 +2027,7 @@ dependencies = [
  "near-client-primitives",
  "near-crypto",
  "near-jsonrpc",
+ "near-jsonrpc-client",
  "near-jsonrpc-client-old",
  "near-jsonrpc-primitives",
  "near-logger-utils",
@@ -2646,6 +2647,7 @@ dependencies = [
  "near-client",
  "near-crypto",
  "near-jsonrpc-adversarial-primitives",
+ "near-jsonrpc-client",
  "near-jsonrpc-client-old",
  "near-jsonrpc-primitives",
  "near-logger-utils",
@@ -2671,6 +2673,22 @@ dependencies = [
  "near-primitives",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "near-jsonrpc-client"
+version = "0.1.0"
+dependencies = [
+ "borsh 0.9.1",
+ "lazy_static",
+ "near-chain-configs",
+ "near-client-primitives",
+ "near-jsonrpc-primitives",
+ "near-primitives",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]

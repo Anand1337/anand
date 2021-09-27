@@ -1,19 +1,15 @@
-use std::str::FromStr;
-
 use actix::{Actor, System};
-use borsh::BorshSerialize;
 use futures::{future, FutureExt, TryFutureExt};
+use serde_json::json;
 
 use crate::node_cluster::NodeCluster;
 use integration_tests::genesis_helpers::genesis_block;
 use near_actix_test_utils::spawn_interruptible;
 use near_client::GetBlock;
 use near_crypto::{InMemorySigner, KeyType};
-use near_jsonrpc::client::new_client;
+use near_jsonrpc_client::{methods, JsonRpcClient};
 use near_logger_utils::init_integration_logger;
 use near_network::test_utils::WaitOrTimeout;
-use near_primitives::hash::CryptoHash;
-use near_primitives::serialize::to_base64;
 use near_primitives::transaction::SignedTransaction;
 use near_primitives::types::BlockId;
 
@@ -42,19 +38,25 @@ fn test_block_unknown_block_error() {
                 spawn_interruptible(view_client.send(GetBlock::latest()).then(move |res| {
                     if let Ok(Ok(block)) = res {
                         if block.header.height > 1 {
-                            let client = new_client(&format!("http://{}", rpc_addrs_copy[2]));
+                            let client =
+                                JsonRpcClient::connect(&format!("http://{}", rpc_addrs_copy[2]));
                             spawn_interruptible(
                                 client
-                                    .block_by_id(BlockId::Height(block.header.height + 100))
+                                    .call(
+                                        methods::any::<methods::block::RpcBlockRequest>(
+                                            "block",
+                                            json!([BlockId::Height(block.header.height + 100)])
+                                        )
+                                    )
                                     .map_err(|err| {
-                                        let error_json = serde_json::to_value(err).unwrap();
-                                        assert_eq!(
-                                            error_json["name"],
-                                            serde_json::json!("HANDLER_ERROR")
-                                        );
-                                        assert_eq!(
-                                            error_json["cause"]["name"],
-                                            serde_json::json!("UNKNOWN_BLOCK")
+                                        let handler_error = err.handler_error();
+                                        assert!(
+                                            matches!(
+                                                handler_error,
+                                                Ok(methods::block::RpcBlockError::UnknownBlock { .. })
+                                            ),
+                                            "expected an UnknownBlock handler error response, got [{:?}]",
+                                            handler_error
                                         );
                                         System::current().stop();
                                     })
@@ -99,30 +101,33 @@ fn test_chunk_unknown_chunk_error() {
                 spawn_interruptible(view_client.send(GetBlock::latest()).then(move |res| {
                     if let Ok(Ok(block)) = res {
                         if block.header.height > 1 {
-                            let client = new_client(&format!("http://{}", rpc_addrs_copy[2]));
+                            let client =
+                                JsonRpcClient::connect(&format!("http://{}", rpc_addrs_copy[2]));
                             spawn_interruptible(
                                 client
-                                    .chunk(near_jsonrpc::client::ChunkId::Hash(
-                                        CryptoHash::from_str(
-                                            "3tMcx4KU2KvkwJPMWPXqK2MUU1FDVbigPFNiAeuVa7Tu",
-                                        )
-                                        .unwrap(),
-                                    ))
-                                    .map_err(|err| {
-                                        let error_json = serde_json::to_value(err).unwrap();
-                                        assert_eq!(
-                                            error_json["name"],
-                                            serde_json::json!("HANDLER_ERROR")
-                                        );
-                                        assert_eq!(
-                                            error_json["cause"]["name"],
-                                            serde_json::json!("UNKNOWN_CHUNK")
-                                        );
-                                        assert_eq!(
-                                            error_json["cause"]["info"]["chunk_hash"],
-                                            serde_json::json!(
+                                    .call(methods::chunk::RpcChunkRequest {
+                                        chunk_reference: near_jsonrpc_primitives::types::chunks::ChunkReference::ChunkHash {
+                                            chunk_id:
                                                 "3tMcx4KU2KvkwJPMWPXqK2MUU1FDVbigPFNiAeuVa7Tu"
-                                            )
+                                                    .parse()
+                                                    .unwrap(),
+                                        },
+                                    })
+                                    .map_err(|err| {
+                                        let handler_error = err.handler_error();
+                                        assert!(
+                                            matches!(
+                                                handler_error,
+                                                Ok(methods::chunk::RpcChunkError::UnknownChunk {
+                                                    chunk_hash: near_primitives::sharding::ChunkHash(crypto_hash)
+                                                })
+                                                if crypto_hash
+                                                == "3tMcx4KU2KvkwJPMWPXqK2MUU1FDVbigPFNiAeuVa7Tu"
+                                                    .parse()
+                                                    .unwrap()
+                                            ),
+                                            "expected an UnknownChunk handler error response, got [{:?}]",
+                                            handler_error
                                         );
                                         System::current().stop();
                                     })
@@ -166,24 +171,25 @@ fn test_protocol_config_unknown_block_error() {
                 spawn_interruptible(view_client.send(GetBlock::latest()).then(move |res| {
                     if let Ok(Ok(block)) = res {
                         if block.header.height > 1 {
-                            let client = new_client(&format!("http://{}", rpc_addrs_copy[2]));
+                            let client =
+                                JsonRpcClient::connect(&format!("http://{}", rpc_addrs_copy[2]));
                             spawn_interruptible(
                                 client
-                                    .EXPERIMENTAL_protocol_config(
-                                        near_jsonrpc_primitives::types::config::RpcProtocolConfigRequest {
-                                            block_reference: near_primitives::types::BlockReference::BlockId(BlockId::Height(block.header.height + 100))
-                                        }
-                                    )
+                                    .call(methods::EXPERIMENTAL_protocol_config::RpcProtocolConfigRequest {
+                                        block_reference:
+                                            near_primitives::types::BlockReference::BlockId(
+                                                BlockId::Height(block.header.height + 100),
+                                            ),
+                                    })
                                     .map_err(|err| {
-                                        let error_json = serde_json::to_value(err).unwrap();
-
-                                        assert_eq!(
-                                            error_json["name"],
-                                            serde_json::json!("HANDLER_ERROR")
-                                        );
-                                        assert_eq!(
-                                            error_json["cause"]["name"],
-                                            serde_json::json!("UNKNOWN_BLOCK")
+                                        let handler_error = err.handler_error();
+                                        assert!(
+                                            matches!(
+                                                handler_error,
+                                                Ok(methods::EXPERIMENTAL_protocol_config::RpcProtocolConfigError::UnknownBlock { .. }),
+                                            ),
+                                            "expected an UnknownBlock handler error response, got [{:?}]",
+                                            handler_error
                                         );
                                         System::current().stop();
                                     })
@@ -227,20 +233,22 @@ fn test_gas_price_unknown_block_error() {
                 spawn_interruptible(view_client.send(GetBlock::latest()).then(move |res| {
                     if let Ok(Ok(block)) = res {
                         if block.header.height > 1 {
-                            let client = new_client(&format!("http://{}", rpc_addrs_copy[2]));
+                            let client =
+                                JsonRpcClient::connect(&format!("http://{}", rpc_addrs_copy[2]));
                             spawn_interruptible(
                                 client
-                                    .gas_price(Some(BlockId::Height(block.header.height + 100)))
+                                    .call(methods::gas_price::RpcGasPriceRequest {
+                                        block_id: Some(BlockId::Height(block.header.height + 100)),
+                                    })
                                     .map_err(|err| {
-                                        let error_json = serde_json::to_value(err).unwrap();
-
-                                        assert_eq!(
-                                            error_json["name"],
-                                            serde_json::json!("HANDLER_ERROR")
-                                        );
-                                        assert_eq!(
-                                            error_json["cause"]["name"],
-                                            serde_json::json!("UNKNOWN_BLOCK")
+                                        let handler_error = err.handler_error();
+                                        assert!(
+                                            matches!(
+                                                handler_error,
+                                                Ok(methods::gas_price::RpcGasPriceError::UnknownBlock { .. }),
+                                            ),
+                                            "expected an UnknownBlock handler error response, got [{:?}]",
+                                            handler_error
                                         );
                                         System::current().stop();
                                     })
@@ -284,32 +292,30 @@ fn test_receipt_id_unknown_receipt_error() {
                 spawn_interruptible(view_client.send(GetBlock::latest()).then(move |res| {
                     if let Ok(Ok(block)) = res {
                         if block.header.height > 1 {
-                            let client = new_client(&format!("http://{}", rpc_addrs_copy[2]));
+                            let client =
+                                JsonRpcClient::connect(&format!("http://{}", rpc_addrs_copy[2]));
                             spawn_interruptible(
                                 client
-                                    .EXPERIMENTAL_receipt(
-                                        near_jsonrpc_primitives::types::receipts::RpcReceiptRequest {
+                                    .call(
+                                        methods::EXPERIMENTAL_receipt::RpcReceiptRequest {
                                             receipt_reference: near_jsonrpc_primitives::types::receipts::ReceiptReference {
-                                            receipt_id: CryptoHash::from_str("3tMcx4KU2KvkwJPMWPXqK2MUU1FDVbigPFNiAeuVa7Tu").unwrap()
-                                        }
+                                                receipt_id: "3tMcx4KU2KvkwJPMWPXqK2MUU1FDVbigPFNiAeuVa7Tu".parse().unwrap()
+                                            }
                                         }
                                     )
                                     .map_err(|err| {
-                                        let error_json = serde_json::to_value(err).unwrap();
-
-                                        assert_eq!(
-                                            error_json["name"],
-                                            serde_json::json!("HANDLER_ERROR")
-                                        );
-                                        assert_eq!(
-                                            error_json["cause"]["name"],
-                                            serde_json::json!("UNKNOWN_RECEIPT")
-                                        );
-                                        assert_eq!(
-                                            error_json["cause"]["info"]["receipt_id"],
-                                            serde_json::json!(
-                                                "3tMcx4KU2KvkwJPMWPXqK2MUU1FDVbigPFNiAeuVa7Tu"
-                                            )
+                                        let handler_error = err.handler_error();
+                                        assert!(
+                                            matches!(
+                                                handler_error,
+                                                Ok(methods::EXPERIMENTAL_receipt::RpcReceiptError::UnknownReceipt { receipt_id })
+                                                if receipt_id
+                                                == "3tMcx4KU2KvkwJPMWPXqK2MUU1FDVbigPFNiAeuVa7Tu"
+                                                    .parse()
+                                                    .unwrap()
+                                            ),
+                                            "expected an UnknownReceipt handler error response, got [{:?}]",
+                                            handler_error
                                         );
                                         System::current().stop();
                                     })
@@ -366,25 +372,27 @@ fn test_tx_invalid_tx_error() {
                 spawn_interruptible(view_client.send(GetBlock::latest()).then(move |res| {
                     if let Ok(Ok(block)) = res {
                         if block.header.height > 10 {
-                            let client = new_client(&format!("http://{}", rpc_addrs_copy[2]));
-                            let bytes = transaction_copy.try_to_vec().unwrap();
+                            let client =
+                                JsonRpcClient::connect(&format!("http://{}", rpc_addrs_copy[2]));
                             spawn_interruptible(
                                 client
-                                    .EXPERIMENTAL_broadcast_tx_sync(to_base64(&bytes))
+                                    .call(
+                                        methods::EXPERIMENTAL_broadcast_tx_sync::RpcBroadcastTxSyncRequest {
+                                            signed_transaction: transaction_copy
+                                        }
+                                    )
                                     .map_err(move |err| {
-                                        let error_json = serde_json::to_value(err).unwrap();
-
-                                        assert_eq!(
-                                            error_json["name"],
-                                            serde_json::json!("HANDLER_ERROR")
-                                        );
-                                        assert_eq!(
-                                            error_json["cause"]["name"],
-                                            serde_json::json!("REQUEST_ROUTED")
-                                        );
-                                        assert_eq!(
-                                            error_json["cause"]["info"]["transaction_hash"],
-                                            serde_json::json!(tx_hash)
+                                        let handler_error = err.handler_error();
+                                        assert!(
+                                            matches!(
+                                                handler_error,
+                                                Ok(methods::EXPERIMENTAL_broadcast_tx_sync::RpcTransactionError::RequestRouted {
+                                                    transaction_hash
+                                                })
+                                                if transaction_hash == tx_hash
+                                            ),
+                                            "expected a RequestRouted handler error response, got [{:?}]",
+                                            handler_error
                                         );
                                         System::current().stop();
                                     })
@@ -415,9 +423,9 @@ fn test_query_rpc_account_view_unknown_block_must_return_error() {
         .set_genesis_height(0);
 
     cluster.exec_until_stop(|_, rpc_addrs, _| async move {
-        let client = new_client(&format!("http://{}", rpc_addrs[0]));
+        let client = JsonRpcClient::connect(&format!("http://{}", rpc_addrs[0]));
         let query_response = client
-            .query(near_jsonrpc_primitives::types::query::RpcQueryRequest {
+            .call(methods::query::RpcQueryRequest {
                 block_reference: near_primitives::types::BlockReference::BlockId(BlockId::Height(
                     1,
                 )),
@@ -427,12 +435,17 @@ fn test_query_rpc_account_view_unknown_block_must_return_error() {
             })
             .await;
 
-        let error = match query_response {
-            Ok(result) => panic!("expected error but received Ok: {:?}", result.kind),
-            Err(err) => serde_json::to_value(err).unwrap(),
-        };
+        let handler_error = query_response
+            .map(|result| result.kind)
+            .expect_err("request must not succeed")
+            .handler_error();
 
-        assert_eq!(error["cause"]["name"], serde_json::json!("UNKNOWN_BLOCK"),);
+        assert!(
+            matches!(handler_error, Ok(methods::query::RpcQueryError::UnknownBlock { .. })),
+            "expected an UnknownBlock handler error response, got [{:?}]",
+            handler_error
+        );
+
         System::current().stop();
     });
 }

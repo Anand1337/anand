@@ -7,8 +7,7 @@ use futures::{Future, TryFutureExt};
 
 use near_client::StatusResponse;
 use near_crypto::{PublicKey, Signer};
-use near_jsonrpc::client::{new_client, JsonRpcClient};
-use near_jsonrpc_client_old::ChunkId;
+use near_jsonrpc_client_old::{new_client, ChunkId, JsonRpcClient};
 use near_jsonrpc_primitives::errors::ServerError;
 use near_jsonrpc_primitives::types::query::RpcQueryResponse;
 use near_primitives::hash::CryptoHash;

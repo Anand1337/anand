@@ -1,7 +1,7 @@
 #[cfg(feature = "test_features")]
 use actix::Actor;
 use actix::Addr;
-use futures::{future, future::LocalBoxFuture, FutureExt, TryFutureExt};
+use futures::{future, FutureExt, TryFutureExt};
 use serde_json::json;
 
 use near_chain_configs::GenesisConfig;
@@ -73,35 +73,43 @@ pub fn start_all_with_validity_period_and_no_epoch_sync(
     (view_client_addr, addr)
 }
 
-#[allow(unused_macros)] // Suppress Rustc warnings even though this macro is used.
-macro_rules! test_with_client {
-    ($node_type:expr, $client:ident, $block:expr) => {
-        init_test_logger();
+#[macro_use]
+pub mod macros {
+    #![allow(unused_macros)] // Suppress Rustc warnings even though this macro is used.
 
-        near_actix_test_utils::run_actix(async {
-            let (_view_client_addr, addr) = test_utils::start_all($node_type);
+    macro_rules! actix_test_env {
+        ($scope:expr) => {
+            init_test_logger();
 
-            let $client = new_client(&format!("http://{}", addr));
+            run_actix(async { $scope });
+        };
+    }
 
-            actix::spawn(async move {
-                $block.await;
-                System::current().stop();
+    macro_rules! test_with_client {
+        ($node_type:expr, $client:ident, $block:expr) => {
+            actix_test_env!({
+                let (_, addr) = test_utils::start_all($node_type);
+
+                let $client = JsonRpcClient::connect(&format!("http://{}", addr));
+
+                actix::spawn(async move {
+                    $block.await;
+                    System::current().stop();
+                });
             });
-        });
-    };
+        };
+    }
 }
 
-type RpcRequest<T> = LocalBoxFuture<'static, Result<T, near_jsonrpc_primitives::errors::RpcError>>;
-
 /// Prepare a `RPCRequest` with a given client, server address, method and parameters.
-pub fn call_method<R>(
+pub async fn call_method<T>(
     client: &awc::Client,
     server_addr: &str,
-    method: &str,
+    method: &serde_json::Value,
     params: serde_json::Value,
-) -> RpcRequest<R>
+) -> Result<T, near_jsonrpc_primitives::errors::RpcError>
 where
-    R: serde::de::DeserializeOwned + 'static,
+    T: serde::de::DeserializeOwned,
 {
     let request = json!({
         "jsonrpc": "2.0",
@@ -149,5 +157,5 @@ where
                 ))),
             })
         })
-        .boxed_local()
+        .await
 }

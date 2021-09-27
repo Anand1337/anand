@@ -28,13 +28,14 @@ near-primitives = { path = "../../core/primitives" }
 near-metrics = { path = "../../core/metrics" }
 near-client = { path = "../client" }
 near-network = { path = "../network" }
-near-jsonrpc-client-old = { path = "client" }
 near-jsonrpc-primitives = { path = "../jsonrpc-primitives" }
 near-jsonrpc-adversarial-primitives = { path = "../jsonrpc-adversarial-primitives", optional = true }
 near-rpc-error-macro = { path = "../../tools/rpctypegen/macro" }
 near-performance-metrics = { path = "../../utils/near-performance-metrics" }
 
 [dev-dependencies]
+near-jsonrpc-client-old = { path = "client" }
+near-jsonrpc-client = { git = "https://github.com/near/near-jsonrpc-client-rs", rev = "f45fba55e8b7605ada04f7c322975fbc6bb7b262", features = ["any"] }
 near-logger-utils = { path = "../../test-utils/logger" }
 near-actix-test-utils = { path = "../../test-utils/actix-test-utils" }
 

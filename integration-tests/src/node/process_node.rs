@@ -17,7 +17,7 @@ use crate::user::rpc_user::RpcUser;
 use crate::user::User;
 use actix::{Actor, System};
 use futures::{FutureExt, TryFutureExt};
-use near_jsonrpc_client_old::new_client;
+use near_jsonrpc_client::{methods, JsonRpcClient};
 use near_network::test_utils::WaitOrTimeout;
 
 pub enum ProcessNodeState {
@@ -57,8 +57,8 @@ impl Node for ProcessNode {
                     WaitOrTimeout::new(
                         Box::new(move |_| {
                             actix::spawn(
-                                new_client(&client_addr)
-                                    .status()
+                                JsonRpcClient::connect(&client_addr)
+                                    .call(methods::status::RpcStatusRequest)
                                     .map_ok(|_| System::current().stop())
                                     .then(|_| futures::future::ready(())),
                             );

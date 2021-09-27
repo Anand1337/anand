@@ -2,7 +2,7 @@ use actix::System;
 use futures::{future, FutureExt};
 
 use near_actix_test_utils::run_actix;
-use near_jsonrpc::client::new_http_client;
+use near_jsonrpc_client_old::new_http_client;
 use near_logger_utils::init_test_logger;
 
 pub mod test_utils;

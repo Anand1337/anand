@@ -182,7 +182,7 @@ fuzz_target!(|requests: Vec<JsonRpcRequest>| {
             }
             let result_or_error: serde_json::Value = response.json().await.unwrap();
             eprintln!("RESPONSE: {:#?}", result_or_error);
-            assert!(result_or_error["error"] != serde_json::json!(null));
+            assert!(result_or_error["error"] != json!(null));
         }
         true
     });
