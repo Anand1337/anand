@@ -9,7 +9,10 @@ use borsh::BorshDeserialize;
 use tracing::{debug, error, info, warn};
 
 use near_chain::chain::NUM_EPOCHS_TO_KEEP_STORE_DATA;
-use near_chain::types::{ApplyTransactionResult, BlockHeaderInfo, ValidatorInfoIdentifier};
+use near_chain::types::{
+    ApplySplitStateResult, ApplySplitStateResultOrStateChanges, ApplyTransactionResult,
+    BlockHeaderInfo, ValidatorInfoIdentifier,
+};
 use near_chain::{BlockHeader, Error, ErrorKind, RuntimeAdapter};
 #[cfg(feature = "protocol_feature_block_header_v3")]
 use near_chain::{Doomslug, DoomslugThresholdMode};
@@ -33,8 +36,8 @@ use near_primitives::transaction::SignedTransaction;
 use near_primitives::types::validator_stake::{ValidatorStake, ValidatorStakeIter};
 use near_primitives::types::{
     AccountId, ApprovalStake, Balance, BlockHeight, CompiledContractCache, EpochHeight, EpochId,
-    EpochInfoProvider, Gas, MerkleHash, NumShards, ShardId, StateChangeCause, StateRoot,
-    StateRootNode,
+    EpochInfoProvider, Gas, MerkleHash, NumShards, ShardId, StateChangeCause,
+    StateChangesForSplitStates, StateRoot, StateRootNode,
 };
 use near_primitives::version::ProtocolVersion;
 use near_primitives::views::{
@@ -45,8 +48,8 @@ use near_vm_runner::precompile_contract;
 
 use near_store::{
     get_genesis_hash, get_genesis_state_roots, set_genesis_hash, set_genesis_state_roots,
-    ApplyStatePartResult, ColState, PartialStorage, ShardTries, StorageError, Store,
-    StoreCompiledContractCache, StoreUpdate, Trie, WrappedTrieChanges,
+    ApplyStatePartResult, ColState, PartialStorage, ShardTries, Store, StoreCompiledContractCache,
+    StoreUpdate, Trie, WrappedTrieChanges,
 };
 use node_runtime::adapter::ViewRuntimeAdapter;
 use node_runtime::state_viewer::TrieViewer;
@@ -61,9 +64,10 @@ use crate::migrations::load_migration_data;
 use errors::FromStateViewerErrors;
 use near_primitives::runtime::config_store::RuntimeConfigStore;
 use near_primitives::runtime::migration_data::{MigrationData, MigrationFlags};
-use near_primitives::shard_layout::{account_id_to_shard_id, ShardLayout, ShardUId};
+use near_primitives::shard_layout::{
+    account_id_to_shard_id, account_id_to_shard_uid, ShardLayout, ShardUId,
+};
 use near_primitives::syncing::{get_num_state_parts, STATE_PART_MEMORY_LIMIT};
-use near_primitives::trie_key::trie_key_parsers::parse_account_id_from_raw_key;
 use near_store::split_state::get_delayed_receipts;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
@@ -131,7 +135,7 @@ pub struct NightshadeRuntime {
     runtime_config_store: RuntimeConfigStore,
 
     store: Arc<Store>,
-    tries: RwLock<ShardTries>,
+    tries: ShardTries,
     trie_viewer: TrieViewer,
     pub runtime: Runtime,
     epoch_manager: SafeEpochManager,
@@ -181,7 +185,7 @@ impl NightshadeRuntime {
             genesis_config,
             runtime_config_store,
             store,
-            tries: RwLock::new(tries),
+            tries,
             runtime,
             trie_viewer,
             epoch_manager: SafeEpochManager(epoch_manager),
@@ -362,6 +366,7 @@ impl NightshadeRuntime {
         &self,
         trie: Trie,
         state_root: CryptoHash,
+        split_state_roots: Option<HashMap<ShardUId, CryptoHash>>,
         shard_id: ShardId,
         block_height: BlockHeight,
         block_hash: &CryptoHash,
@@ -525,22 +530,38 @@ impl NightshadeRuntime {
                 ErrorKind::Other("Integer overflow during burnt balance summation".to_string())
             })?;
 
-        // Sort the receipts into appropriate outgoing shards.
-        let mut receipt_result = HashMap::default();
-        // Outgoing receipts should be sorted by shards of the epoch of the next block
-        let next_block_epoch_id = if self.is_next_block_epoch_start(prev_block_hash)? {
-            self.get_next_epoch_id_from_prev_block(prev_block_hash)?
-        } else {
-            self.get_epoch_id_from_prev_block(prev_block_hash)?
-        };
-        for receipt in apply_result.outgoing_receipts {
-            receipt_result
-                .entry(self.account_id_to_shard_id(&receipt.receiver_id, &next_block_epoch_id)?)
-                .or_insert_with(|| vec![])
-                .push(receipt);
-        }
-
         let shard_uid = self.get_shard_uid_from_prev_hash(shard_id, prev_block_hash)?;
+        let apply_split_state_result_or_state_changes =
+            if self.will_shard_layout_change(prev_block_hash)? {
+                let consolidated_state_changes = StateChangesForSplitStates::from_raw_state_changes(
+                    &apply_result.state_changes,
+                    apply_result.processed_delayed_receipts,
+                );
+                let next_epoch_shard_layout = {
+                    let next_epoch_id = self.get_next_epoch_id_from_prev_block(prev_block_hash)?;
+                    self.get_shard_layout(&next_epoch_id)?
+                };
+                // split states are ready, apply update to them now
+                if let Some(state_roots) = split_state_roots {
+                    let split_state_results = self.apply_update_to_split_states(
+                        block_hash,
+                        state_roots,
+                        &next_epoch_shard_layout,
+                        consolidated_state_changes,
+                    )?;
+                    Some(ApplySplitStateResultOrStateChanges::ApplySplitStateResults(
+                        split_state_results,
+                    ))
+                } else {
+                    // split states are not ready yet, store state changes in consolidated_state_changes
+                    Some(ApplySplitStateResultOrStateChanges::StateChangesForSplitStates(
+                        consolidated_state_changes,
+                    ))
+                }
+            } else {
+                None
+            };
+
         let result = ApplyTransactionResult {
             trie_changes: WrappedTrieChanges::new(
                 self.get_tries(),
@@ -551,11 +572,12 @@ impl NightshadeRuntime {
             ),
             new_root: apply_result.state_root,
             outcomes: apply_result.outcomes,
-            receipt_result,
+            outgoing_receipts: apply_result.outgoing_receipts,
             validator_proposals: apply_result.validator_proposals,
             total_gas_burnt,
             total_balance_burnt,
             proof: apply_result.proof,
+            apply_split_state_result_or_state_changes,
         };
 
         Ok(result)
@@ -581,6 +603,7 @@ impl NightshadeRuntime {
                     precompile_contract(
                         &code,
                         &runtime_config.wasm_config,
+                        protocol_version,
                         compiled_contract_cache.as_deref(),
                     )
                     .ok();
@@ -590,12 +613,12 @@ impl NightshadeRuntime {
     }
 }
 
-fn apply_delayed_receipts(
+fn apply_delayed_receipts<'a>(
     tries: &ShardTries,
     orig_shard_uid: ShardUId,
     orig_state_root: StateRoot,
     state_roots: HashMap<ShardUId, StateRoot>,
-    next_shard_layout: &ShardLayout,
+    account_id_to_shard_id: &(dyn Fn(&AccountId) -> ShardUId + 'a),
 ) -> Result<HashMap<ShardUId, StateRoot>, Error> {
     let orig_trie_update = tries.new_trie_update_view(orig_shard_uid.clone(), orig_state_root);
 
@@ -607,10 +630,7 @@ fn apply_delayed_receipts(
         let (store_update, updated_state_roots) = tries.apply_delayed_receipts_to_split_states(
             &new_state_roots,
             &receipts,
-            &|account_id| {
-                let shard_id = account_id_to_shard_id(&account_id, next_shard_layout);
-                ShardUId::from_shard_id_and_layout(shard_id, next_shard_layout)
-            },
+            account_id_to_shard_id,
         )?;
         new_state_roots = updated_state_roots;
         start_index = Some(next_index);
@@ -629,15 +649,17 @@ impl RuntimeAdapter for NightshadeRuntime {
         (self.store.clone(), self.genesis_state_roots.clone())
     }
 
+    fn get_store(&self) -> Arc<Store> {
+        self.store.clone()
+    }
+
     fn get_tries(&self) -> ShardTries {
-        let tries = self.tries.read().expect(POISONED_LOCK_ERR);
-        tries.clone()
+        self.tries.clone()
     }
 
     fn get_trie_for_shard(&self, shard_id: ShardId, prev_hash: &CryptoHash) -> Result<Trie, Error> {
         let shard_uid = self.get_shard_uid_from_prev_hash(shard_id, prev_hash)?;
-        let tries = self.tries.read().expect(POISONED_LOCK_ERR);
-        Ok(tries.get_trie_for_shard(shard_uid))
+        Ok(self.tries.get_trie_for_shard(shard_uid))
     }
 
     fn get_view_trie_for_shard(
@@ -646,8 +668,7 @@ impl RuntimeAdapter for NightshadeRuntime {
         prev_hash: &CryptoHash,
     ) -> Result<Trie, Error> {
         let shard_uid = self.get_shard_uid_from_prev_hash(shard_id, prev_hash)?;
-        let tries = self.tries.read().expect(POISONED_LOCK_ERR);
-        Ok(tries.get_view_trie_for_shard(shard_uid))
+        Ok(self.tries.get_view_trie_for_shard(shard_uid))
     }
 
     fn verify_block_vrf(
@@ -685,8 +706,7 @@ impl RuntimeAdapter for NightshadeRuntime {
         if let Some(state_root) = state_root {
             let shard_uid =
                 self.account_id_to_shard_uid(&transaction.transaction.signer_id, epoch_id)?;
-            let tries = self.tries.read().expect(POISONED_LOCK_ERR);
-            let mut state_update = tries.new_trie_update(shard_uid, state_root);
+            let mut state_update = self.tries.new_trie_update(shard_uid, state_root);
 
             match verify_and_charge_transaction(
                 runtime_config,
@@ -744,8 +764,7 @@ impl RuntimeAdapter for NightshadeRuntime {
         current_protocol_version: ProtocolVersion,
     ) -> Result<Vec<SignedTransaction>, Error> {
         let shard_uid = self.get_shard_uid_from_epoch_id(shard_id, epoch_id)?;
-        let tries = self.tries.read().expect(POISONED_LOCK_ERR);
-        let mut state_update = tries.new_trie_update(shard_uid, state_root);
+        let mut state_update = self.tries.new_trie_update(shard_uid, state_root);
 
         // Total amount of gas burnt for converting transactions towards receipts.
         let mut total_gas_burnt = 0;
@@ -1033,6 +1052,14 @@ impl RuntimeAdapter for NightshadeRuntime {
         Ok(epoch_manager.get_shard_layout(epoch_id).map_err(Error::from)?.clone())
     }
 
+    fn get_shard_layout_from_prev_block(
+        &self,
+        parent_hash: &CryptoHash,
+    ) -> Result<ShardLayout, Error> {
+        let epoch_id = self.get_epoch_id_from_prev_block(parent_hash)?;
+        self.get_shard_layout(&epoch_id)
+    }
+
     fn shard_id_to_uid(&self, shard_id: ShardId, epoch_id: &EpochId) -> Result<ShardUId, Error> {
         let mut epoch_manager = self.epoch_manager.as_ref().write().expect(POISONED_LOCK_ERR);
         let shard_layout = epoch_manager.get_shard_layout(epoch_id).map_err(Error::from)?;
@@ -1272,6 +1299,7 @@ impl RuntimeAdapter for NightshadeRuntime {
         &self,
         shard_id: ShardId,
         state_root: &StateRoot,
+        split_state_roots: Option<HashMap<ShardUId, StateRoot>>,
         height: BlockHeight,
         block_timestamp: u64,
         prev_block_hash: &CryptoHash,
@@ -1293,6 +1321,7 @@ impl RuntimeAdapter for NightshadeRuntime {
         match self.process_state_update(
             trie,
             *state_root,
+            split_state_roots,
             shard_id,
             height,
             block_hash,
@@ -1342,6 +1371,7 @@ impl RuntimeAdapter for NightshadeRuntime {
         self.process_state_update(
             trie,
             *state_root,
+            None,
             shard_id,
             height,
             block_hash,
@@ -1520,8 +1550,7 @@ impl RuntimeAdapter for NightshadeRuntime {
         assert!(part_id < num_parts);
         let epoch_id = self.get_epoch_id(block_hash)?;
         let shard_uid = self.get_shard_uid_from_epoch_id(shard_id, &epoch_id)?;
-        let tries = self.tries.read().expect(POISONED_LOCK_ERR);
-        let trie = tries.get_view_trie_for_shard(shard_uid);
+        let trie = self.tries.get_view_trie_for_shard(shard_uid);
         let result = match trie.get_trie_nodes_for_part(part_id, num_parts, state_root) {
             Ok(partial_state) => partial_state,
             Err(e) => {
@@ -1559,76 +1588,83 @@ impl RuntimeAdapter for NightshadeRuntime {
         }
     }
 
+    fn apply_update_to_split_states(
+        &self,
+        block_hash: &CryptoHash,
+        state_roots: HashMap<ShardUId, StateRoot>,
+        next_epoch_shard_layout: &ShardLayout,
+        state_changes: StateChangesForSplitStates,
+    ) -> Result<Vec<ApplySplitStateResult>, Error> {
+        let trie_changes = self.tries.apply_state_changes_to_split_states(
+            &state_roots,
+            state_changes,
+            &|account_id| account_id_to_shard_uid(account_id, next_epoch_shard_layout),
+        )?;
+
+        Ok(trie_changes
+            .into_iter()
+            .map(|(shard_uid, trie_changes)| ApplySplitStateResult {
+                shard_uid,
+                new_root: trie_changes.new_root,
+                trie_changes: WrappedTrieChanges::new(
+                    self.get_tries(),
+                    shard_uid,
+                    trie_changes,
+                    vec![],
+                    block_hash.clone(),
+                ),
+            })
+            .collect())
+    }
+
     fn build_state_for_split_shards(
         &self,
         shard_uid: ShardUId,
         state_root: &StateRoot,
         next_epoch_shard_layout: &ShardLayout,
     ) -> Result<HashMap<ShardUId, StateRoot>, Error> {
-        let mut tries = self.tries.write().expect(POISONED_LOCK_ERR);
-        let trie = tries.get_view_trie_for_shard(shard_uid);
+        let trie = self.tries.get_view_trie_for_shard(shard_uid);
         let shard_id = shard_uid.shard_id();
-        let new_shards: Vec<_> = {
-            let split_shards = next_epoch_shard_layout
-                .get_split_shards(shard_id)
-                .ok_or(ErrorKind::InvalidShardId(shard_id))?;
-            split_shards
-                .iter()
-                .map(|id| ShardUId::from_shard_id_and_layout(*id, &next_epoch_shard_layout))
-                .collect()
-        };
-        tries.add_new_shards(&new_shards);
+        let new_shards = next_epoch_shard_layout
+            .get_split_shards(shard_id)
+            .ok_or(ErrorKind::InvalidShardId(shard_id))?;
+        self.tries.add_new_shards(&new_shards);
         let mut state_roots: HashMap<_, _> =
-            new_shards.into_iter().map(|shard_uid| (shard_uid, StateRoot::default())).collect();
+            new_shards.iter().map(|shard_uid| (*shard_uid, StateRoot::default())).collect();
+        let split_shard_ids: HashSet<_> = new_shards.into_iter().collect();
+        let checked_account_id_to_shard_id = |account_id: &AccountId| {
+            let new_shard_uid = account_id_to_shard_uid(account_id, &next_epoch_shard_layout);
+            // check that all accounts in the shard are mapped the shards that this shard will split
+            // to according to shard layout
+            assert!(
+                split_shard_ids.contains(&new_shard_uid),
+                "Inconsistent shard_layout specs. Account {:?} in shard {:?} and in shard {:?}, but the former is not parent shard for the latter",
+                account_id,
+                shard_uid,
+                new_shard_uid,
+            );
+            new_shard_uid
+        };
 
         let state_root_node = trie.retrieve_root_node(state_root)?;
         let num_parts = get_num_state_parts(state_root_node.memory_usage);
         debug!(target: "runtime", "splitting state for shard {} to {} parts to build new states", shard_id, num_parts);
         for part_id in 0..num_parts {
             let trie_items = trie.get_trie_items_for_part(part_id, num_parts, state_root)?;
-            let (store_update, new_state_roots) = tries.apply_changes_to_new_states(
+            let (store_update, new_state_roots) = self.tries.add_values_to_split_states(
                 &state_roots,
                 trie_items.into_iter().map(|(key, value)| (key, Some(value.clone()))).collect(),
-                &|raw_key| {
-                    // Here changes on DelayedReceipts or DelayedReceiptsIndices will be excluded
-                    // This is because we cannot migrate delayed receipts part by part. They have to be
-                    // reconstructed in the new states after all DelayedReceipts are ready in the original
-                    // shard.
-                    if let Some(account_id) =
-                        parse_account_id_from_raw_key(&raw_key).map_err(|e| {
-                            let err = format!(
-                                "error parsing account id from trie key {:?}: {:?}",
-                                raw_key, e
-                            );
-                            StorageError::StorageInconsistentState(err)
-                        })?
-                    {
-                        let new_shard_uid = ShardUId::from_shard_id_and_layout(
-                            account_id_to_shard_id(&account_id, &next_epoch_shard_layout),
-                            &next_epoch_shard_layout,
-                        );
-                        assert!(
-                            state_roots.contains_key(&new_shard_uid),
-                            "Inconsistent shard_layout specs. Account {:?} in shard {:?} and in shard {:?}, but the former is not parent shard for the latter",
-                            account_id,
-                            shard_uid,
-                            new_shard_uid,
-                        );
-                        Ok(Some(new_shard_uid))
-                    } else {
-                        Ok(None)
-                    }
-                },
+                &checked_account_id_to_shard_id,
             )?;
             state_roots = new_state_roots;
             store_update.commit()?;
         }
         state_roots = apply_delayed_receipts(
-            &tries,
+            &self.tries,
             shard_uid,
             state_root.clone(),
             state_roots,
-            &next_epoch_shard_layout,
+            &checked_account_id_to_shard_id,
         )?;
         Ok(state_roots)
     }
@@ -1663,8 +1699,7 @@ impl RuntimeAdapter for NightshadeRuntime {
     ) -> Result<StateRootNode, Error> {
         let epoch_id = self.get_epoch_id(block_hash)?;
         let shard_uid = self.get_shard_uid_from_epoch_id(shard_id, &epoch_id)?;
-        let tries = self.tries.read().expect(POISONED_LOCK_ERR);
-        tries
+        self.tries
             .get_view_trie_for_shard(shard_uid)
             .retrieve_root_node(state_root)
             .map_err(|e| e.to_string().into())
@@ -1749,7 +1784,7 @@ impl RuntimeAdapter for NightshadeRuntime {
 
     fn will_shard_layout_change(&self, parent_hash: &CryptoHash) -> Result<bool, Error> {
         let mut epoch_manager = self.epoch_manager.as_ref().write().expect(POISONED_LOCK_ERR);
-        Ok(epoch_manager.get_split_shards_if_shards_will_change(parent_hash, vec![])?.is_some())
+        Ok(epoch_manager.will_shard_layout_change(parent_hash)?)
     }
 }
 
@@ -1760,8 +1795,7 @@ impl node_runtime::adapter::ViewRuntimeAdapter for NightshadeRuntime {
         state_root: MerkleHash,
         account_id: &AccountId,
     ) -> Result<Account, node_runtime::state_viewer::errors::ViewAccountError> {
-        let tries = self.tries.read().expect(POISONED_LOCK_ERR);
-        let state_update = tries.new_trie_update_view(*shard_uid, state_root);
+        let state_update = self.tries.new_trie_update_view(*shard_uid, state_root);
         self.trie_viewer.view_account(&state_update, account_id)
     }
 
@@ -1771,8 +1805,7 @@ impl node_runtime::adapter::ViewRuntimeAdapter for NightshadeRuntime {
         state_root: MerkleHash,
         account_id: &AccountId,
     ) -> Result<ContractCode, node_runtime::state_viewer::errors::ViewContractCodeError> {
-        let tries = self.tries.read().expect(POISONED_LOCK_ERR);
-        let state_update = tries.new_trie_update_view(*shard_uid, state_root);
+        let state_update = self.tries.new_trie_update_view(*shard_uid, state_root);
         self.trie_viewer.view_contract_code(&state_update, account_id)
     }
 
@@ -1793,8 +1826,7 @@ impl node_runtime::adapter::ViewRuntimeAdapter for NightshadeRuntime {
         epoch_info_provider: &dyn EpochInfoProvider,
         current_protocol_version: ProtocolVersion,
     ) -> Result<Vec<u8>, node_runtime::state_viewer::errors::CallFunctionError> {
-        let tries = self.tries.read().expect(POISONED_LOCK_ERR);
-        let state_update = tries.new_trie_update_view(*shard_uid, state_root);
+        let state_update = self.tries.new_trie_update_view(*shard_uid, state_root);
         let view_state = ViewApplyState {
             block_height: height,
             prev_block_hash: *prev_block_hash,
@@ -1803,7 +1835,7 @@ impl node_runtime::adapter::ViewRuntimeAdapter for NightshadeRuntime {
             epoch_height,
             block_timestamp,
             current_protocol_version,
-            cache: Some(Arc::new(StoreCompiledContractCache { store: tries.get_store() })),
+            cache: Some(Arc::new(StoreCompiledContractCache { store: self.tries.get_store() })),
         };
         self.trie_viewer.call_function(
             state_update,
@@ -1823,8 +1855,7 @@ impl node_runtime::adapter::ViewRuntimeAdapter for NightshadeRuntime {
         account_id: &AccountId,
         public_key: &PublicKey,
     ) -> Result<AccessKey, node_runtime::state_viewer::errors::ViewAccessKeyError> {
-        let tries = self.tries.read().expect(POISONED_LOCK_ERR);
-        let state_update = tries.new_trie_update_view(*shard_uid, state_root);
+        let state_update = self.tries.new_trie_update_view(*shard_uid, state_root);
         self.trie_viewer.view_access_key(&state_update, account_id, public_key)
     }
 
@@ -1835,8 +1866,7 @@ impl node_runtime::adapter::ViewRuntimeAdapter for NightshadeRuntime {
         account_id: &AccountId,
     ) -> Result<Vec<(PublicKey, AccessKey)>, node_runtime::state_viewer::errors::ViewAccessKeyError>
     {
-        let tries = self.tries.read().expect(POISONED_LOCK_ERR);
-        let state_update = tries.new_trie_update_view(*shard_uid, state_root);
+        let state_update = self.tries.new_trie_update_view(*shard_uid, state_root);
         self.trie_viewer.view_access_keys(&state_update, account_id)
     }
 
@@ -1847,8 +1877,7 @@ impl node_runtime::adapter::ViewRuntimeAdapter for NightshadeRuntime {
         account_id: &AccountId,
         prefix: &[u8],
     ) -> Result<ViewStateResult, node_runtime::state_viewer::errors::ViewStateError> {
-        let tries = self.tries.read().expect(POISONED_LOCK_ERR);
-        let state_update = tries.new_trie_update_view(*shard_uid, state_root);
+        let state_update = self.tries.new_trie_update_view(*shard_uid, state_root);
         self.trie_viewer.view_state(&state_update, account_id, prefix)
     }
 }
@@ -1864,7 +1893,6 @@ mod test {
     use near_logger_utils::init_test_logger;
     use near_primitives::block::Tip;
     use near_primitives::challenge::SlashedValidator;
-    use near_primitives::receipt::ReceiptResult;
     use near_primitives::transaction::{Action, DeleteAccountAction, StakeAction};
     use near_primitives::types::{BlockHeightDelta, Nonce, ValidatorId, ValidatorKickoutReason};
     use near_primitives::validator_signer::{InMemoryValidatorSigner, ValidatorSigner};
@@ -1912,11 +1940,12 @@ mod test {
             gas_price: Balance,
             gas_limit: Gas,
             challenges: &ChallengesResult,
-        ) -> (StateRoot, Vec<ValidatorStake>, ReceiptResult) {
+        ) -> (StateRoot, Vec<ValidatorStake>, Vec<Receipt>) {
             let mut result = self
                 .apply_transactions(
                     shard_id,
                     &state_root,
+                    None,
                     height,
                     block_timestamp,
                     prev_block_hash,
@@ -1937,7 +1966,7 @@ mod test {
             result.trie_changes.insertions_into(&mut store_update).unwrap();
             result.trie_changes.state_changes_into(&mut store_update);
             store_update.commit().unwrap();
-            (result.new_root, result.validator_proposals, result.receipt_result)
+            (result.new_root, result.validator_proposals, result.outgoing_receipts)
         }
     }
 
@@ -2038,7 +2067,7 @@ mod test {
             assert_eq!(transactions.len() as NumShards, num_shards);
             assert_eq!(chunk_mask.len() as NumShards, num_shards);
             let mut all_proposals = vec![];
-            let mut new_receipts = HashMap::new();
+            let mut all_receipts = vec![];
             for i in 0..num_shards {
                 let (state_root, proposals, receipts) = self.runtime.update(
                     &self.state_roots[i as usize],
@@ -2055,12 +2084,7 @@ mod test {
                     &challenges_result,
                 );
                 self.state_roots[i as usize] = state_root;
-                for (shard_id, mut shard_receipts) in receipts {
-                    new_receipts
-                        .entry(shard_id)
-                        .or_insert_with(|| vec![])
-                        .append(&mut shard_receipts);
-                }
+                all_receipts.extend(receipts);
                 all_proposals.append(&mut proposals.clone());
                 self.last_shard_proposals.insert(i as ShardId, proposals);
             }
@@ -2082,6 +2106,12 @@ mod test {
                 .unwrap()
                 .commit()
                 .unwrap();
+            let shard_layout = self.runtime.get_shard_layout_from_prev_block(&new_hash).unwrap();
+            let mut new_receipts = HashMap::new();
+            for receipt in all_receipts {
+                let shard_id = account_id_to_shard_id(&receipt.receiver_id, &shard_layout);
+                new_receipts.entry(shard_id).or_insert_with(|| vec![]).push(receipt);
+            }
             self.last_receipts = new_receipts;
             self.last_proposals = all_proposals;
             self.time += 10u64.pow(9);
