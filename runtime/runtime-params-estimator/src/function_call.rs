@@ -327,7 +327,7 @@ fn test_measure_function_call_1s() {
     // cargo test --release --lib function_call::test_function_call_time
     //    --features required  -- --exact --nocapture
     measure_function_call_1s(VMKind::Wasmer0);
-    measure_function_call_1s(VMKind::Wasmer1);
+    measure_function_call_1s(VMKind::Wasmer2);
     measure_function_call_1s(VMKind::Wasmtime);
 }
 
