@@ -851,6 +851,7 @@ pub enum NetworkAdversarialMessage {
 pub enum NetworkSandboxMessage {
     SandboxPatchState(Vec<StateRecord>),
     SandboxPatchStateStatus,
+    SandboxProduceBlocks(u64),
 }
 
 #[derive(AsStaticStr)]

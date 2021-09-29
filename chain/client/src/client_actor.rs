@@ -238,37 +238,7 @@ impl Handler<NetworkClientMessages> for ClientActor {
                     }
                     NetworkAdversarialMessage::AdvProduceBlocks(num_blocks, only_valid) => {
                         info!(target: "adversary", "Producing {} blocks", num_blocks);
-                        self.client.adv_produce_blocks = true;
-                        self.client.adv_produce_blocks_only_valid = only_valid;
-                        let start_height =
-                            self.client.chain.mut_store().get_latest_known().unwrap().height + 1;
-                        let mut blocks_produced = 0;
-                        for height in start_height.. {
-                            let block = self
-                                .client
-                                .produce_block(height)
-                                .expect("block should be produced");
-                            if only_valid && block == None {
-                                continue;
-                            }
-                            let block = block.expect("block should exist after produced");
-                            info!(target: "adversary", "Producing {} block out of {}, height = {}", blocks_produced, num_blocks, height);
-                            self.network_adapter
-                                .do_send(NetworkRequests::Block { block: block.clone() });
-                            let (accepted_blocks, _) =
-                                self.client.process_block(block, Provenance::PRODUCED);
-                            for accepted_block in accepted_blocks {
-                                self.client.on_block_accepted(
-                                    accepted_block.hash,
-                                    accepted_block.status,
-                                    accepted_block.provenance,
-                                );
-                            }
-                            blocks_produced += 1;
-                            if blocks_produced == num_blocks {
-                                break;
-                            }
-                        }
+                        self.adv_produce_blocks(num_blocks, only_valid);
                         NetworkClientResponses::NoResponse
                     }
                     NetworkAdversarialMessage::AdvSwitchToHeight(height) => {
@@ -327,6 +297,10 @@ impl Handler<NetworkClientMessages> for ClientActor {
                                 !self.client.chain.patch_state_in_progress(),
                             ),
                         )
+                    }
+                    NetworkSandboxMessage::SandboxProduceBlocks(num_blocks) => {
+                        self.adv_produce_blocks(num_blocks, true);
+                        NetworkClientResponses::NoResponse
                     }
                 }
             }
@@ -676,6 +650,35 @@ impl Handler<GetNetworkInfo> for ClientActor {
 }
 
 impl ClientActor {
+    #[cfg(any(feature = "adversarial", feature = "sandbox"))]
+    fn adv_produce_blocks(&mut self, num_blocks: u64, only_valid: bool) {
+        self.client.adv_produce_blocks = true;
+        self.client.adv_produce_blocks_only_valid = only_valid;
+        let start_height = self.client.chain.mut_store().get_latest_known().unwrap().height + 1;
+        let mut blocks_produced = 0;
+        for height in start_height.. {
+            let block = self.client.produce_block(height).expect("block should be produced");
+            if only_valid && block == None {
+                continue;
+            }
+            let block = block.expect("block should exist after produced");
+            info!(target: "adversary", "Producing {} block out of {}, height = {}", blocks_produced, num_blocks, height);
+            self.network_adapter.do_send(NetworkRequests::Block { block: block.clone() });
+            let (accepted_blocks, _) = self.client.process_block(block, Provenance::PRODUCED);
+            for accepted_block in accepted_blocks {
+                self.client.on_block_accepted(
+                    accepted_block.hash,
+                    accepted_block.status,
+                    accepted_block.provenance,
+                );
+            }
+            blocks_produced += 1;
+            if blocks_produced == num_blocks {
+                break;
+            }
+        }
+    }
+
     fn sign_announce_account(&self, epoch_id: &EpochId) -> Result<Signature, ()> {
         if let Some(validator_signer) = self.client.validator_signer.as_ref() {
             Ok(validator_signer.sign_account_announce(

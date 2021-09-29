@@ -7,14 +7,28 @@ pub struct RpcSandboxPatchStateRequest {
     pub records: Vec<StateRecord>,
 }
 
+#[derive(Deserialize, Serialize)]
+pub struct RpcSandboxProduceBlocksRequest {
+    pub num_blocks: u64,
+}
+
 impl RpcSandboxPatchStateRequest {
     pub fn parse(value: Option<Value>) -> Result<Self, crate::errors::RpcParseError> {
         Ok(crate::utils::parse_params::<RpcSandboxPatchStateRequest>(value)?)
     }
 }
 
+impl RpcSandboxProduceBlocksRequest {
+    pub fn parse(value: Option<Value>) -> Result<Self, crate::errors::RpcParseError> {
+        Ok(crate::utils::parse_params::<RpcSandboxProduceBlocksRequest>(value)?)
+    }
+}
+
 #[derive(Deserialize, Serialize)]
 pub struct RpcSandboxPatchStateResponse {}
+
+#[derive(Deserialize, Serialize)]
+pub struct RpcSandboxProduceBlocksResponse {}
 
 #[derive(thiserror::Error, Debug, Serialize, Deserialize)]
 #[serde(tag = "name", content = "info", rename_all = "SCREAMING_SNAKE_CASE")]
@@ -37,6 +51,34 @@ impl From<RpcSandboxPatchStateError> for crate::errors::RpcError {
                 return Self::new_internal_error(
                     None,
                     format!("Failed to serialize RpcSandboxPatchStateError: {:?}", err),
+                )
+            }
+        };
+        Self::new_internal_or_handler_error(Some(error_data.clone()), error_data)
+    }
+}
+
+#[derive(thiserror::Error, Debug, Serialize, Deserialize)]
+#[serde(tag = "name", content = "info", rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum RpcSandboxProduceBlocksError {
+    #[error("The node reached its limits. Try again later. More details: {error_message}")]
+    InternalError { error_message: String },
+}
+
+impl From<actix::MailboxError> for RpcSandboxProduceBlocksError {
+    fn from(error: actix::MailboxError) -> Self {
+        Self::InternalError { error_message: error.to_string() }
+    }
+}
+
+impl From<RpcSandboxProduceBlocksError> for crate::errors::RpcError {
+    fn from(error: RpcSandboxProduceBlocksError) -> Self {
+        let error_data = match serde_json::to_value(error) {
+            Ok(value) => value,
+            Err(err) => {
+                return Self::new_internal_error(
+                    None,
+                    format!("Failed to serialize RpcSandboxProduceBlocksError: {:?}", err),
                 )
             }
         };

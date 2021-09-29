@@ -511,6 +511,16 @@ impl JsonRpcHandler {
                 serde_json::to_value(sandbox_patch_state_response)
                     .map_err(|err| RpcError::serialization_error(err.to_string()))
             }
+            "sandbox_produce_blocks" => {
+                let sandbox_produce_blocks_request =
+                    near_jsonrpc_primitives::types::sandbox::RpcSandboxProduceBlocksRequest::parse(
+                        request.params,
+                    )?;
+                let sandbox_produce_blocks_response =
+                    self.sandbox_produce_blocks(sandbox_produce_blocks_request).await?;
+                serde_json::to_value(sandbox_produce_blocks_response)
+                    .map_err(|err| RpcError::serialization_error(err.to_string()))
+            }
             _ => Err(RpcError::method_not_found(request.method.clone())),
         };
 
@@ -1088,6 +1098,22 @@ impl JsonRpcHandler {
         .expect("patch state should happen at next block, never timeout");
 
         Ok(near_jsonrpc_primitives::types::sandbox::RpcSandboxPatchStateResponse {})
+    }
+
+    async fn sandbox_produce_blocks(
+        &self,
+        produce_blocks_request: near_jsonrpc_primitives::types::sandbox::RpcSandboxProduceBlocksRequest,
+    ) -> Result<
+        near_jsonrpc_primitives::types::sandbox::RpcSandboxProduceBlocksResponse,
+        near_jsonrpc_primitives::types::sandbox::RpcSandboxProduceBlocksError,
+    > {
+        self.client_addr
+            .send(NetworkClientMessages::Sandbox(NetworkSandboxMessage::SandboxProduceBlocks(
+                produce_blocks_request.num_blocks,
+            )))
+            .await?;
+
+        Ok(near_jsonrpc_primitives::types::sandbox::RpcSandboxProduceBlocksResponse {})
     }
 }
 
