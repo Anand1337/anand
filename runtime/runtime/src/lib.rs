@@ -412,7 +412,7 @@ impl Runtime {
                     &apply_state.prev_block_hash,
                     epoch_info_provider,
                     #[cfg(feature = "protocol_feature_chunk_only_producers")]
-                    false,
+                        false,
                 )?;
             }
             Action::AddKey(add_key) => {
@@ -462,7 +462,7 @@ impl Runtime {
                     &apply_state.prev_block_hash,
                     epoch_info_provider,
                     #[cfg(feature = "protocol_feature_chunk_only_producers")]
-                    true,
+                        true,
                 )?;
             }
         };
@@ -879,11 +879,11 @@ impl Runtime {
                         state_update,
                         &TrieKey::PendingDataCount { receiver_id: account_id.clone(), receipt_id },
                     )?
-                    .ok_or_else(|| {
-                        StorageError::StorageInconsistentState(
-                            "pending data count should be in the state".to_string(),
-                        )
-                    })?;
+                        .ok_or_else(|| {
+                            StorageError::StorageInconsistentState(
+                                "pending data count should be in the state".to_string(),
+                            )
+                        })?;
                     if pending_data_count == 1 {
                         // It was the last input data pending for this receipt. We'll cleanup
                         // some receipt related fields from the state and execute the receipt.
@@ -1052,7 +1052,7 @@ impl Runtime {
                     "Account {} with max of stakes {} is not found",
                     account_id, max_of_stakes
                 ))
-                .into());
+                    .into());
             }
         }
 
@@ -1081,7 +1081,7 @@ impl Runtime {
                     "Account {} to slash is not found",
                     account_id
                 ))
-                .into());
+                    .into());
             }
         }
 
@@ -1221,7 +1221,7 @@ impl Runtime {
 
         if !apply_state.is_new_chunk
             && apply_state.current_protocol_version
-                >= ProtocolFeature::FixApplyChunks.protocol_version()
+            >= ProtocolFeature::FixApplyChunks.protocol_version()
         {
             let (trie_changes, state_changes) = state_update.finalize()?;
             let proof = trie.recorded_storage();
@@ -1268,12 +1268,17 @@ impl Runtime {
 
         let mut delayed_receipts_indices: DelayedReceiptIndices =
             get(&state_update, &TrieKey::DelayedReceiptIndices)?.unwrap_or_default();
+        near_metrics::inc_counter_by(
+            &metrics::DELAYED_RECEIPTS_TOTAL,
+            (delayed_receipts_indices.next_available_index - delayed_receipts_indices.first_index)
+                as u64,
+        );
         let initial_delayed_receipt_indices = delayed_receipts_indices.clone();
 
         let mut process_receipt = |receipt: &Receipt,
                                    state_update: &mut TrieUpdate,
                                    total_gas_burnt: &mut Gas|
-         -> Result<_, RuntimeError> {
+                                   -> Result<_, RuntimeError> {
             self.process_receipt(
                 state_update,
                 apply_state,
@@ -1283,15 +1288,15 @@ impl Runtime {
                 &mut stats,
                 epoch_info_provider,
             )?
-            .into_iter()
-            .try_for_each(
-                |outcome_with_id: ExecutionOutcomeWithId| -> Result<(), RuntimeError> {
-                    *total_gas_burnt =
-                        safe_add_gas(*total_gas_burnt, outcome_with_id.outcome.gas_burnt)?;
-                    outcomes.push(outcome_with_id);
-                    Ok(())
-                },
-            )?;
+                .into_iter()
+                .try_for_each(
+                    |outcome_with_id: ExecutionOutcomeWithId| -> Result<(), RuntimeError> {
+                        *total_gas_burnt =
+                            safe_add_gas(*total_gas_burnt, outcome_with_id.outcome.gas_burnt)?;
+                        outcomes.push(outcome_with_id);
+                        Ok(())
+                    },
+                )?;
             Ok(())
         };
 
@@ -1961,19 +1966,19 @@ mod tests {
                     PROTOCOL_VERSION,
                     &local_transactions[0],
                     &apply_state.prev_block_hash,
-                    &apply_state.block_hash
+                    &apply_state.block_hash,
                 ), // receipt for tx 0
                 create_receipt_id_from_transaction(
                     PROTOCOL_VERSION,
                     &local_transactions[1],
                     &apply_state.prev_block_hash,
-                    &apply_state.block_hash
+                    &apply_state.block_hash,
                 ), // receipt for tx 1
                 create_receipt_id_from_transaction(
                     PROTOCOL_VERSION,
                     &local_transactions[2],
                     &apply_state.prev_block_hash,
-                    &apply_state.block_hash
+                    &apply_state.block_hash,
                 ), // receipt for tx 2
             ],
             "STEP #1 failed",
@@ -2186,9 +2191,9 @@ mod tests {
                 &alice_account(),
                 PROTOCOL_VERSION,
             )
-            .unwrap(),
+                .unwrap(),
         )
-        .unwrap();
+            .unwrap();
         let receipts = vec![Receipt {
             predecessor_id: bob_account(),
             receiver_id: alice_account(),
@@ -2256,9 +2261,9 @@ mod tests {
                 &alice_account(),
                 PROTOCOL_VERSION,
             )
-            .unwrap(),
+                .unwrap(),
         )
-        .unwrap();
+            .unwrap();
         let receipts = vec![Receipt {
             predecessor_id: bob_account(),
             receiver_id: alice_account(),

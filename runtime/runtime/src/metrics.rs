@@ -57,4 +57,9 @@ lazy_static::lazy_static! {
             "near_transaction_processed_failed_total",
             "The number of transactions processed and failed since starting this node"
         );
+    pub static ref DELAYED_RECEIPTS_TOTAL: near_metrics::Result<IntCounter> =
+        try_create_int_counter(
+            "delayed_receipts_total",
+            ""
+        );
 }
