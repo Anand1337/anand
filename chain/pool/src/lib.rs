@@ -1,8 +1,10 @@
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
+use crate::metrics;
 use crate::types::{PoolIterator, PoolKey, TransactionGroup};
 use borsh::BorshSerialize;
 use near_crypto::PublicKey;
+use near_metrics::inc_counter;
 use near_primitives::hash::{hash, CryptoHash};
 use near_primitives::transaction::SignedTransaction;
 use near_primitives::types::AccountId;
@@ -53,6 +55,7 @@ impl TransactionPool {
             .entry(self.key(signer_id, signer_public_key))
             .or_insert_with(Vec::new)
             .push(signed_transaction);
+        near_metrics::inc_counter(&metrics::TRANSACTION_POOL_INSERTIONS);
         true
     }
 
@@ -85,6 +88,7 @@ impl TransactionPool {
             }
             if remove_entry {
                 self.transactions.remove(&key);
+                near_metrics::inc_counter(&metrics::TRANSACTION_POOL_REMOVALS);
             }
             for hash in hashes {
                 self.unique_transactions.remove(&hash);
