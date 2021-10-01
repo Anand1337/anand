@@ -9,6 +9,7 @@ use near_primitives::types::AccountId;
 use rand::RngCore;
 use std::ops::Bound;
 
+pub mod metrics;
 pub mod types;
 
 /// Transaction pool: keeps track of transactions that were not yet accepted into the block chain.
@@ -53,6 +54,8 @@ impl TransactionPool {
             .entry(self.key(signer_id, signer_public_key))
             .or_insert_with(Vec::new)
             .push(signed_transaction);
+        near_metrics::inc_counter(&metrics::TRANSACTION_POOL_INSERTIONS);
+        near_metrics::inc_gauge(&metrics::TRANSACTION_POOL_TOTAL);
         true
     }
 
@@ -85,6 +88,8 @@ impl TransactionPool {
             }
             if remove_entry {
                 self.transactions.remove(&key);
+                near_metrics::inc_counter(&metrics::TRANSACTION_POOL_REMOVALS);
+                near_metrics::dec_gauge(&metrics::TRANSACTION_POOL_TOTAL);
             }
             for hash in hashes {
                 self.unique_transactions.remove(&hash);
