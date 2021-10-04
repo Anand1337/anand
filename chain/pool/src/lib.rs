@@ -69,8 +69,10 @@ impl TransactionPool {
     /// Quick reconciliation step - evict all transactions that already in the block
     /// or became invalid after it.
     pub fn remove_transactions(&mut self, transactions: &[SignedTransaction]) {
+        near_metrics::inc_counter_by(&metrics::TRANSACTION_POOL_REMOVALS, transactions.len() as u64);
         let mut grouped_transactions = HashMap::new();
         for tx in transactions {
+            near_metrics::dec_gauge(&metrics::TRANSACTION_POOL_TOTAL);
             if self.unique_transactions.contains(&tx.get_hash()) {
                 let signer_id = &tx.transaction.signer_id;
                 let signer_public_key = &tx.transaction.public_key;
@@ -88,8 +90,6 @@ impl TransactionPool {
             }
             if remove_entry {
                 self.transactions.remove(&key);
-                near_metrics::inc_counter(&metrics::TRANSACTION_POOL_REMOVALS);
-                near_metrics::dec_gauge(&metrics::TRANSACTION_POOL_TOTAL);
             }
             for hash in hashes {
                 self.unique_transactions.remove(&hash);
