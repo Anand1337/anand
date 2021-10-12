@@ -13,6 +13,7 @@ use near_chain::chain::collect_receipts_from_response;
 use near_chain::migrations::check_if_block_is_first_with_chunk_of_version;
 use near_chain::types::{ApplyTransactionResult, BlockHeaderInfo};
 use near_chain::{ChainStore, ChainStoreAccess, ChainStoreUpdate, RuntimeAdapter};
+use near_chain_configs::Genesis;
 use near_epoch_manager::EpochManager;
 use near_logger_utils::init_integration_logger;
 use near_network::peer_store::PeerStore;
@@ -24,7 +25,7 @@ use near_primitives::shard_layout::ShardUId;
 use near_primitives::state_record::StateRecord;
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::chunk_extra::ChunkExtra;
-use near_primitives::types::{BlockHeight, ShardId, StateRoot};
+use near_primitives::types::{AccountId, BlockHeight, ShardId, StateRoot};
 use near_store::test_utils::create_test_store;
 use near_store::{create_store, Store, TrieIterator};
 use nearcore::{get_default_home, get_store_path, load_config, NearConfig, NightshadeRuntime};
@@ -548,6 +549,16 @@ fn main() {
                 .help("Check whether the node has all the blocks up to its head"),
         )
         .subcommand(
+            SubCommand::with_name("dump_all_codes")
+                .arg(
+                    Arg::with_name("genesis")
+                        .long("genesis")
+                        .help("genesis file")
+                        .takes_value(true),
+                )
+                .help("Check whether the node has all the blocks up to its head"),
+        )
+        .subcommand(
             SubCommand::with_name("dump_code")
                 .arg(
                     Arg::with_name("account")
@@ -758,6 +769,19 @@ fn main() {
             }
             println!("Storage under key {} of account {} not found", storage_key, account_id);
             std::process::exit(1);
+        }
+        ("dump_all_codes", Some(args)) => {
+            let genesis_config_path = args.value_of("genesis_config").unwrap();
+            let genesis_records_path = args.value_of("genesis_records").unwrap();
+            let genesis = Genesis::from_files(genesis_config_path, genesis_records_path);
+            let mut codes: HashMap<Vec<u8>, AccountId> = HashMap::default();
+            let mut f = |state_record: StateRecord| {
+                if let StateRecord::Contract { account_id, code } = state_record {
+                    codes.insert(code, account_id);
+                }
+            };
+            genesis.for_each_record(f);
+            eprintln!("{:?}", codes);
         }
         (_, _) => unreachable!(),
     }
