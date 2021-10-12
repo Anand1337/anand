@@ -789,7 +789,7 @@ fn main() {
             genesis.for_each_record(f);
             eprintln!("{:?}", codes.len());
             for (k, v) in codes.iter() {
-                eprintln!("{} ... {}", k.iter().take(5).collect(), v)
+                eprintln!("{:?} ... {}", k.iter().take(5).collect::<Vec<u8>>(), v)
             }
             eprintln!("{:?}", codes.len());
         }
