@@ -1063,7 +1063,7 @@ fn main() {
             let reader = BufReader::new(
                 File::open(codes_path).expect("Could not open genesis config file."),
             );
-            let entries: Vec<(Vec<u8>, &str)> = serde_json::from_reader(reader).unwrap();
+            let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
             for (code, account_id) in entries.iter() {
                 println!("{} {}", account_id, get_functions_number(code, &VMConfig::default()))
             }
