@@ -1062,6 +1062,7 @@ fn main() {
         }
         ("count_functions", Some(args)) => {
             let codes_path = args.value_of("codes").unwrap();
+            let output_path = args.value_of("output").unwrap();
             let reader = BufReader::new(
                 File::open(codes_path).expect("Could not open genesis config file."),
             );
