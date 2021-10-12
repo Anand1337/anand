@@ -168,7 +168,19 @@ pub fn precompile<'a>(
     }
 }
 
-pub fn compile(code: ContractCode) -> Result<wasmer::Module, VMError> {
+pub fn compile_w0(code: &ContractCode) -> Result<wasmer_runtime::Module, VMError> {
+    let wasm_code = code.code();
+    let code_hash = code.hash();
+    let result = crate::cache::wasmer0_cache::compile_and_serialize_wasmer(
+        wasm_code,
+        wasm_config,
+        code_hash,
+        cache,
+    );
+    into_vm_result(result)
+}
+
+pub fn compile_w2(code: &ContractCode) -> Result<wasmer::Module, VMError> {
     let wasm_code = code.code();
     let code_hash = code.hash();
     let compiler = wasmer_compiler_singlepass::Singlepass::new();
