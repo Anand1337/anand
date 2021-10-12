@@ -4849,6 +4849,7 @@ dependencies = [
  "near-network",
  "near-primitives",
  "near-store",
+ "near-vm-runner",
  "nearcore",
  "node-runtime",
  "rayon",

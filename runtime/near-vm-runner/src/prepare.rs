@@ -45,6 +45,10 @@ impl<'a> ContractModule<'a> {
         Self { module: builder.build(), config }
     }
 
+    fn get_functions_number(&self) -> u64 {
+        self.module.functions_space() as u64
+    }
+
     /// Ensures that module doesn't declare internal memories.
     ///
     /// In this runtime we only allow wasm module to import memory from the environment.
@@ -189,6 +193,10 @@ pub fn prepare_contract(
         .scan_imports()?
         .validate_functions_number(protocol_version)?
         .into_wasm_code()
+}
+
+pub fn get_functions_number(original_code: &[u8], config: &VMConfig) -> Result<u64, PrepareError> {
+    ContractModule::init(original_code, config)?.get_functions_number()?
 }
 
 #[cfg(test)]
