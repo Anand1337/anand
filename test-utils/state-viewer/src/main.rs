@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt;
 use std::fs::{self, File};
-use std::io::Write;
+use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -20,6 +20,7 @@ use near_epoch_manager::EpochManager;
 use near_logger_utils::init_integration_logger;
 use near_network::peer_store::PeerStore;
 use near_primitives::block::BlockHeader;
+use near_primitives::config::VMConfig;
 use near_primitives::contract::ContractCode;
 use near_primitives::hash::CryptoHash;
 use near_primitives::serialize::to_base;
@@ -30,6 +31,7 @@ use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{AccountId, BlockHeight, ShardId, StateRoot};
 use near_store::test_utils::create_test_store;
 use near_store::{create_store, Store, TrieIterator};
+use near_vm_runner::prepare::get_functions_number;
 use nearcore::{get_default_home, get_store_path, load_config, NearConfig, NightshadeRuntime};
 use node_runtime::adapter::ViewRuntimeAdapter;
 use state_dump::state_dump;
@@ -809,6 +811,11 @@ fn main() {
                 .help("Check whether the node has all the blocks up to its head"),
         )
         .subcommand(
+            SubCommand::with_name("count_functions")
+                .arg(Arg::with_name("codes").long("codes").help("codes file").takes_value(true))
+                .help("Check whether the node has all the blocks up to its head"),
+        )
+        .subcommand(
             SubCommand::with_name("dump_code")
                 .arg(
                     Arg::with_name("account")
@@ -1050,6 +1057,20 @@ fn main() {
             let x = serde_json::to_vec(&entries).unwrap();
             let mut f = File::create(output_path).unwrap();
             f.write(&x);
+        }
+        ("count_functions", Some(args)) => {
+            let codes_path = args.value_of("codes").unwrap();
+            let reader = BufReader::new(
+                File::open(codes_path).expect("Could not open genesis config file."),
+            );
+            let entries: Vec<Vec<u8>, AccountId> = serde_json::from_reader(reader).unwrap();
+            for (code, account_id) in entries.iter().cloned() {
+                println!(
+                    "{} {}",
+                    account_id,
+                    get_functions_number(code, &VMConfig::default()).unwrap()
+                )
+            }
         }
         (_, _) => unreachable!(),
     }
