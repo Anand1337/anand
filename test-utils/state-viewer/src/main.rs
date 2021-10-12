@@ -551,9 +551,15 @@ fn main() {
         .subcommand(
             SubCommand::with_name("dump_all_codes")
                 .arg(
-                    Arg::with_name("genesis")
-                        .long("genesis")
-                        .help("genesis file")
+                    Arg::with_name("genesis_config")
+                        .long("genesis_config")
+                        .help("genesis_config file")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("genesis_records")
+                        .long("genesis_records")
+                        .help("genesis_records file")
                         .takes_value(true),
                 )
                 .help("Check whether the node has all the blocks up to its head"),
