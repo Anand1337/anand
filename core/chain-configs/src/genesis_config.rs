@@ -476,7 +476,8 @@ impl GenesisJsonHasher {
 impl Genesis {
     pub fn new(config: GenesisConfig, records: GenesisRecords) -> Self {
         let genesis = Self { config, records, records_file: PathBuf::new() };
-        validate_genesis(&genesis);
+        eprintln!("no validate!");
+        // validate_genesis(&genesis);
         genesis
     }
 
