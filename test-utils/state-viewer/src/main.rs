@@ -30,7 +30,7 @@ use near_primitives::types::{AccountId, BlockHeight, ShardId, StateRoot};
 use near_store::test_utils::create_test_store;
 use near_store::{create_store, Store, TrieIterator};
 use near_vm_runner::prepare::get_functions_number;
-use near_vm_runner::runner::compile;
+use near_vm_runner::runner::{compile_w0, compile_w2};
 use nearcore::{get_default_home, get_store_path, load_config, NearConfig, NightshadeRuntime};
 use node_runtime::adapter::ViewRuntimeAdapter;
 use state_dump::state_dump;
@@ -831,7 +831,10 @@ fn main() {
                 } else {
                     print!(" {}", get_functions_number(code, &VMConfig::default()));
                     let contract_code = ContractCode::new(code.clone(), None);
-                    let module = compile(contract_code).unwrap();
+                    let module = compile_w0(&contract_code).unwrap();
+                    let funcs = module.info().func_assoc.len();
+                    print!(" {}", funcs);
+                    let module = compile_w2(&contract_code).unwrap();
                     let funcs = module.info().functions.len();
                     println!(" {}", funcs);
                 }
