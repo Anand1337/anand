@@ -32,6 +32,7 @@ use near_primitives::types::{AccountId, BlockHeight, ShardId, StateRoot};
 use near_store::test_utils::create_test_store;
 use near_store::{create_store, Store, TrieIterator};
 use near_vm_runner::prepare::get_functions_number;
+use near_vm_runner::runner::compile;
 use nearcore::{get_default_home, get_store_path, load_config, NearConfig, NightshadeRuntime};
 use node_runtime::adapter::ViewRuntimeAdapter;
 use state_dump::state_dump;
@@ -1065,7 +1066,12 @@ fn main() {
             );
             let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
             for (code, account_id) in entries.iter() {
-                println!("{} {}", account_id, get_functions_number(code, &VMConfig::default()))
+                print!("{}", account_id);
+                print!(" {}", get_functions_number(code, &VMConfig::default()));
+                let contract_code = ContractCode::new(code.clone(), None);
+                let module = compile(contract_code).unwrap();
+                let funcs = module.info().function_names.len();
+                println!(" {}", funcs);
             }
         }
         (_, _) => unreachable!(),

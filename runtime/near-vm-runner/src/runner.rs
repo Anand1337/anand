@@ -7,7 +7,7 @@ use near_vm_logic::types::PromiseResult;
 use near_vm_logic::{External, VMContext, VMOutcome};
 
 use crate::cache::into_vm_result;
-use crate::VMKind;
+use crate::{MockCompiledContractCache, VMKind};
 
 /// `run` does the following:
 /// - deserializes and validate the `code` binary (see `prepare::prepare_contract`)
@@ -166,6 +166,22 @@ pub fn precompile<'a>(
             },
         ))),
     }
+}
+
+pub fn compile(code: ContractCode) -> Result<wasmer::Module, VMError> {
+    let wasm_code = code.code();
+    let code_hash = code.hash();
+    let compiler = wasmer_compiler_singlepass::Singlepass::new();
+    let engine = wasmer::Universal::new(compiler).engine();
+    let store = wasmer::Store::new(&engine);
+    let result = crate::cache::wasmer2_cache::compile_and_serialize_wasmer2(
+        wasm_code,
+        code_hash,
+        &VMConfig::default(),
+        &MockCompiledContractCache::default(),
+        &store,
+    );
+    into_vm_result(result)
 }
 
 /// Used for testing cost of compiling a module
