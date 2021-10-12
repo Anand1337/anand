@@ -1028,7 +1028,11 @@ fn main() {
                 }
             };
             genesis.for_each_record(f);
-            eprintln!("{:?}", codes);
+            eprintln!("{:?}", codes.len());
+            for (k, v) in codes.iter() {
+                eprintln!("{} ... {}", k.iter().take(5).collect(), v)
+            }
+            eprintln!("{:?}", codes.len());
         }
         (_, _) => unreachable!(),
     }
