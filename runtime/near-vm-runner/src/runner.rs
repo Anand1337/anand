@@ -173,9 +173,9 @@ pub fn compile_w0(code: &ContractCode) -> Result<wasmer_runtime::Module, VMError
     let code_hash = code.hash();
     let result = crate::cache::wasmer0_cache::compile_and_serialize_wasmer(
         wasm_code,
-        wasm_config,
+        &VMConfig::default(),
         code_hash,
-        cache,
+        &MockCompiledContractCache::default(),
     );
     into_vm_result(result)
 }
