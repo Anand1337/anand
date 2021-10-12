@@ -1065,11 +1065,7 @@ fn main() {
             );
             let entries: Vec<Vec<u8>, AccountId> = serde_json::from_reader(reader).unwrap();
             for (code, account_id) in entries.iter().cloned() {
-                println!(
-                    "{} {}",
-                    account_id,
-                    get_functions_number(code, &VMConfig::default()).unwrap()
-                )
+                println!("{} {}", account_id, get_functions_number(code, &VMConfig::default()))
             }
         }
         (_, _) => unreachable!(),

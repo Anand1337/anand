@@ -166,8 +166,8 @@ pub fn prepare_contract(original_code: &[u8], config: &VMConfig) -> Result<Vec<u
         .into_wasm_code()
 }
 
-pub fn get_functions_number(original_code: &[u8], config: &VMConfig) -> Result<u64, PrepareError> {
-    ContractModule::init(original_code, config)?.get_functions_number()?
+pub fn get_functions_number(original_code: &[u8], config: &VMConfig) -> u64 {
+    ContractModule::init(original_code, config).unwrap().get_functions_number()
 }
 
 #[cfg(test)]
