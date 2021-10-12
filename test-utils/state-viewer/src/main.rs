@@ -1023,7 +1023,7 @@ fn main() {
             let genesis_records_path = args.value_of("genesis_records").unwrap();
             let output_path = args.value_of("output").unwrap();
 
-            let mut f = File::create(output_path)?;
+            let mut f = File::create(output_path).unwrap();
             f.write(&vec![90, 91, 92]);
 
             let genesis = Genesis::from_files(genesis_config_path, genesis_records_path);
@@ -1031,7 +1031,7 @@ fn main() {
 
             let entries: Vec<_> = codes.iter().collect();
             let x = serde_json::to_vec(&entries).unwrap();
-            let mut f = File::create(output_path)?;
+            let mut f = File::create(output_path).unwrap();
             f.write(&x);
 
             let mut f = |state_record: &StateRecord| {
@@ -1048,7 +1048,7 @@ fn main() {
 
             let entries: Vec<_> = codes.iter().collect();
             let x = serde_json::to_vec(&entries).unwrap();
-            let mut f = File::create(output_path)?;
+            let mut f = File::create(output_path).unwrap();
             f.write(&x);
         }
         (_, _) => unreachable!(),
