@@ -4,7 +4,7 @@
 use near_primitives::checked_feature;
 use near_primitives::version::ProtocolVersion;
 use parity_wasm::builder;
-use parity_wasm::elements::{self, External, MemorySection, Type};
+use parity_wasm::elements::{self, External, ImportCountType, MemorySection, Type};
 use pwasm_utils::{self, rules};
 
 use near_vm_errors::PrepareError;
@@ -197,6 +197,15 @@ pub fn prepare_contract(
 
 pub fn get_functions_number(original_code: &[u8], config: &VMConfig) -> u64 {
     ContractModule::init(original_code, config).unwrap().get_functions_number()
+}
+
+pub fn get_import_count(original_code: &[u8], config: &VMConfig) -> u64 {
+    ContractModule::init(original_code, config)
+        .unwrap()
+        .module
+        .import_section()
+        .map(|is| is.entries().len())
+        .unwrap_or(0) as u64
 }
 
 #[cfg(test)]

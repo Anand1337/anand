@@ -29,7 +29,7 @@ use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{AccountId, BlockHeight, ShardId, StateRoot};
 use near_store::test_utils::create_test_store;
 use near_store::{create_store, Store, TrieIterator};
-use near_vm_runner::prepare::get_functions_number;
+use near_vm_runner::prepare::{get_functions_number, get_import_count};
 use near_vm_runner::runner::{compile_w0, compile_w2};
 use nearcore::{get_default_home, get_store_path, load_config, NearConfig, NightshadeRuntime};
 use node_runtime::adapter::ViewRuntimeAdapter;
@@ -842,8 +842,10 @@ fn main() {
                     // print!(" {}", funcs);
                     let module = compile_w2(&contract_code).unwrap();
                     let wasmer_funcs = module.info().functions.len() as u64;
-                    println!(" {}", wasmer_funcs);
+                    print!(" {}", wasmer_funcs);
 
+                    let import_count = get_import_count(code, &VMConfig::default());
+                    println!(" {}", import_count);
                     function_data.push((account_id, wasm_funcs, wasmer_funcs));
                 }
             }
