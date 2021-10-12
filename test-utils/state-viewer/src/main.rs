@@ -826,11 +826,15 @@ fn main() {
             let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
             for (code, account_id) in entries.iter() {
                 print!("{}", account_id);
-                print!(" {}", get_functions_number(code, &VMConfig::default()));
-                let contract_code = ContractCode::new(code.clone(), None);
-                let module = compile(contract_code).unwrap();
-                let funcs = module.info().function_names.len();
-                println!(" {}", funcs);
+                if code.is_empty() {
+                    println!(" empty, skip");
+                } else {
+                    print!(" {}", get_functions_number(code, &VMConfig::default()));
+                    let contract_code = ContractCode::new(code.clone(), None);
+                    let module = compile(contract_code).unwrap();
+                    let funcs = module.info().functions.len();
+                    println!(" {}", funcs);
+                }
             }
         }
         (_, _) => unreachable!(),
