@@ -180,6 +180,7 @@ pub fn compile_w0(code: &ContractCode) -> Result<wasmer_runtime::Module, VMError
         &VMConfig::default(),
         code_hash,
         &MockCompiledContractCache::default(),
+        PROTOCOL_VERSION,
     );
     into_vm_result(result)
 }
