@@ -620,7 +620,7 @@ pub fn compute_function_call_cost(
     let vm_config = VMConfig::default();
     let mut fake_external = MockedExternal::new();
     let fake_context = create_context(args);
-    let fees = RuntimeFeesConfig::default();
+    let fees = RuntimeFeesConfig::test();
     let promise_results = vec![];
     // precompile_contract(&contract, &vm_config, cache);
 
