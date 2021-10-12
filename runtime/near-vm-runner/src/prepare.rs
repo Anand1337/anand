@@ -4,7 +4,7 @@
 use near_primitives::checked_feature;
 use near_primitives::version::ProtocolVersion;
 use parity_wasm::builder;
-use parity_wasm::elements::{self, External, ImportCountType, MemorySection, Type};
+use parity_wasm::elements::{self, External, MemorySection, Type};
 use pwasm_utils::{self, rules};
 
 use near_vm_errors::PrepareError;
