@@ -571,6 +571,7 @@ fn main() {
         .subcommand(
             SubCommand::with_name("count_functions")
                 .arg(Arg::with_name("codes").long("codes").help("codes file").takes_value(true))
+                .arg(Arg::with_name("output").long("output").help("output file").takes_value(true))
                 .help("Check whether the node has all the blocks up to its head"),
         )
         .subcommand(
@@ -824,21 +825,30 @@ fn main() {
                 File::open(codes_path).expect("Could not open genesis config file."),
             );
             let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
+            let mut function_data: Vec<(&String, u64, u64)> = vec![];
             for (code, account_id) in entries.iter() {
                 print!("{}", account_id);
                 if code.is_empty() {
                     println!(" empty, skip");
                 } else {
-                    print!(" {}", get_functions_number(code, &VMConfig::default()));
+                    let wasm_funcs = get_functions_number(code, &VMConfig::default());
+                    print!(" {}", wasm_funcs);
+
                     let contract_code = ContractCode::new(code.clone(), None);
-                    let module = compile_w0(&contract_code).unwrap();
-                    let funcs = module.info().func_assoc.len();
-                    print!(" {}", funcs);
+                    // Seems to be the same as for wasmer2. Skip to speed up
+                    // let module = compile_w0(&contract_code).unwrap();
+                    // let funcs = module.info().func_assoc.len();
+                    // print!(" {}", funcs);
                     let module = compile_w2(&contract_code).unwrap();
-                    let funcs = module.info().functions.len();
-                    println!(" {}", funcs);
+                    let wasmer_funcs = module.info().functions.len() as u64;
+                    println!(" {}", wasmer_funcs);
+
+                    function_data.push((account_id, wasm_funcs, wasmer_funcs));
                 }
             }
+            function_data.sort_by_key(|(_, wasm_funcs, _)| -wasm_funcs);
+            let mut f = File::create(output_path).unwrap();
+            f.write_str(&format!("{:?}", function_data));
         }
         (_, _) => unreachable!(),
     }
