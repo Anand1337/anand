@@ -1088,7 +1088,7 @@ fn main() {
                     function_data.push((account_id, wasm_funcs, wasmer_funcs));
                 }
             }
-            function_data.sort_by_key(|(_, wasm_funcs, _)| -(wasm_funcs as i64));
+            function_data.sort_by_key(|(_, wasm_funcs, _)| -*wasm_funcs);
             let mut f = File::create(output_path).unwrap();
             f.write(format!("{:?}", function_data).as_bytes());
         }
