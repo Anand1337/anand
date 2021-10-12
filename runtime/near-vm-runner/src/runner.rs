@@ -1,6 +1,7 @@
 use near_primitives::contract::ContractCode;
 use near_primitives::hash::CryptoHash;
 use near_primitives::runtime::fees::RuntimeFeesConfig;
+use near_primitives::version::PROTOCOL_VERSION;
 use near_primitives::{config::VMConfig, types::CompiledContractCache, version::ProtocolVersion};
 use near_vm_errors::{CompilationError, FunctionCallError, VMError};
 use near_vm_logic::types::PromiseResult;
@@ -195,6 +196,7 @@ pub fn compile_w2(code: &ContractCode) -> Result<wasmer::Module, VMError> {
         &VMConfig::default(),
         &MockCompiledContractCache::default(),
         &store,
+        PROTOCOL_VERSION,
     );
     into_vm_result(result)
 }
