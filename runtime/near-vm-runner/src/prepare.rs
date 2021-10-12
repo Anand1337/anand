@@ -147,13 +147,11 @@ impl<'a> ContractModule<'a> {
         self,
         protocol_version: ProtocolVersion,
     ) -> Result<Self, PrepareError> {
-        eprintln!("{}", protocol_version);
         if checked_feature!(
             "protocol_feature_limit_contract_functions_number",
             LimitContractFunctionsNumber,
             protocol_version
         ) {
-            eprintln!("inner");
             if let Some(max_functions_number) =
                 self.config.limit_config.max_functions_number_per_contract
             {

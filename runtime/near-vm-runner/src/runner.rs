@@ -1,5 +1,6 @@
 use near_primitives::contract::ContractCode;
 use near_primitives::hash::CryptoHash;
+use near_primitives::runtime::config_store::RuntimeConfigStore;
 use near_primitives::runtime::fees::RuntimeFeesConfig;
 use near_primitives::version::PROTOCOL_VERSION;
 use near_primitives::{config::VMConfig, types::CompiledContractCache, version::ProtocolVersion};
@@ -175,12 +176,15 @@ pub fn precompile<'a>(
 pub fn compile_w0(code: &ContractCode) -> Result<wasmer_runtime::Module, VMError> {
     let wasm_code = code.code();
     let code_hash = code.hash();
+    let protocol_version = PROTOCOL_VERSION;
+    let runtime_config_store = RuntimeConfigStore::new(None);
+    let runtime_config = runtime_config_store.get_config(protocol_version);
     let result = crate::cache::wasmer0_cache::compile_and_serialize_wasmer(
         wasm_code,
-        &VMConfig::default(),
+        &runtime_config.wasm_config,
         code_hash,
         &MockCompiledContractCache::default(),
-        PROTOCOL_VERSION,
+        protocol_version,
     );
     into_vm_result(result)
 }
@@ -191,10 +195,13 @@ pub fn compile_w2(code: &ContractCode) -> Result<wasmer::Module, VMError> {
     let compiler = wasmer_compiler_singlepass::Singlepass::new();
     let engine = wasmer::Universal::new(compiler).engine();
     let store = wasmer::Store::new(&engine);
+    let protocol_version = PROTOCOL_VERSION;
+    let runtime_config_store = RuntimeConfigStore::new(None);
+    let runtime_config = runtime_config_store.get_config(protocol_version);
     let result = crate::cache::wasmer2_cache::compile_and_serialize_wasmer2(
         wasm_code,
         code_hash,
-        &VMConfig::default(),
+        &runtime_config.wasm_config,
         &MockCompiledContractCache::default(),
         &store,
         PROTOCOL_VERSION,
