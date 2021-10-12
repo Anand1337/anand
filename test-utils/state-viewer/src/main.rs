@@ -781,9 +781,9 @@ fn main() {
             let genesis_records_path = args.value_of("genesis_records").unwrap();
             let genesis = Genesis::from_files(genesis_config_path, genesis_records_path);
             let mut codes: HashMap<Vec<u8>, AccountId> = HashMap::default();
-            let mut f = |state_record: StateRecord| {
+            let mut f = |state_record: &StateRecord| {
                 if let StateRecord::Contract { account_id, code } = state_record {
-                    codes.insert(code, account_id);
+                    codes.insert(code.clone(), account_id.clone());
                 }
             };
             genesis.for_each_record(f);
