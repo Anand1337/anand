@@ -64,6 +64,7 @@ fn get_func_number(contract: &ContractCode) -> usize {
 fn get_complexity(contract: &ContractCode) -> usize {
     let module =
         cache::wasmer0_cache::compile_module_cached_wasmer0(&contract, &VMConfig::default(), None)
+            .unwrap()
             .unwrap();
     let module_info = module.info();
 
