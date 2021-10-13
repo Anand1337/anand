@@ -372,7 +372,7 @@ pub mod wasmer2_cache {
         }
     }
 
-    pub(crate) fn compile_module_cached_wasmer2(
+    pub fn compile_module_cached_wasmer2(
         code: &ContractCode,
         config: &VMConfig,
         cache: Option<&dyn CompiledContractCache>,

@@ -109,7 +109,7 @@ fn get_complexity(contract: &ContractCode) -> usize {
 }
 
 #[allow(dead_code)]
-fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
+fn test_function_call_try_complexity_metric(metric: GasMetric, vm_kind: VMKind) {
     // let (mut args_len_xs, mut code_len_xs, mut funcs_xs) = (vec![], vec![], vec![]);
     // let mut ys = vec![];
     let mut rows = 0;
@@ -275,6 +275,73 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // );
 }
 
+#[allow(dead_code)]
+fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
+    // let (mut args_len_xs, mut code_len_xs, mut funcs_xs) = (vec![], vec![], vec![]);
+    // let mut ys = vec![];
+
+    for (method_count, body_repeat) in vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1)].iter() {
+        let contract = make_many_methods_contract(method_count as usize, body_repeat as usize);
+        let complexity = get_complexity(&contract);
+        let args = vec![];
+        println!("LEN = {}", contract.code().len());
+        let cost = compute_function_call_cost(
+            metric,
+            vm_kind,
+            REPEATS,
+            &contract,
+            "hello0",
+            None,
+            args.clone(),
+        );
+        // let module = cache::wasmer0_cache::compile_module_cached_wasmer0(
+        //     &contract,
+        //     &VMConfig::default(),
+        //     None,
+        // )
+        // .unwrap()
+        // .unwrap();
+        // let module_info = module.info();
+        // let funcs = module_info.func_assoc.len();
+        let store = default_wasmer2_store();
+        let module = cache::wasmer2_cache::compile_module_cached_wasmer2(
+            &contract,
+            &VMConfig::default(),
+            None,
+            store,
+        )
+        .unwrap()
+        .unwrap();
+        let module_info = module.info();
+        let funcs = module_info.functions.len();
+
+        println!(
+            "{:?} {:?} {} {} {} {}",
+            vm_kind,
+            metric,
+            contract.code().len(),
+            funcs,
+            cost / REPEATS,
+            ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128))
+        );
+    }
+
+    // Regression analysis only makes sense for additive metrics.
+    if metric == GasMetric::Time {
+        return;
+    }
+
+    // let (cost_base, cost_byte, _) = least_squares_method(&funcs_xs, &ys);
+
+    // println!(
+    //     "{:?} {:?} function call base {} gas, per byte {} gas",
+    //     vm_kind,
+    //     metric,
+    //     ratio_to_gas_signed(metric, cost_base),
+    //     ratio_to_gas_signed(metric, cost_byte),
+    // );
+}
+
 fn measure_function_call_1s(vm_kind: VMKind) {
     init_test_logger();
 
@@ -339,8 +406,8 @@ fn test_function_call_time() {
     // Run with
     // cargo test --release --lib function_call::test_function_call_time
     //    --features required  -- --exact --nocapture
-    test_function_call(GasMetric::Time, VMKind::Wasmer0);
-    // test_function_call(GasMetric::Time, VMKind::Wasmer2);
+    // test_function_call(GasMetric::Time, VMKind::Wasmer0);
+    test_function_call(GasMetric::Time, VMKind::Wasmer2);
     // test_function_call(GasMetric::Time, VMKind::Wasmtime);
 }
 
