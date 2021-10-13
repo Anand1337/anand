@@ -291,16 +291,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let nftspace_code = codes.get("nftspace.near").unwrap();
 
     let m = &mut Module::from_buffer(nftspace_code).unwrap();
-
     let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
-
-    hello_func
-        // Enter the function's body.
-        .func_body()
-        // (local.set $i (local.get $n))
-        .i32_const(1)
-        .drop();
-
+    hello_func.func_body().i32_const(1).drop();
     let hello_func = hello_func.finish(vec![], &mut m.funcs);
     m.exports.add("hello0", hello_func);
 
@@ -338,7 +330,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             vm_kind,
             REPEATS,
             &contract,
-            "used_gas",
+            "hello0",
             None,
             args.clone(),
         );
