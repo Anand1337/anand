@@ -29,6 +29,7 @@ const REPEATS: u64 = 50;
 fn get_func_number(contract: &ContractCode) -> usize {
     let module =
         cache::wasmer0_cache::compile_module_cached_wasmer0(&contract, &VMConfig::default(), None)
+            .unwrap()
             .unwrap();
     let module_info = module.info();
 
@@ -200,6 +201,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             &VMConfig::default(),
             None,
         )
+        .unwrap()
         .unwrap();
         let module_info = module.info();
         let funcs = module_info.func_assoc.len();
@@ -288,7 +290,7 @@ fn measure_function_call_1s(vm_kind: VMKind) {
     let vm_config = VMConfig::default();
     let mut fake_external = MockedExternal::new();
     let fake_context = create_context(vec![]);
-    let fees = RuntimeFeesConfig::default();
+    let fees = RuntimeFeesConfig::test();
     let promise_results = vec![];
     let gas_metric = GasMetric::Time;
     // precompile_contract(&contract, &vm_config, cache);
@@ -360,7 +362,7 @@ fn compare_function_call_icount() {
     // Base comparison
     // test_function_call(GasMetric::ICount, VMKind::Wasmer0);
 
-    let runtime_fees_config = RuntimeFeesConfig::default();
+    let runtime_fees_config = RuntimeFeesConfig::test();
     let ext_costs_config = ExtCostsConfig::default();
 
     let old_function_call_fee =
