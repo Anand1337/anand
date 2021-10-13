@@ -15,6 +15,7 @@ use near_test_contracts::{
 use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_logic::ExtCostsConfig;
 use near_vm_runner::cache;
+use near_vm_runner::prepare::get_functions_number;
 use near_vm_runner::runner::compile_w2;
 use near_vm_runner::{precompile_contract, run_vm, VMKind};
 use nearcore::get_store_path;
@@ -300,13 +301,15 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         let module = compile_w2(&contract).unwrap();
         let module_info = module.info();
         let funcs = module_info.functions.len();
+        let funcs2 = get_functions_number(contract.code(), &VMConfig::default());
 
         println!(
-            "{:?} {:?} {} {} {} {}",
+            "{:?} {:?} {} {} {} {} {}",
             vm_kind,
             metric,
             contract.code().len(),
             funcs,
+            funcs2,
             cost / REPEATS,
             ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128))
         );
@@ -409,8 +412,8 @@ fn test_function_call_icount() {
     // Where runner.sh is
     // /host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/qemu-x86_64 \
     // -cpu Westmere-v1 -plugin file=/host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/libcounter.so $@
-    test_function_call(GasMetric::ICount, VMKind::Wasmer0);
-    // test_function_call(GasMetric::ICount, VMKind::Wasmer2);
+    // test_function_call(GasMetric::ICount, VMKind::Wasmer0);
+    test_function_call(GasMetric::ICount, VMKind::Wasmer2);
     // test_function_call(GasMetric::ICount, VMKind::Wasmtime);
 }
 
