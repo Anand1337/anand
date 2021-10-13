@@ -294,14 +294,14 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 
     let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
 
-    let hello_func = hello_func
+    hello_func
         // Enter the function's body.
         .func_body()
         // (local.set $i (local.get $n))
         .i32_const(1)
-        .drop()
-        .finish(vec![], &mut m.funcs);
+        .drop();
 
+    let hello_func = hello_func.finish(vec![], &mut m.funcs);
     m.exports.add("hello0", hello_func);
 
     // println!("{:?}", m.imports.iter().collect::<Vec<_>>());
