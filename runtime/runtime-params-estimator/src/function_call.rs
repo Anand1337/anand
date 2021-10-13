@@ -289,7 +289,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let codes: HashMap<String, Vec<u8>> = entries.into_iter().map(|(k, v)| (v, k)).collect();
     let nftspace_code = codes.get("nftspace.near").unwrap();
 
-    let m = &mut Module::from_buffer(nftspace_code)?;
+    let m = &mut Module::from_buffer(nftspace_code).unwrap();
     let gas_import_id = m.imports.find("env", "gas").unwrap();
     println!("{:?}", gas_import_id);
     let gas_import = m.imports.get(gas_import_id);
