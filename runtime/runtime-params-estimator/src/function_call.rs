@@ -21,8 +21,10 @@ use near_vm_runner::{precompile_contract, run_vm, VMKind};
 use nearcore::get_store_path;
 use num_rational::Ratio;
 use std::cmp::max;
+use std::collections::HashMap;
 use std::fmt::Write;
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
+use std::io::BufReader;
 use std::str;
 use std::sync::Arc;
 
@@ -279,13 +281,26 @@ fn test_function_call_try_complexity_metric(metric: GasMetric, vm_kind: VMKind) 
 
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
+    let reader = BufReader::new(
+        File::open("/host/nearcore/codes.json").expect("Could not open genesis config file."),
+    );
+    let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
+    let codes: HashMap<String, Vec<u8>> = entries.into_iter().map(|(k, v)| (v, k)).collect();
+    let nftspace_code = codes.get("nftspace.near").unwrap();
+
     let mut xs = vec![];
     let mut ys = vec![];
 
     for (method_count, body_repeat) in
-        vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (10000, 1)].iter().cloned()
+        // vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (10000, 1)].iter().cloned()
+        vec![(10000, 2), (10000, 5), (10000, 10), (0, 0)].iter().cloned()
     {
-        let contract = make_many_methods_contract(method_count, body_repeat);
+        let contract = if method_count != 0 {
+            make_many_methods_contract(method_count, body_repeat)
+        } else {
+            ContractCode::new(nftspace_code.clone(), None)
+        };
+
         let args = vec![];
         println!("LEN = {}", contract.code().len());
         let cost = compute_function_call_cost(
@@ -302,6 +317,23 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         let module_info = module.info();
         let funcs = module_info.functions.len();
         let funcs2 = get_functions_number(contract.code(), &VMConfig::default());
+
+        // let name_table: Vec<(_, _)> = module_info
+        //     .function_names
+        //     .clone()
+        //     .iter()
+        //     .filter(|(&k, _)| module_info.is_imported_function(k))
+        //     .collect();
+        let imports = module_info.imports;
+        println!("{:?}", imports);
+
+        // let table = &module_info.name_table;
+        // let imported_funcs: Vec<_> = module_info
+        //     .imported_functions
+        //     .values()
+        //     .map(|i| (namespace_table.get(i.namespace_index), table.get(i.name_index)))
+        //     .collect();
+        println!("{:?}", imported_funcs);
 
         println!(
             "{:?} {:?} {} {} {} {} {}",
