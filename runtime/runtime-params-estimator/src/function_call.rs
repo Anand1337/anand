@@ -27,7 +27,8 @@ use std::fs::{File, OpenOptions};
 use std::io::BufReader;
 use std::str;
 use std::sync::Arc;
-use walrus::{ExportItem, FunctionBuilder, ImportKind, Module};
+use walrus::ir::*;
+use walrus::{ExportItem, FunctionBuilder, ImportKind, Module, ModuleConfig, ValType};
 
 const REPEATS: u64 = 50;
 
@@ -299,7 +300,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         // (local.set $i (local.get $n))
         .i32_const(1)
         .drop()
-        .finish(vec![], &mut module.funcs);
+        .finish(vec![], &mut m.funcs);
 
     m.exports.add("hello0", hello_func);
 
