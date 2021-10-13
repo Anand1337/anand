@@ -291,22 +291,15 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let nftspace_code = codes.get("nftspace.near").unwrap();
 
     let m = &mut Module::from_buffer(nftspace_code).unwrap();
-    let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
-    hello_func.func_body().i32_const(1).drop();
-    let hello_func = hello_func.finish(vec![], &mut m.funcs);
-    m.exports.add("hello0", hello_func);
-
-    // println!("{:?}", m.imports.iter().collect::<Vec<_>>());
-    // let gas_import_id = m.imports.find("env", "used_gas").unwrap();
-    // println!("{:?}", gas_import_id);
-    // let gas_import = m.imports.get(gas_import_id);
-    // let function_id = match gas_import.kind {
-    //     ImportKind::Function(id) => id,
-    //     _ => panic!("Unexpected import kind"),
-    // };
-    // println!("{:?}", function_id);
-    // m.add_import_func
-    // m.exports.add("used_gas", ExportItem::Function(function_id));
+    for i in 0..1000 {
+        if i % 10 == 0 {
+            println!("{}", i);
+        }
+        let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
+        hello_func.func_body().i32_const(1).drop();
+        let hello_func = hello_func.finish(vec![], &mut m.funcs);
+        m.exports.add(&format!("hello{}", i), hello_func);
+    }
     let nftspace_code = m.emit_wasm();
 
     let mut xs = vec![];
