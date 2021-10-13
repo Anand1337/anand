@@ -10,7 +10,7 @@ mod vm_kind;
 
 mod preload;
 pub mod prepare;
-mod runner;
+pub mod runner;
 
 #[cfg(feature = "wasmer0_vm")]
 mod wasmer_runner;

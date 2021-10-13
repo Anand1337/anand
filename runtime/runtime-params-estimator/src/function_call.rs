@@ -15,6 +15,7 @@ use near_test_contracts::{
 use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_logic::ExtCostsConfig;
 use near_vm_runner::cache;
+use near_vm_runner::runner::compile_w2;
 use near_vm_runner::{precompile_contract, run_vm, VMKind};
 use nearcore::get_store_path;
 use num_rational::Ratio;
@@ -295,24 +296,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             None,
             args.clone(),
         );
-        // let module = cache::wasmer0_cache::compile_module_cached_wasmer0(
-        //     &contract,
-        //     &VMConfig::default(),
-        //     None,
-        // )
-        // .unwrap()
-        // .unwrap();
-        // let module_info = module.info();
-        // let funcs = module_info.func_assoc.len();
-        let store = default_wasmer2_store();
-        let module = cache::wasmer2_cache::compile_module_cached_wasmer2(
-            &contract,
-            &VMConfig::default(),
-            None,
-            store,
-        )
-        .unwrap()
-        .unwrap();
+
+        let module = compile_w2(&contract).unwrap();
         let module_info = module.info();
         let funcs = module_info.functions.len();
 

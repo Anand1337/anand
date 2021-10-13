@@ -312,7 +312,7 @@ pub(crate) fn wasmer2_vm_hash() -> u64 {
     WASMER2_CONFIG.config_hash()
 }
 
-pub(crate) fn default_wasmer2_store() -> Store {
+pub fn default_wasmer2_store() -> Store {
     // We only support singlepass compiler at the moment.
     assert_eq!(WASMER2_CONFIG.compiler, WasmerCompiler::Singlepass);
     let compiler = Singlepass::new();
