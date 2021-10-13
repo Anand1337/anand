@@ -27,7 +27,7 @@ use std::fs::{File, OpenOptions};
 use std::io::BufReader;
 use std::str;
 use std::sync::Arc;
-use walrus::{ExportItem, ImportKind, Module};
+use walrus::{ExportItem, FunctionBuilder, ImportKind, Module};
 
 const REPEATS: u64 = 50;
 
@@ -290,16 +290,30 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let nftspace_code = codes.get("nftspace.near").unwrap();
 
     let m = &mut Module::from_buffer(nftspace_code).unwrap();
-    println!("{:?}", m.imports.iter().collect::<Vec<_>>());
-    let gas_import_id = m.imports.find("env", "used_gas").unwrap();
-    println!("{:?}", gas_import_id);
-    let gas_import = m.imports.get(gas_import_id);
-    let function_id = match gas_import.kind {
-        ImportKind::Function(id) => id,
-        _ => panic!("Unexpected import kind"),
-    };
-    println!("{:?}", function_id);
-    m.exports.add("used_gas", ExportItem::Function(function_id));
+
+    let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
+
+    hello_func
+        // Enter the function's body.
+        .func_body()
+        // (local.set $i (local.get $n))
+        .i32_const(1)
+        .drop()
+        .finish(vec![], &mut module.funcs);
+
+    m.exports.add("hello0", hello_func);
+
+    // println!("{:?}", m.imports.iter().collect::<Vec<_>>());
+    // let gas_import_id = m.imports.find("env", "used_gas").unwrap();
+    // println!("{:?}", gas_import_id);
+    // let gas_import = m.imports.get(gas_import_id);
+    // let function_id = match gas_import.kind {
+    //     ImportKind::Function(id) => id,
+    //     _ => panic!("Unexpected import kind"),
+    // };
+    // println!("{:?}", function_id);
+    // m.add_import_func
+    // m.exports.add("used_gas", ExportItem::Function(function_id));
     let nftspace_code = m.emit_wasm();
 
     let mut xs = vec![];
