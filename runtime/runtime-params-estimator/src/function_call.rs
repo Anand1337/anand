@@ -294,7 +294,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 
     let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
 
-    hello_func
+    let hello_func = hello_func
         // Enter the function's body.
         .func_body()
         // (local.set $i (local.get $n))
