@@ -322,7 +322,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             vm_kind,
             REPEATS,
             &contract,
-            "nft_total_supply",
+            "gas",
             None,
             args.clone(),
         );
