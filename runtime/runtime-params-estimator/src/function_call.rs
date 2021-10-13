@@ -290,6 +290,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let nftspace_code = codes.get("nftspace.near").unwrap();
 
     let m = &mut Module::from_buffer(nftspace_code).unwrap();
+    println!("{:?}", m.imports.iter().collect::<Vec<_>>());
     let gas_import_id = m.imports.find("env", "gas").unwrap();
     println!("{:?}", gas_import_id);
     let gas_import = m.imports.get(gas_import_id);
