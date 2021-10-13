@@ -291,7 +291,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 
     let m = &mut Module::from_buffer(nftspace_code).unwrap();
     println!("{:?}", m.imports.iter().collect::<Vec<_>>());
-    let gas_import_id = m.imports.find("env", "gas").unwrap();
+    let gas_import_id = m.imports.find("env", "used_gas").unwrap();
     println!("{:?}", gas_import_id);
     let gas_import = m.imports.get(gas_import_id);
     let function_id = match gas_import.kind {
@@ -299,7 +299,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         _ => panic!("Unexpected import kind"),
     };
     println!("{:?}", function_id);
-    m.exports.add("gas", ExportItem::Function(function_id));
+    m.exports.add("used_gas", ExportItem::Function(function_id));
     let nftspace_code = m.emit_wasm();
 
     let mut xs = vec![];
@@ -316,14 +316,14 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             ContractCode::new(nftspace_code.clone(), None)
         };
 
-        let args = vec![0];
+        let args = vec![];
         println!("LEN = {}", contract.code().len());
         let cost = compute_function_call_cost(
             metric,
             vm_kind,
             REPEATS,
             &contract,
-            "gas",
+            "used_gas",
             None,
             args.clone(),
         );
