@@ -280,9 +280,10 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let (mut args_len_xs, mut code_len_xs, mut funcs_xs) = (vec![], vec![], vec![]);
     // let mut ys = vec![];
 
-    for (method_count, body_repeat) in vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1)].iter() {
-        let contract = make_many_methods_contract(method_count as usize, body_repeat as usize);
-        let complexity = get_complexity(&contract);
+    for (method_count, body_repeat) in
+        vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1)].iter().cloned()
+    {
+        let contract = make_many_methods_contract(method_count, body_repeat);
         let args = vec![];
         println!("LEN = {}", contract.code().len());
         let cost = compute_function_call_cost(
