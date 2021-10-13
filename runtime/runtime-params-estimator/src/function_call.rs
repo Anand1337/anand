@@ -333,7 +333,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         //     .values()
         //     .map(|i| (namespace_table.get(i.namespace_index), table.get(i.name_index)))
         //     .collect();
-        println!("{:?}", imported_funcs);
+        // println!("{:?}", imported_funcs);
 
         println!(
             "{:?} {:?} {} {} {} {} {}",
