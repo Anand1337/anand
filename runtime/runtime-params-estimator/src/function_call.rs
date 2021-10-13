@@ -293,7 +293,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 
     for (method_count, body_repeat) in
         // vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (10000, 1)].iter().cloned()
-        vec![(10000, 2), (10000, 5), (10000, 10), (0, 0)].iter().cloned()
+        // vec![(10000, 2), (10000, 5), (10000, 10), (0, 0)].iter().cloned()
+        vec![(0, 0)].iter().cloned()
     {
         let contract = if method_count != 0 {
             make_many_methods_contract(method_count, body_repeat)
@@ -301,22 +302,22 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             ContractCode::new(nftspace_code.clone(), None)
         };
 
-        let args = vec![];
+        let args = vec![0];
         println!("LEN = {}", contract.code().len());
         let cost = compute_function_call_cost(
             metric,
             vm_kind,
             REPEATS,
             &contract,
-            "hello0",
+            "gas",
             None,
             args.clone(),
         );
 
         let module = compile_w2(&contract).unwrap();
         let module_info = module.info();
-        let funcs = module_info.functions.len();
-        let funcs2 = get_functions_number(contract.code(), &VMConfig::default());
+        let funcs = get_functions_number(contract.code(), &VMConfig::default());
+        let funcs2 = module_info.functions.len();
 
         // let name_table: Vec<(_, _)> = module_info
         //     .function_names
@@ -682,12 +683,6 @@ fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> Contra
         )
         .unwrap();
     }
-    write!(
-        &mut methods,
-        "
-    (memory (;0;) 17)
-        ",
-    );
     let code = format!(
         "
         (module
