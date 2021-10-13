@@ -117,7 +117,7 @@ const CACHE_SIZE: usize = 128;
 pub mod wasmer0_cache {
     use super::*;
     use near_vm_errors::CompilationError;
-    use wasmer_runtime::{compiler_for_backend, Backend};
+    use wasmer_runtime::{compiler_for_backend, Backend, Compiler};
     use wasmer_runtime_core::cache::Artifact;
     use wasmer_runtime_core::load_cache_with;
 
@@ -179,7 +179,7 @@ pub mod wasmer0_cache {
     unsafe fn _deserialize_load_cache_with(
         artifact: Artifact,
         compiler: &dyn Compiler,
-    ) -> Result<Result<wasmer_runtime::Module, VMError>, CacheError> {
+    ) -> Result<Result<wasmer_runtime::Module, CompilationError>, CacheError> {
         let _span = tracing::debug_span!(target: "vm", "_deserialize_load_cache_with").entered();
         match load_cache_with(artifact, compiler) {
             Ok(module) => Ok(Ok(module)),
@@ -222,16 +222,7 @@ pub mod wasmer0_cache {
                     Some(serialized) => deserialize_wasmer(serialized.as_slice()),
                     None => compile_and_serialize_wasmer(wasm_code, config, &key, cache),
                 }
-<<<<<<< HEAD
-                None => {
-                    eprintln!("compile_and_serialize_wasmer");
-                    compile_and_serialize_wasmer(wasm_code, config, &key, cache)
-                }
-            },
-            Err(_) => Err(VMError::CacheError(ReadError)),
-=======
             }
->>>>>>> master
         }
     }
 
