@@ -324,7 +324,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         //     .iter()
         //     .filter(|(&k, _)| module_info.is_imported_function(k))
         //     .collect();
-        let imports = module_info.imports;
+        let imports = module_info.imports.clone();
         println!("{:?}", imports);
 
         // let table = &module_info.name_table;
