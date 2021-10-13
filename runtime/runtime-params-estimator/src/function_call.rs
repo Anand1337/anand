@@ -27,6 +27,7 @@ use std::fs::{File, OpenOptions};
 use std::io::BufReader;
 use std::str;
 use std::sync::Arc;
+use walrus::{ExportItem, ImportKind, Module};
 
 const REPEATS: u64 = 50;
 
@@ -287,6 +288,18 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
     let codes: HashMap<String, Vec<u8>> = entries.into_iter().map(|(k, v)| (v, k)).collect();
     let nftspace_code = codes.get("nftspace.near").unwrap();
+
+    let m = &mut Module::from_buffer(nftspace_code)?;
+    let gas_import_id = m.imports.find("env", "gas").unwrap();
+    println!("{:?}", gas_import_id);
+    let gas_import = m.imports.get(gas_import_id);
+    let function_id = match gas_import.kind {
+        ImportKind::Function(id) => id,
+        _ => panic!("Unexpected import kind"),
+    };
+    println!("{:?}", function_id);
+    m.exports.add("gas", ExportItem::Function(function_id));
+    let nftspace_code = m.emit_wasm();
 
     let mut xs = vec![];
     let mut ys = vec![];
