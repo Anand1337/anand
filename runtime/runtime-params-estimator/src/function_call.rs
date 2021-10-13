@@ -278,11 +278,11 @@ fn test_function_call_try_complexity_metric(metric: GasMetric, vm_kind: VMKind) 
 
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
-    // let (mut args_len_xs, mut code_len_xs, mut funcs_xs) = (vec![], vec![], vec![]);
-    // let mut ys = vec![];
+    let mut xs = vec![];
+    let mut ys = vec![];
 
     for (method_count, body_repeat) in
-        vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1)].iter().cloned()
+        vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (10000, 1)].iter().cloned()
     {
         let contract = make_many_methods_contract(method_count, body_repeat);
         let args = vec![];
@@ -310,6 +310,9 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             cost / REPEATS,
             ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128))
         );
+
+        xs.push(contract.code().len() as u64);
+        ys.push(cost / REPEATS);
     }
 
     // Regression analysis only makes sense for additive metrics.
@@ -317,15 +320,15 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         return;
     }
 
-    // let (cost_base, cost_byte, _) = least_squares_method(&funcs_xs, &ys);
+    let (cost_base, cost_byte, _) = least_squares_method(&xs, &ys);
 
-    // println!(
-    //     "{:?} {:?} function call base {} gas, per byte {} gas",
-    //     vm_kind,
-    //     metric,
-    //     ratio_to_gas_signed(metric, cost_base),
-    //     ratio_to_gas_signed(metric, cost_byte),
-    // );
+    println!(
+        "{:?} {:?} function call base {} gas, per byte {} gas",
+        vm_kind,
+        metric,
+        ratio_to_gas_signed(metric, cost_base),
+        ratio_to_gas_signed(metric, cost_byte),
+    );
 }
 
 fn measure_function_call_1s(vm_kind: VMKind) {
