@@ -565,7 +565,7 @@ fn main() {
                         .help("genesis_records file")
                         .takes_value(true),
                 )
-                .arg(Arg::with_name("output").long("output").help("output file").takes_value(true))
+                .arg(Arg::with_name("output").long("output").help("output dir").takes_value(true))
                 .help("Check whether the node has all the blocks up to its head"),
         )
         .subcommand(
@@ -789,18 +789,18 @@ fn main() {
         ("dump_all_codes", Some(args)) => {
             let genesis_config_path = args.value_of("genesis_config").unwrap();
             let genesis_records_path = args.value_of("genesis_records").unwrap();
-            let output_path = args.value_of("output").unwrap();
+            let output_dir = args.value_of("output").unwrap();
 
-            let mut f = File::create(output_path).unwrap();
-            f.write(&vec![90, 91, 92]);
+            // let mut f = File::create(output_path).unwrap();
+            // f.write(&vec![90, 91, 92]);
 
             let genesis = Genesis::from_files(genesis_config_path, genesis_records_path);
             let mut codes: HashMap<Vec<u8>, AccountId> = HashMap::default();
 
-            let entries: Vec<_> = codes.iter().collect();
-            let x = serde_json::to_vec(&entries).unwrap();
-            let mut f = File::create(output_path).unwrap();
-            f.write(&x);
+            // let entries: Vec<_> = codes.iter().collect();
+            // let x = serde_json::to_vec(&entries).unwrap();
+            // let mut f = File::create(output_path).unwrap();
+            // f.write(&x);
 
             let mut f = |state_record: &StateRecord| {
                 if let StateRecord::Contract { account_id, code } = state_record {
@@ -814,10 +814,15 @@ fn main() {
             }
             eprintln!("{:?}", codes.len());
 
-            let entries: Vec<_> = codes.iter().collect();
-            let x = serde_json::to_vec(&entries).unwrap();
-            let mut f = File::create(output_path).unwrap();
-            f.write(&x);
+            // let entries: Vec<_> = codes.iter().collect();
+            // let x = serde_json::to_vec(&entries).unwrap();
+            // let mut f = File::create(output_path).unwrap();
+            // f.write(&x);
+            for (code, account_id) in codes.iter() {
+                let path = PathBuf::from(output_dir).join(format!("{}.wasm", account_id));
+                let mut f = File::create(path).unwrap();
+                f.write(code);
+            }
         }
         ("count_functions", Some(args)) => {
             let codes_path = args.value_of("codes").unwrap();
