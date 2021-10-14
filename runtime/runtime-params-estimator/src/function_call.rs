@@ -42,6 +42,41 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 }
 
 #[test]
+fn bench_time_to_run_noop() {
+    let contract = make_many_methods_contract(150_000);
+    eprintln!("contract size = {:?}KiB", contract.code().len() / 1024);
+    let workdir = tempfile::Builder::new().prefix("runtime_testbed").tempdir().unwrap();
+    let store = create_store(&get_store_path(workdir.path()));
+    let cache_store = Arc::new(StoreCompiledContractCache { store });
+    let cache: Option<&dyn CompiledContractCache> = Some(cache_store.as_ref());
+    let vm_config = VMConfig::default();
+    let mut fake_external = MockedExternal::new();
+    let fake_context = create_context(vec![]);
+    let fees = RuntimeFeesConfig::test();
+    let promise_results = vec![];
+
+    for vm_kind in [VMKind::Wasmer0, VMKind::Wasmer2] {
+        eprintln!("vm_kind = {:?}", vm_kind);
+        for _ in 0..5 {
+            let t = std::time::Instant::now();
+            let _result = run_vm(
+                &contract,
+                "hello0",
+                &mut fake_external,
+                fake_context.clone(),
+                &vm_config,
+                &fees,
+                &promise_results,
+                vm_kind,
+                ProtocolVersion::MAX,
+                cache,
+            );
+            eprintln!("time to run no-op fn = {:?}", t.elapsed());
+        }
+    }
+}
+
+#[test]
 fn test_function_call_time() {
     // Run with
     // cargo test --release --lib function_call::test_function_call_time
