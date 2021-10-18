@@ -831,7 +831,7 @@ fn main() {
                 File::open(codes_path).expect("Could not open genesis config file."),
             );
             let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
-            let mut function_data: Vec<(&String, u64, u64)> = vec![];
+            let mut function_data: Vec<(&String, u64, u64, u64)> = vec![];
             for (code, account_id) in entries.iter() {
                 print!("{}", account_id);
                 if code.is_empty() {
@@ -851,10 +851,10 @@ fn main() {
 
                     let import_count = get_import_count(code, &VMConfig::default());
                     println!(" {}", import_count);
-                    function_data.push((account_id, wasm_funcs, wasmer_funcs));
+                    function_data.push((account_id, wasm_funcs, wasmer_funcs, code.length()));
                 }
             }
-            function_data.sort_by_key(|(_, wasm_funcs, _)| -(*wasm_funcs as i64));
+            function_data.sort_by_key(|(_, _, _, len)| -(*len as i64));
             let mut f = File::create(output_path).unwrap();
             f.write(format!("{:?}", function_data).as_bytes());
         }
