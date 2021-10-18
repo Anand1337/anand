@@ -44,9 +44,9 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 
 #[test]
 fn bench_time_to_run_noop() {
-    // let code = many_functions_contract(150_000);
-    // let contract = ContractCode::new(code, None);
-    let contract = make_many_methods_contract(150_000);
+    let code = many_functions_contract(150_000);
+    let contract = ContractCode::new(code, None);
+    // let contract = make_many_methods_contract(150_000);
     eprintln!("contract size = {:?}KiB", contract.code().len() / 1024);
     let workdir = tempfile::Builder::new().prefix("runtime_testbed").tempdir().unwrap();
     let store = create_store(&get_store_path(workdir.path()));
