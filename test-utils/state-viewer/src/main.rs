@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::fs::{self, File};
 use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -851,7 +851,12 @@ fn main() {
 
                     let import_count = get_import_count(code, &VMConfig::default());
                     println!(" {}", import_count);
-                    function_data.push((account_id, wasm_funcs, wasmer_funcs, code.len()));
+                    function_data.push((
+                        account_id,
+                        wasm_funcs,
+                        wasmer_funcs,
+                        code.len().try_into().unwrap(),
+                    ));
                 }
             }
             function_data.sort_by_key(|(_, _, _, len)| -(*len as i64));
