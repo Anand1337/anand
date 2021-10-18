@@ -62,7 +62,7 @@ fn bench_time_to_run_noop() {
         eprintln!("vm_kind = {:?}", vm_kind);
         for _ in 0..5 {
             let t = std::time::Instant::now();
-            let _result = run_vm(
+            let (_, err) = run_vm(
                 &contract,
                 "main",
                 &mut fake_external,
@@ -74,6 +74,7 @@ fn bench_time_to_run_noop() {
                 ProtocolVersion::MAX,
                 cache,
             );
+            eprintln!("{:?}", err);
             eprintln!("time to run no-op fn = {:?}", t.elapsed());
         }
     }
