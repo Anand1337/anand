@@ -851,7 +851,7 @@ fn main() {
 
                     let import_count = get_import_count(code, &VMConfig::default());
                     println!(" {}", import_count);
-                    function_data.push((account_id, wasm_funcs, wasmer_funcs, code.length()));
+                    function_data.push((account_id, wasm_funcs, wasmer_funcs, code.len()));
                 }
             }
             function_data.sort_by_key(|(_, _, _, len)| -(*len as i64));
