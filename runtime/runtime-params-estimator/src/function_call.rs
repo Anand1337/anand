@@ -64,7 +64,7 @@ fn bench_time_to_run_noop() {
             let t = std::time::Instant::now();
             let _result = run_vm(
                 &contract,
-                "hello0",
+                "main",
                 &mut fake_external,
                 fake_context.clone(),
                 &vm_config,
