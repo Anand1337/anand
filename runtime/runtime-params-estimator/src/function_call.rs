@@ -6,6 +6,7 @@ use near_primitives::contract::ContractCode;
 use near_primitives::runtime::fees::RuntimeFeesConfig;
 use near_primitives::types::{CompiledContractCache, ProtocolVersion};
 use near_store::{create_store, StoreCompiledContractCache};
+use near_test_contracts::many_functions_contract;
 use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_runner::{run_vm, VMKind};
 use nearcore::get_store_path;
@@ -43,6 +44,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 
 #[test]
 fn bench_time_to_run_noop() {
+    // let code = many_functions_contract(150_000);
+    // let contract = ContractCode::new(code, None);
     let contract = make_many_methods_contract(150_000);
     eprintln!("contract size = {:?}KiB", contract.code().len() / 1024);
     let workdir = tempfile::Builder::new().prefix("runtime_testbed").tempdir().unwrap();
