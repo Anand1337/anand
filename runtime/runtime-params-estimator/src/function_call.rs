@@ -299,7 +299,11 @@ fn test_prepare_contract(metric: GasMetric) {
         for i in 0..REPEATS {
             print!("{} ", i);
             let result = prepare_contract(&code, vm_config);
-            assert!(result.is_ok());
+            if method_count < 10000 {
+                assert!(result.is_ok());
+            } else {
+                assert!(result.is_err());
+            }
         }
         let total_raw = end_count(metric, &start) as i128;
 
