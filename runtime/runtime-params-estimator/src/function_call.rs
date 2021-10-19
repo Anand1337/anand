@@ -5,6 +5,7 @@ use nalgebra::{DMatrix, DVector, Matrix, Matrix2x3, MatrixXx4, RowVector, Vector
 use near_logger_utils::init_test_logger;
 use near_primitives::config::VMConfig;
 use near_primitives::contract::ContractCode;
+use near_primitives::runtime::config_store::RuntimeConfigStore;
 use near_primitives::runtime::fees::RuntimeFeesConfig;
 use near_primitives::types::{CompiledContractCache, ProtocolVersion};
 use near_store::{create_store, StoreCompiledContractCache};
@@ -285,16 +286,19 @@ fn test_function_call_try_complexity_metric(metric: GasMetric, vm_kind: VMKind) 
 #[allow(dead_code)]
 fn test_prepare_contract(metric: GasMetric) {
     for (method_count, _) in
-        vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (10000, 1)].iter().cloned()
-    // vec![(20000, 1), (20000, 4), (40000, 1)].iter().cloned()
+        // vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (10000, 1)].iter().cloned()
+        vec![(10010, 1), (1000, 1)].iter().cloned()
     // vec![(0, 0)].iter().cloned()
     {
         let code = many_functions_contract(method_count);
         // let contract = ContractCode::new(code, None);
         let start = start_count(metric);
+        let store = RuntimeConfigStore::new(None);
+        let config = store.get_config(ProtocolVersion::MAX);
+        let vm_config = &config.wasm_config;
         for i in 0..REPEATS {
             print!("{} ", i);
-            let result = prepare_contract(&code, &VMConfig::default());
+            let result = prepare_contract(&code, vm_config);
             assert!(result.is_ok());
         }
         let total_raw = end_count(metric, &start) as i128;
