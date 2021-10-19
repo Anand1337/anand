@@ -32,7 +32,15 @@ impl<'a> ContractModule<'a> {
                 _ => (),
             }
         }
-        println!("{}", func_ranges.len());
+        // println!("{}", func_ranges.len());
+        #[cfg(feature = "protocol_feature_limit_contract_functions_number")]
+        if let Some(max_functions_number) = config.limit_config.max_functions_number_per_contract {
+            let functions_number = func_ranges.len() as u64;
+            // println!("fn = {}", functions_number);
+            if functions_number > max_functions_number {
+                return Err(PrepareError::TooManyFunctions);
+            }
+        }
 
         wasmparser::validate(original_code, None).map_err(|_| PrepareError::Deserialization)?;
         let module = elements::deserialize_buffer(original_code)
@@ -162,7 +170,7 @@ impl<'a> ContractModule<'a> {
             self.config.limit_config.max_functions_number_per_contract
         {
             let functions_number = self.module.functions_space() as u64;
-            println!("fn = {}", functions_number);
+            // println!("fn = {}", functions_number);
             if functions_number > max_functions_number {
                 return Err(PrepareError::TooManyFunctions);
             }
