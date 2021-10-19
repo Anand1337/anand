@@ -4,6 +4,7 @@
 use parity_wasm::builder;
 use parity_wasm::elements::{self, External, MemorySection, Type};
 use pwasm_utils::{self, rules};
+use wasmparser::{ParserInput, ParserState, ValidatingParser, WasmDecoder};
 
 use near_vm_errors::PrepareError;
 use near_vm_logic::VMConfig;
@@ -15,6 +16,25 @@ struct ContractModule<'a> {
 
 impl<'a> ContractModule<'a> {
     fn init(original_code: &[u8], config: &'a VMConfig) -> Result<Self, PrepareError> {
+        println!("validating...");
+        let mut parser = ValidatingParser::new(bytes, None);
+        let mut parser_input = None;
+        let mut func_ranges = Vec::new();
+        loop {
+            let next_input = parser_input.take().unwrap_or(ParserInput::Default);
+            let state = parser.read_with_input(next_input);
+            match *state {
+                ParserState::EndWasm => break,
+                ParserState::Error(ref e) => return Err(PrepareError::Deserialization),
+                ParserState::BeginFunctionBody { range } => {
+                    parser_input = Some(ParserInput::SkipFunctionBody);
+                    func_ranges.push(range);
+                }
+                _ => (),
+            }
+        }
+        println!("{}", func_ranges.len());
+
         wasmparser::validate(original_code, None).map_err(|_| PrepareError::Deserialization)?;
         let module = elements::deserialize_buffer(original_code)
             .map_err(|_| PrepareError::Deserialization)?;
