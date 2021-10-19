@@ -17,7 +17,7 @@ struct ContractModule<'a> {
 impl<'a> ContractModule<'a> {
     fn init(original_code: &[u8], config: &'a VMConfig) -> Result<Self, PrepareError> {
         println!("validating...");
-        let mut parser = ValidatingParser::new(bytes, None);
+        let mut parser = ValidatingParser::new(original_code, None);
         let mut parser_input = None;
         let mut func_ranges = Vec::new();
         loop {
