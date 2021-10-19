@@ -16,7 +16,6 @@ struct ContractModule<'a> {
 
 impl<'a> ContractModule<'a> {
     fn init(original_code: &[u8], config: &'a VMConfig) -> Result<Self, PrepareError> {
-        println!("validating...");
         let mut parser = ValidatingParser::new(original_code, None);
         let mut parser_input = None;
         let mut func_ranges = Vec::new();
@@ -163,6 +162,7 @@ impl<'a> ContractModule<'a> {
             self.config.limit_config.max_functions_number_per_contract
         {
             let functions_number = self.module.functions_space() as u64;
+            println!("fn = {}", functions_number);
             if functions_number > max_functions_number {
                 return Err(PrepareError::TooManyFunctions);
             }
