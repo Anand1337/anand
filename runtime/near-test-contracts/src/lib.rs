@@ -1,7 +1,9 @@
-use serde_json::json;
-use std::path::Path;
+#![doc = include_str!("../README.md")]
 
 use once_cell::sync::OnceCell;
+use serde_json::json;
+use std::fmt::Write;
+use std::path::Path;
 
 pub fn rs_contract() -> &'static [u8] {
     static CONTRACT: OnceCell<Vec<u8>> = OnceCell::new();
@@ -93,4 +95,27 @@ fn smoke_test() {
     assert!(!nightly_rs_contract().is_empty());
     assert!(!ts_contract().is_empty());
     assert!(!tiny_contract().is_empty());
+}
+
+pub fn many_functions_contract(function_count: u32) -> Vec<u8> {
+    let mut functions = String::new();
+    for i in 0..function_count {
+        writeln!(
+            &mut functions,
+            "(func
+                i32.const {}
+                drop
+                return)",
+            i
+        )
+        .unwrap();
+    }
+
+    let code = format!(
+        r#"(module
+            (export "main" (func 0))
+            {})"#,
+        functions
+    );
+    wat::parse_str(code).unwrap()
 }
