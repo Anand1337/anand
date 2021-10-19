@@ -11,11 +11,12 @@ use near_store::{create_store, StoreCompiledContractCache};
 use near_test_contracts::{
     aurora_contract, get_aurora_330_data, get_aurora_contract_data, get_aurora_small_contract_data,
     get_multisig_contract_data, get_rs_contract_data, get_voting_contract_data,
+    many_functions_contract,
 };
 use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_logic::ExtCostsConfig;
 use near_vm_runner::cache;
-use near_vm_runner::prepare::get_functions_number;
+use near_vm_runner::prepare::{get_functions_number, prepare_contract};
 use near_vm_runner::runner::compile_w2;
 use near_vm_runner::{precompile_contract, run_vm, VMKind};
 use nearcore::get_store_path;
@@ -282,6 +283,31 @@ fn test_function_call_try_complexity_metric(metric: GasMetric, vm_kind: VMKind) 
 }
 
 #[allow(dead_code)]
+fn test_prepare_contract(metric: GasMetric) {
+    for (method_count, _) in
+        vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (10000, 1)].iter().cloned()
+    // vec![(20000, 1), (20000, 4), (40000, 1)].iter().cloned()
+    // vec![(0, 0)].iter().cloned()
+    {
+        let code = many_functions_contract(method_count);
+        // let contract = ContractCode::new(code, None);
+        let start = start_count(metric);
+        for i in 0..REPEATS {
+            print!("{} ", i);
+            let result = prepare_contract(&code, &VMConfig::default());
+            assert!(result.is_ok());
+        }
+        let total_raw = end_count(metric, &start) as i128;
+
+        println!(
+            "total cost = {}, average gas cost = {}",
+            total_raw,
+            ratio_to_gas_signed(metric, Ratio::new(total_raw as i128, REPEATS as i128))
+        );
+    }
+}
+
+#[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let nftspace_code = vec![];
     // let reader = BufReader::new(
@@ -465,6 +491,18 @@ fn test_function_call_icount() {
     // test_function_call(GasMetric::ICount, VMKind::Wasmer0);
     test_function_call(GasMetric::ICount, VMKind::Wasmer2);
     // test_function_call(GasMetric::ICount, VMKind::Wasmtime);
+}
+
+#[test]
+fn test_prepare_contract_icount() {
+    // Use smth like
+    // CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=./runner.sh \
+    // cargo test --release --features no_cpu_compatibility_checks,required  \
+    // --lib function_call::test_prepare_contract_icount -- --exact --nocapture
+    // Where runner.sh is
+    // /host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/qemu-x86_64 \
+    // -cpu Westmere-v1 -plugin file=/host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/libcounter.so $@
+    test_prepare_contract(GasMetric::ICount);
 }
 
 #[test]
