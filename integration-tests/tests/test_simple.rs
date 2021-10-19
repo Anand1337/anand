@@ -58,7 +58,7 @@ mod test {
                 amount_to_send,
                 nodes[k].read().unwrap().user().get_best_block_hash().unwrap(),
             );
-            nodes[k].read().unwrap().add_transaction(transaction).unwrap();
+            nodes[k].read().unwrap().add_transaction(transaction);
 
             wait(
                 || {

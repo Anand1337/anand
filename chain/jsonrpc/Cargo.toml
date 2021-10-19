@@ -35,7 +35,7 @@ near-performance-metrics = { path = "../../utils/near-performance-metrics" }
 
 [dev-dependencies]
 near-jsonrpc-client-old = { path = "client" }
-near-jsonrpc-client = { git = "https://github.com/near/near-jsonrpc-client-rs", rev = "f45fba55e8b7605ada04f7c322975fbc6bb7b262", features = ["any"] }
+near-jsonrpc-client = { git = "https://github.com/near/near-jsonrpc-client-rs", rev = "ee9121380c546b3796f70861c07bcd7048081781", features = ["any"] }
 near-logger-utils = { path = "../../test-utils/logger" }
 near-actix-test-utils = { path = "../../test-utils/actix-test-utils" }
 

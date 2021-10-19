@@ -43,7 +43,7 @@ mod test {
                 1,
                 block_hash,
             );
-            nodes[tx_receiver].read().unwrap().add_transaction(transaction).unwrap();
+            nodes[tx_receiver].read().unwrap().add_transaction(transaction);
             submitted_transactions.write().unwrap().push(1);
         }
     }

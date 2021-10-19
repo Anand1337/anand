@@ -4,6 +4,7 @@ use futures::{future::LocalBoxFuture, FutureExt};
 
 use near_crypto::{PublicKey, Signer};
 use near_jsonrpc_primitives::errors::ServerError;
+use near_jsonrpc_primitives::types::transactions::RpcTransactionError;
 use near_primitives::account::AccessKey;
 use near_primitives::hash::CryptoHash;
 use near_primitives::receipt::Receipt;
@@ -43,14 +44,14 @@ pub trait User {
         args: &[u8],
     ) -> Result<CallResult, String>;
 
-    fn add_transaction(&self, signed_transaction: SignedTransaction) -> Result<(), ServerError>;
+    fn add_transaction(&self, signed_transaction: SignedTransaction);
 
     fn commit_transaction(
         &self,
         signed_transaction: SignedTransaction,
-    ) -> Result<FinalExecutionOutcomeView, ServerError>;
+    ) -> Result<FinalExecutionOutcomeView, RpcTransactionError>;
 
-    fn add_receipt(&self, receipt: Receipt) -> Result<(), ServerError>;
+    fn add_receipt(&self, receipt: Receipt);
 
     fn get_access_key_nonce_for_signer(&self, account_id: &AccountId) -> Result<u64, String> {
         self.get_access_key(account_id, &self.signer().public_key())
@@ -88,7 +89,7 @@ pub trait User {
         signer_id: AccountId,
         receiver_id: AccountId,
         actions: Vec<Action>,
-    ) -> Result<FinalExecutionOutcomeView, ServerError> {
+    ) -> Result<FinalExecutionOutcomeView, RpcTransactionError> {
         let block_hash = self.get_best_block_hash().unwrap_or_else(CryptoHash::default);
         let signed_transaction = SignedTransaction::from_actions(
             self.get_access_key_nonce_for_signer(&signer_id).unwrap_or_default() + 1,
@@ -106,7 +107,7 @@ pub trait User {
         signer_id: AccountId,
         receiver_id: AccountId,
         amount: Balance,
-    ) -> Result<FinalExecutionOutcomeView, ServerError> {
+    ) -> Result<FinalExecutionOutcomeView, RpcTransactionError> {
         self.sign_and_commit_actions(
             signer_id,
             receiver_id,
@@ -118,7 +119,7 @@ pub trait User {
         &self,
         signer_id: AccountId,
         code: Vec<u8>,
-    ) -> Result<FinalExecutionOutcomeView, ServerError> {
+    ) -> Result<FinalExecutionOutcomeView, RpcTransactionError> {
         self.sign_and_commit_actions(
             signer_id.clone(),
             signer_id,
@@ -134,7 +135,7 @@ pub trait User {
         args: Vec<u8>,
         gas: Gas,
         deposit: Balance,
-    ) -> Result<FinalExecutionOutcomeView, ServerError> {
+    ) -> Result<FinalExecutionOutcomeView, RpcTransactionError> {
         self.sign_and_commit_actions(
             signer_id,
             contract_id,
@@ -153,7 +154,7 @@ pub trait User {
         new_account_id: AccountId,
         public_key: PublicKey,
         amount: Balance,
-    ) -> Result<FinalExecutionOutcomeView, ServerError> {
+    ) -> Result<FinalExecutionOutcomeView, RpcTransactionError> {
         self.sign_and_commit_actions(
             signer_id,
             new_account_id,
@@ -170,7 +171,7 @@ pub trait User {
         signer_id: AccountId,
         public_key: PublicKey,
         access_key: AccessKey,
-    ) -> Result<FinalExecutionOutcomeView, ServerError> {
+    ) -> Result<FinalExecutionOutcomeView, RpcTransactionError> {
         self.sign_and_commit_actions(
             signer_id.clone(),
             signer_id,
@@ -182,7 +183,7 @@ pub trait User {
         &self,
         signer_id: AccountId,
         public_key: PublicKey,
-    ) -> Result<FinalExecutionOutcomeView, ServerError> {
+    ) -> Result<FinalExecutionOutcomeView, RpcTransactionError> {
         self.sign_and_commit_actions(
             signer_id.clone(),
             signer_id,
@@ -196,7 +197,7 @@ pub trait User {
         old_public_key: PublicKey,
         new_public_key: PublicKey,
         access_key: AccessKey,
-    ) -> Result<FinalExecutionOutcomeView, ServerError> {
+    ) -> Result<FinalExecutionOutcomeView, RpcTransactionError> {
         self.sign_and_commit_actions(
             signer_id.clone(),
             signer_id,
@@ -212,7 +213,7 @@ pub trait User {
         signer_id: AccountId,
         receiver_id: AccountId,
         beneficiary_id: AccountId,
-    ) -> Result<FinalExecutionOutcomeView, ServerError> {
+    ) -> Result<FinalExecutionOutcomeView, RpcTransactionError> {
         self.sign_and_commit_actions(
             signer_id.clone(),
             receiver_id,
@@ -224,7 +225,7 @@ pub trait User {
         &self,
         signer_id: AccountId,
         receiver_id: AccountId,
-    ) -> Result<FinalExecutionOutcomeView, ServerError> {
+    ) -> Result<FinalExecutionOutcomeView, RpcTransactionError> {
         self.delete_account_with_beneficiary_set(signer_id.clone(), receiver_id, signer_id)
     }
 
@@ -233,7 +234,7 @@ pub trait User {
         signer_id: AccountId,
         public_key: PublicKey,
         stake: Balance,
-    ) -> Result<FinalExecutionOutcomeView, ServerError> {
+    ) -> Result<FinalExecutionOutcomeView, RpcTransactionError> {
         self.sign_and_commit_actions(
             signer_id.clone(),
             signer_id,

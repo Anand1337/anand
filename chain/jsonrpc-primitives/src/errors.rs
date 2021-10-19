@@ -3,7 +3,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use serde_json::{to_value, Value};
 
-use near_primitives::errors::{InvalidTxError, TxExecutionError};
+use near_primitives::errors::TxExecutionError;
 
 #[derive(Serialize)]
 pub struct RpcParseError(pub String);
@@ -170,12 +170,6 @@ impl fmt::Display for ServerError {
             ServerError::Timeout => write!(f, "ServerError: Timeout"),
             ServerError::Closed => write!(f, "ServerError: Closed"),
         }
-    }
-}
-
-impl From<InvalidTxError> for ServerError {
-    fn from(e: InvalidTxError) -> ServerError {
-        ServerError::TxExecutionError(TxExecutionError::InvalidTxError(e))
     }
 }
 

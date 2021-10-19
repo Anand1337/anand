@@ -48,14 +48,16 @@ fn test_check_tx_error_log() {
     );
 
     let tx_result = node.user().commit_transaction(tx).unwrap_err();
-    assert_eq!(
+    assert!(matches!(
         tx_result,
-        InvalidTxError::InvalidAccessKeyError(InvalidAccessKeyError::AccessKeyNotFound {
-            account_id: bob_account(),
-            public_key: signer.public_key.clone()
-        })
-        .into()
-    );
+        near_jsonrpc_primitives::types::transactions::RpcTransactionError::InvalidTransaction {
+            context: InvalidTxError::InvalidAccessKeyError(InvalidAccessKeyError::AccessKeyNotFound {
+                account_id,
+                public_key,
+            })
+        }
+        if account_id == bob_account() && public_key == signer.public_key
+    ));
 }
 
 #[test]
@@ -86,13 +88,17 @@ fn test_deliver_tx_error_log() {
     );
 
     let tx_result = node.user().commit_transaction(tx).unwrap_err();
-    assert_eq!(
+    assert!(matches!(
         tx_result,
-        InvalidTxError::NotEnoughBalance {
-            signer_id: alice_account(),
-            balance: TESTING_INIT_BALANCE - TESTING_INIT_STAKE,
-            cost: TESTING_INIT_BALANCE + 1 + cost
+        near_jsonrpc_primitives::types::transactions::RpcTransactionError::InvalidTransaction {
+            context: InvalidTxError::NotEnoughBalance {
+                signer_id,
+                balance,
+                cost: new_cost,
+            }
         }
-        .into()
-    );
+        if signer_id == alice_account()
+        && balance == TESTING_INIT_BALANCE - TESTING_INIT_STAKE
+        && new_cost == TESTING_INIT_BALANCE + 1 + cost
+    ));
 }

@@ -5,7 +5,6 @@ mod runtime;
 
 use assert_matches::assert_matches;
 use near_crypto::{InMemorySigner, KeyType};
-use near_jsonrpc_primitives::errors::ServerError;
 use near_primitives::account::{AccessKey, AccessKeyPermission, FunctionCallPermission};
 use near_primitives::errors::{
     ActionError, ActionErrorKind, ContractCallError, InvalidAccessKeyError, InvalidTxError,
@@ -1020,14 +1019,15 @@ pub fn test_access_key_smart_contract_reject_method_name(node: impl Node) {
     let transaction_result = node_user
         .function_call(account_id.clone(), bob_account(), "run_test", vec![], 10u64.pow(14), 0)
         .unwrap_err();
-    assert_eq!(
+    assert!(matches!(
         transaction_result,
-        ServerError::TxExecutionError(TxExecutionError::InvalidTxError(
-            InvalidTxError::InvalidAccessKeyError(InvalidAccessKeyError::MethodNameMismatch {
-                method_name: "run_test".to_string()
-            })
-        ))
-    );
+        near_jsonrpc_primitives::types::transactions::RpcTransactionError::InvalidTransaction {
+            context: InvalidTxError::InvalidAccessKeyError(
+                InvalidAccessKeyError::MethodNameMismatch { ref method_name }
+            )
+        }
+        if method_name == "run_test"
+    ));
 }
 
 pub fn test_access_key_smart_contract_reject_contract_id(node: impl Node) {
@@ -1055,15 +1055,16 @@ pub fn test_access_key_smart_contract_reject_contract_id(node: impl Node) {
             0,
         )
         .unwrap_err();
-    assert_eq!(
+    assert!(matches!(
         transaction_result,
-        ServerError::TxExecutionError(TxExecutionError::InvalidTxError(
-            InvalidTxError::InvalidAccessKeyError(InvalidAccessKeyError::ReceiverMismatch {
-                tx_receiver: eve_dot_alice_account(),
-                ak_receiver: bob_account().into()
+        near_jsonrpc_primitives::types::transactions::RpcTransactionError::InvalidTransaction {
+            context: InvalidTxError::InvalidAccessKeyError(InvalidAccessKeyError::ReceiverMismatch {
+                tx_receiver,
+                ak_receiver,
             })
-        ))
-    );
+        }
+        if tx_receiver == eve_dot_alice_account() && ak_receiver == bob_account().to_string()
+    ));
 }
 
 pub fn test_access_key_reject_non_function_call(node: impl Node) {
@@ -1083,12 +1084,14 @@ pub fn test_access_key_reject_non_function_call(node: impl Node) {
 
     let transaction_result =
         node_user.delete_key(account_id.clone(), node.signer().public_key()).unwrap_err();
-    assert_eq!(
+    assert!(matches!(
         transaction_result,
-        ServerError::TxExecutionError(TxExecutionError::InvalidTxError(
-            InvalidTxError::InvalidAccessKeyError(InvalidAccessKeyError::RequiresFullAccess)
-        ))
-    );
+        near_jsonrpc_primitives::types::transactions::RpcTransactionError::InvalidTransaction {
+            context: InvalidTxError::InvalidAccessKeyError(
+                InvalidAccessKeyError::RequiresFullAccess
+            )
+        }
+    ));
 }
 
 pub fn test_increase_stake(node: impl Node) {

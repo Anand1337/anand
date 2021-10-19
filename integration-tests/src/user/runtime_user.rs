@@ -3,8 +3,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 
 use near_crypto::{PublicKey, Signer};
-use near_jsonrpc_primitives::errors::ServerError;
-use near_primitives::errors::{RuntimeError, TxExecutionError};
+use near_jsonrpc_primitives::types::transactions::RpcTransactionError;
+use near_primitives::errors::RuntimeError;
 use near_primitives::hash::CryptoHash;
 use near_primitives::receipt::Receipt;
 use near_primitives::runtime::config::RuntimeConfig;
@@ -80,7 +80,7 @@ impl RuntimeUser {
         apply_state: ApplyState,
         prev_receipts: Vec<Receipt>,
         transactions: Vec<SignedTransaction>,
-    ) -> Result<(), ServerError> {
+    ) {
         let mut receipts = prev_receipts;
         for transaction in transactions.iter() {
             self.transactions.borrow_mut().insert(transaction.clone());
@@ -88,22 +88,19 @@ impl RuntimeUser {
         let mut txs = transactions;
         loop {
             let mut client = self.client.write().expect(POISONED_LOCK_ERR);
-            let apply_result = client
-                .runtime
-                .apply(
-                    client.tries.get_trie_for_shard(ShardUId::default()),
-                    client.state_root,
-                    &None,
-                    &apply_state,
-                    &receipts,
-                    &txs,
-                    &self.epoch_info_provider,
-                    None,
-                )
-                .map_err(|e| match e {
-                    RuntimeError::InvalidTxError(e) => {
-                        ServerError::TxExecutionError(TxExecutionError::InvalidTxError(e))
-                    }
+            let apply_result = match client.runtime.apply(
+                client.tries.get_trie_for_shard(ShardUId::default()),
+                client.state_root,
+                &None,
+                &apply_state,
+                &receipts,
+                &txs,
+                &self.epoch_info_provider,
+                None,
+            ) {
+                Ok(apply_result) => apply_result,
+                Err(e) => match e {
+                    RuntimeError::InvalidTxError(e) => panic!("{}", e),
                     RuntimeError::BalanceMismatchError(e) => panic!("{}", e),
                     RuntimeError::StorageError(e) => panic!("Storage error {:?}", e),
                     RuntimeError::UnexpectedIntegerOverflow => {
@@ -111,7 +108,8 @@ impl RuntimeUser {
                     }
                     RuntimeError::ReceiptValidationError(e) => panic!("{}", e),
                     RuntimeError::ValidatorError(e) => panic!("{}", e),
-                })?;
+                },
+            };
             for outcome_with_id in apply_result.outcomes {
                 self.transaction_results
                     .borrow_mut()
@@ -126,7 +124,7 @@ impl RuntimeUser {
                 .unwrap();
             client.state_root = apply_result.state_root;
             if apply_result.outgoing_receipts.is_empty() {
-                return Ok(());
+                break;
             }
             for receipt in apply_result.outgoing_receipts.iter() {
                 self.receipts.borrow_mut().insert(receipt.receipt_id, receipt.clone());
@@ -274,22 +272,20 @@ impl User for RuntimeUser {
         Ok(result)
     }
 
-    fn add_transaction(&self, transaction: SignedTransaction) -> Result<(), ServerError> {
-        self.apply_all(self.apply_state(), vec![], vec![transaction])?;
-        Ok(())
+    fn add_transaction(&self, transaction: SignedTransaction) {
+        self.apply_all(self.apply_state(), vec![], vec![transaction]);
     }
 
     fn commit_transaction(
         &self,
         transaction: SignedTransaction,
-    ) -> Result<FinalExecutionOutcomeView, ServerError> {
-        self.apply_all(self.apply_state(), vec![], vec![transaction.clone()])?;
+    ) -> Result<FinalExecutionOutcomeView, RpcTransactionError> {
+        self.apply_all(self.apply_state(), vec![], vec![transaction.clone()]);
         Ok(self.get_transaction_final_result(&transaction.get_hash()))
     }
 
-    fn add_receipt(&self, receipt: Receipt) -> Result<(), ServerError> {
-        self.apply_all(self.apply_state(), vec![receipt], vec![])?;
-        Ok(())
+    fn add_receipt(&self, receipt: Receipt) {
+        self.apply_all(self.apply_state(), vec![receipt], vec![]);
     }
 
     fn get_best_height(&self) -> Option<u64> {

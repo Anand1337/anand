@@ -7,7 +7,6 @@ pub use crate::node::thread_node::ThreadNode;
 use crate::user::{AsyncUser, User};
 use near_chain_configs::Genesis;
 use near_crypto::{InMemorySigner, Signer};
-use near_jsonrpc_primitives::errors::ServerError;
 use near_primitives::contract::ContractCode;
 use near_primitives::num_rational::Rational;
 use near_primitives::state_record::StateRecord;
@@ -67,7 +66,7 @@ pub trait Node: Send + Sync {
         self.user().view_balance(account_id)
     }
 
-    fn add_transaction(&self, transaction: SignedTransaction) -> Result<(), ServerError> {
+    fn add_transaction(&self, transaction: SignedTransaction) {
         self.user().add_transaction(transaction)
     }
 
