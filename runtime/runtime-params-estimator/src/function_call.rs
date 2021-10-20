@@ -92,10 +92,10 @@ fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
                 }
             };
 
-            println!(
-                "average gas cost = {}, len = {}",
-                ratio_to_gas_signed(metric, Ratio::new(total_raw as i128, 1 as i128)),
-            );
+            // println!(
+            //     "average gas cost = {}, len = {}",
+            //     ratio_to_gas_signed(metric, Ratio::new(total_raw as i128, 1 as i128)),
+            // );
         }
     }
 }
