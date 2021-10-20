@@ -48,11 +48,11 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 
 #[allow(dead_code)]
 fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
-    for (method_count, body_repeat) in
-        vec![(9990, 1), (9990, 10), (9990, 100), (20010, 10), (50010, 1), (100010, 1)]
-            .iter()
-            .cloned()
+    for params in vec![(9990, 1), (9990, 10), (9990, 100), (20010, 10), (50010, 1), (100010, 1)]
+        .iter()
+        .cloned()
     {
+        let (method_count, body_repeat) = params;
         // let code = many_functions_contract(method_count);
         let code = many_functions_contract_with_repeats(method_count, body_repeat);
         let contract = ContractCode::new(code.clone(), None);
@@ -64,7 +64,6 @@ fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
 
         let start = start_count(metric);
         for i in 0..REPEATS {
-            print!("{} ", i);
             let _ = precompile_contract_vm(vm_kind, &contract, &vm_config, cache).unwrap();
             // if method_count < 10000 {
             //     assert!(result.is_ok());
@@ -74,9 +73,21 @@ fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
         }
         let total_raw = end_count(metric, &start) as i128;
 
+        match metric {
+            GasMetric::ICount => {
+                println!("total cost for contract with params {:?} = {} ops", params, total_raw)
+            }
+            GasMetric::Time => {
+                println!(
+                    "total cost for contract with params {:?} = {} ms",
+                    params,
+                    (total_raw as f64) / 1_000_000
+                )
+            }
+        };
+
         println!(
-            "total cost = {}, average gas cost = {}, len = {}",
-            total_raw,
+            "average gas cost = {}, len = {}",
             ratio_to_gas_signed(metric, Ratio::new(total_raw as i128, REPEATS as i128)),
             code.len()
         );
@@ -93,6 +104,18 @@ fn test_prepare_contract_icount() {
     // /host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/qemu-x86_64 \
     // -cpu Westmere-v1 -plugin file=/host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/libcounter.so $@
     test_prepare_contract(GasMetric::ICount, VMKind::Wasmer2);
+}
+
+#[test]
+fn test_prepare_contract_time() {
+    // Use smth like
+    // CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=./runner.sh \
+    // cargo test --release --features no_cpu_compatibility_checks,required  \
+    // --lib function_call::test_prepare_contract_icount -- --exact --nocapture
+    // Where runner.sh is
+    // /host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/qemu-x86_64 \
+    // -cpu Westmere-v1 -plugin file=/host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/libcounter.so $@
+    test_prepare_contract(GasMetric::Time, VMKind::Wasmer2);
 }
 
 #[test]
