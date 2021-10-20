@@ -68,12 +68,12 @@ fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
             print!("{} ", i);
             // let result = prepare_contract(&code, vm_config);
             // measure_contract(vm_kind, metric, &contract, cache);
-            let result = precompile_contract_vm(vm_kind, &contract, &vm_config, cache).unwrap();
-            if method_count < 10000 {
-                assert!(result.is_ok());
-            } else {
-                assert!(result.is_err());
-            }
+            let _ = precompile_contract_vm(vm_kind, &contract, &vm_config, cache).unwrap();
+            // if method_count < 10000 {
+            //     assert!(result.is_ok());
+            // } else {
+            //     assert!(result.is_err());
+            // }
         }
         let total_raw = end_count(metric, &start) as i128;
 
