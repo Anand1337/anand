@@ -60,38 +60,38 @@ fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
         let config = store.get_config(ProtocolVersion::MAX);
         let vm_config = &config.wasm_config;
 
-        let start = start_count(metric);
-        for i in 0..REPEATS {
+        for _ in 0..REPEATS {
             let cache_store = Arc::new(MockCompiledContractCache::default());
             let cache: Option<&dyn CompiledContractCache> = Some(cache_store.as_ref());
 
+            let start = start_count(metric);
             let _ = precompile_contract_vm(vm_kind, &contract, &vm_config, cache).unwrap();
             // if method_count < 10000 {
             //     assert!(result.is_ok());
             // } else {
             //     assert!(result.is_err());
             // }
+            let total_raw = end_count(metric, &start) as i128;
+
+            match metric {
+                GasMetric::ICount => {
+                    println!("total cost for contract with params {:?} = {} ops", params, total_raw)
+                }
+                GasMetric::Time => {
+                    println!(
+                        "total cost for contract with params {:?} = {} ms",
+                        params,
+                        (total_raw as f64) / (1_000_000 as f64)
+                    )
+                }
+            };
+
+            println!(
+                "average gas cost = {}, len = {}",
+                ratio_to_gas_signed(metric, Ratio::new(total_raw as i128, 1 as i128)),
+                code.len()
+            );
         }
-        let total_raw = end_count(metric, &start) as i128;
-
-        match metric {
-            GasMetric::ICount => {
-                println!("total cost for contract with params {:?} = {} ops", params, total_raw)
-            }
-            GasMetric::Time => {
-                println!(
-                    "total cost for contract with params {:?} = {} ms",
-                    params,
-                    (total_raw as f64) / (1_000_000 as f64)
-                )
-            }
-        };
-
-        println!(
-            "average gas cost = {}, len = {}",
-            ratio_to_gas_signed(metric, Ratio::new(total_raw as i128, REPEATS as i128)),
-            code.len()
-        );
     }
 }
 
