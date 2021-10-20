@@ -16,7 +16,7 @@ use num_rational::Ratio;
 use std::fmt::Write;
 use std::sync::Arc;
 
-const REPEATS: u64 = 1;
+const REPEATS: u64 = 5;
 
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
