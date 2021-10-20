@@ -7,7 +7,7 @@ use near_primitives::runtime::config_store::RuntimeConfigStore;
 use near_primitives::runtime::fees::RuntimeFeesConfig;
 use near_primitives::types::{CompiledContractCache, ProtocolVersion};
 use near_store::{create_store, StoreCompiledContractCache};
-use near_test_contracts::many_functions_contract;
+use near_test_contracts::{many_functions_contract, many_functions_contract_with_repeats};
 use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_runner::prepare::prepare_contract;
 use near_vm_runner::{precompile_contract_vm, run_vm, MockCompiledContractCache, VMKind};
@@ -48,14 +48,15 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 
 #[allow(dead_code)]
 fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
-    for (method_count, _) in
+    for (method_count, body_repeat) in
         // vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (10000, 1)].iter().cloned()
-        vec![(2, 1), (9990, 1), (10010, 1), (20010, 1), (50010, 1), (100010, 1)]
+        vec![(9990, 1), (9990, 10), (9990, 100), (20010, 10), (50010, 1), (100010, 1)]
                 .iter()
                 .cloned()
     // vec![(0, 0)].iter().cloned()
     {
-        let code = many_functions_contract(method_count);
+        // let code = many_functions_contract(method_count);
+        let code = many_functions_contract_with_repeats(method_count, body_repeat);
         let contract = ContractCode::new(code.clone(), None);
         let store = RuntimeConfigStore::new(None);
         let config = store.get_config(ProtocolVersion::MAX);

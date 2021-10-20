@@ -74,3 +74,35 @@ pub fn many_functions_contract(function_count: u32) -> Vec<u8> {
     );
     wat::parse_str(code).unwrap()
 }
+
+pub fn many_functions_contract_with_repeats(function_count: u32, body_repeat: u32) -> Vec<u8> {
+    let mut functions = String::new();
+    for _ in 0..function_count {
+        let mut body = String::new();
+        for i in 0..body_repeat {
+            writeln!(
+                &mut body,
+                "   i32.const {}
+                    drop",
+                i
+            )
+            .unwrap();
+        }
+        writeln!(
+            &mut functions,
+            "(func
+                {}
+                return)",
+            body
+        )
+        .unwrap();
+    }
+
+    let code = format!(
+        r#"(module
+            (export "main" (func 0))
+            {})"#,
+        functions
+    );
+    wat::parse_str(code).unwrap()
+}
