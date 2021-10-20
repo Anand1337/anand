@@ -76,26 +76,23 @@ fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
             match metric {
                 GasMetric::ICount => {
                     println!(
-                        "total cost for contract with params {:?}, len = {} | {} ops",
+                        "total cost for contract with params {:?}, len = {} | {} ops, {} gas",
                         params,
                         code.len(),
-                        total_raw
+                        total_raw,
+                        ratio_to_gas_signed(metric, Ratio::new(total_raw as i128, 1 as i128)),
                     )
                 }
                 GasMetric::Time => {
                     println!(
-                        "total cost for contract with params {:?}, len = {} | {} ms",
+                        "total cost for contract with params {:?}, len = {} | {} ms, {} gas",
                         params,
                         code.len(),
-                        (total_raw as f64) / (1_000_000 as f64)
+                        (total_raw as f64) / (1_000_000 as f64),
+                        ratio_to_gas_signed(metric, Ratio::new(total_raw as i128, 1 as i128)),
                     )
                 }
             };
-
-            // println!(
-            //     "average gas cost = {}, len = {}",
-            //     ratio_to_gas_signed(metric, Ratio::new(total_raw as i128, 1 as i128)),
-            // );
         }
     }
 }
