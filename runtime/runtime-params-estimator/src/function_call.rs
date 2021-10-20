@@ -57,10 +57,11 @@ fn test_prepare_contract(metric: GasMetric) {
     {
         let code = many_functions_contract(method_count);
         // let contract = ContractCode::new(code, None);
-        let start = start_count(metric);
         let store = RuntimeConfigStore::new(None);
         let config = store.get_config(ProtocolVersion::MAX);
         let vm_config = &config.wasm_config;
+
+        let start = start_count(metric);
         for i in 0..REPEATS {
             print!("{} ", i);
             let result = prepare_contract(&code, vm_config);
