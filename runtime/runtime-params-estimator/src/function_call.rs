@@ -81,7 +81,7 @@ fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
                 println!(
                     "total cost for contract with params {:?} = {} ms",
                     params,
-                    (total_raw as f64) / 1_000_000
+                    (total_raw as f64) / (1_000_000 as f64)
                 )
             }
         };
