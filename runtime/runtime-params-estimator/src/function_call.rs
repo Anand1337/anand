@@ -59,11 +59,12 @@ fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
         let store = RuntimeConfigStore::new(None);
         let config = store.get_config(ProtocolVersion::MAX);
         let vm_config = &config.wasm_config;
-        let cache_store = Arc::new(MockCompiledContractCache::default());
-        let cache: Option<&dyn CompiledContractCache> = Some(cache_store.as_ref());
 
         let start = start_count(metric);
         for i in 0..REPEATS {
+            let cache_store = Arc::new(MockCompiledContractCache::default());
+            let cache: Option<&dyn CompiledContractCache> = Some(cache_store.as_ref());
+
             let _ = precompile_contract_vm(vm_kind, &contract, &vm_config, cache).unwrap();
             // if method_count < 10000 {
             //     assert!(result.is_ok());
