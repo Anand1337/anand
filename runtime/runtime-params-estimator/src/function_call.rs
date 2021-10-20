@@ -14,9 +14,11 @@ use near_vm_runner::{precompile_contract_vm, run_vm, MockCompiledContractCache, 
 use nearcore::get_store_path;
 use num_rational::Ratio;
 use std::fmt::Write;
+use std::fs::File;
+use std::io::BufReader;
 use std::sync::Arc;
 
-const REPEATS: u64 = 5;
+const REPEATS: u64 = 1;
 
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
@@ -48,10 +50,17 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 
 #[allow(dead_code)]
 fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
-    for params in vec![(9990, 50), (20010, 10), (50010, 1), (100010, 1)].iter().cloned() {
-        let (method_count, body_repeat) = params;
+    let reader = BufReader::new(
+        File::open("/host/nearcore/codes.json").expect("Could not open genesis config file."),
+    );
+    let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
+
+    // for params in vec![(9990, 50), (20010, 10), (50010, 1), (100010, 1)].iter().cloned() {
+    for (code, account_id) in entries.iter() {
+        let params = account_id;
+        // let (method_count, body_repeat) = params;
         // let code = many_functions_contract(method_count);
-        let code = many_functions_contract_with_repeats(method_count, body_repeat);
+        // let code = many_functions_contract_with_repeats(method_count, body_repeat);
         let contract = ContractCode::new(code.clone(), None);
         let store = RuntimeConfigStore::new(None);
         let config = store.get_config(ProtocolVersion::MAX);
