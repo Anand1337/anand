@@ -3234,7 +3234,7 @@ dependencies = [
  "wasmer-runtime-near",
  "wasmer-types-near",
  "wasmer-vm-near",
- "wasmparser 0.81.0",
+ "wasmparser 0.51.4",
  "wasmtime",
  "wat",
 ]
@@ -6016,12 +6016,6 @@ name = "wasmparser"
 version = "0.78.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52144d4c78e5cf8b055ceab8e5fa22814ce4315d6002ad32cfd914f37c12fd65"
-
-[[package]]
-name = "wasmparser"
-version = "0.81.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98930446519f63d00a836efdc22f67766ceae8dbcc1571379f2bcabc6b2b9abc"
 
 [[package]]
 name = "wasmtime"

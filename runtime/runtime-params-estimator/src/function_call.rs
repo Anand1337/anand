@@ -49,11 +49,9 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 #[allow(dead_code)]
 fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
     for (method_count, body_repeat) in
-        // vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (10000, 1)].iter().cloned()
         vec![(9990, 1), (9990, 10), (9990, 100), (20010, 10), (50010, 1), (100010, 1)]
-                .iter()
-                .cloned()
-    // vec![(0, 0)].iter().cloned()
+            .iter()
+            .cloned()
     {
         // let code = many_functions_contract(method_count);
         let code = many_functions_contract_with_repeats(method_count, body_repeat);
@@ -67,8 +65,6 @@ fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
         let start = start_count(metric);
         for i in 0..REPEATS {
             print!("{} ", i);
-            // let result = prepare_contract(&code, vm_config);
-            // measure_contract(vm_kind, metric, &contract, cache);
             let _ = precompile_contract_vm(vm_kind, &contract, &vm_config, cache).unwrap();
             // if method_count < 10000 {
             //     assert!(result.is_ok());
