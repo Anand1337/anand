@@ -34,6 +34,7 @@ impl<'a> ContractModule<'a> {
                 return Err(PrepareError::TooManyFunctions);
             }
         }
+        eprintln!("{}", functions_to_validate);
 
         wasmparser::validate(original_code).map_err(|_| PrepareError::Deserialization)?;
         let module = elements::deserialize_buffer(original_code)
