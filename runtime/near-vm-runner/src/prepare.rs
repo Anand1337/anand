@@ -18,14 +18,17 @@ impl<'a> ContractModule<'a> {
     fn init(original_code: &[u8], config: &'a VMConfig) -> Result<Self, PrepareError> {
         let mut validator = Validator::new();
         let mut functions_to_validate: u64 = 0;
-        for payload in Parser::new(0).parse_all(bytes) {
-            if let ValidPayload::Func(a, b) = validator.payload(&payload?)? {
+        for payload in Parser::new(0).parse_all(original_code) {
+            if let ValidPayload::Func(a, b) = validator
+                .payload(&payload.map_err(|_| PrepareError::Deserialization)?)
+                .map_err(|_| PrepareError::Deserialization)
+            {
                 functions_to_validate += 1;
             }
         }
         #[cfg(feature = "protocol_feature_limit_contract_functions_number")]
         if let Some(max_functions_number) = config.limit_config.max_functions_number_per_contract {
-            let functions_number = func_ranges.len() as u64;
+            // let functions_number = func_ranges.len() as u64;
             // println!("fn = {}", functions_number);
             if functions_to_validate > max_functions_number {
                 return Err(PrepareError::TooManyFunctions);
