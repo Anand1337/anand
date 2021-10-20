@@ -48,7 +48,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 
 #[allow(dead_code)]
 fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
-    for params in vec![(9990, 1), (9990, 10), (9990, 115), (20010, 10), (50010, 1), (100010, 1)]
+    for params in vec![(9990, 1), (9990, 10), (9990, 110), (20010, 10), (50010, 1), (100010, 1)]
         .iter()
         .cloned()
     {
