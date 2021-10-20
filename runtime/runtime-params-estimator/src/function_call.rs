@@ -1,6 +1,6 @@
 use crate::cases::ratio_to_gas_signed;
 use crate::testbed_runners::{end_count, start_count, GasMetric};
-use crate::vm_estimator::{create_context, least_squares_method};
+use crate::vm_estimator::{create_context, least_squares_method, measure_contract};
 use near_primitives::config::VMConfig;
 use near_primitives::contract::ContractCode;
 use near_primitives::runtime::config_store::RuntimeConfigStore;
@@ -10,13 +10,13 @@ use near_store::{create_store, StoreCompiledContractCache};
 use near_test_contracts::many_functions_contract;
 use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_runner::prepare::prepare_contract;
-use near_vm_runner::{run_vm, VMKind};
+use near_vm_runner::{precompile_contract_vm, run_vm, MockCompiledContractCache, VMKind};
 use nearcore::get_store_path;
 use num_rational::Ratio;
 use std::fmt::Write;
 use std::sync::Arc;
 
-const REPEATS: u64 = 15;
+const REPEATS: u64 = 1;
 
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
@@ -47,7 +47,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 }
 
 #[allow(dead_code)]
-fn test_prepare_contract(metric: GasMetric) {
+fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
     for (method_count, _) in
         // vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (10000, 1)].iter().cloned()
         vec![(2, 1), (9990, 1), (10010, 1), (20010, 1), (50010, 1), (100010, 1)]
@@ -56,15 +56,19 @@ fn test_prepare_contract(metric: GasMetric) {
     // vec![(0, 0)].iter().cloned()
     {
         let code = many_functions_contract(method_count);
-        // let contract = ContractCode::new(code, None);
+        let contract = ContractCode::new(code, None);
         let store = RuntimeConfigStore::new(None);
         let config = store.get_config(ProtocolVersion::MAX);
         let vm_config = &config.wasm_config;
+        let cache_store = Arc::new(MockCompiledContractCache::default());
+        let cache = Some(cache_store.as_ref());
 
         let start = start_count(metric);
         for i in 0..REPEATS {
             print!("{} ", i);
-            let result = prepare_contract(&code, vm_config);
+            // let result = prepare_contract(&code, vm_config);
+            // measure_contract(vm_kind, metric, &contract, cache);
+            let result = precompile_contract_vm(vm_kind, &contract, &vm_config, cache);
             if method_count < 10000 {
                 assert!(result.is_ok());
             } else {
@@ -91,7 +95,7 @@ fn test_prepare_contract_icount() {
     // Where runner.sh is
     // /host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/qemu-x86_64 \
     // -cpu Westmere-v1 -plugin file=/host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/libcounter.so $@
-    test_prepare_contract(GasMetric::ICount);
+    test_prepare_contract(GasMetric::ICount, VMKind::Wasmer2);
 }
 
 #[test]

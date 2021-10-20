@@ -133,7 +133,7 @@ pub fn load_and_compile(
     }
 }
 
-fn measure_contract(
+pub fn measure_contract(
     vm_kind: VMKind,
     gas_metric: GasMetric,
     contract: &ContractCode,
