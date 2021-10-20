@@ -56,7 +56,7 @@ fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
     // vec![(0, 0)].iter().cloned()
     {
         let code = many_functions_contract(method_count);
-        let contract = ContractCode::new(code, None);
+        let contract = ContractCode::new(code.clone(), None);
         let store = RuntimeConfigStore::new(None);
         let config = store.get_config(ProtocolVersion::MAX);
         let vm_config = &config.wasm_config;
