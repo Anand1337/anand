@@ -21,7 +21,7 @@ impl<'a> ContractModule<'a> {
         for payload in Parser::new(0).parse_all(original_code) {
             if let ValidPayload::Func(a, b) = validator
                 .payload(&payload.map_err(|_| PrepareError::Deserialization)?)
-                .map_err(|_| PrepareError::Deserialization)
+                .map_err(|_| PrepareError::Deserialization)?
             {
                 functions_to_validate += 1;
             }
