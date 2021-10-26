@@ -364,5 +364,7 @@ pub(crate) fn run_wasmer2_module<'a>(
     }
 
     let err = run_method(module, &import, method_name).err();
-    (Some(logic.outcome()), err)
+    let o = logic.outcome();
+    println!("o={:?}", o);
+    (Some(o), err)
 }
