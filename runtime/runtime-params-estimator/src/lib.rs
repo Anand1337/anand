@@ -68,7 +68,7 @@ use near_primitives::types::AccountId;
 use near_primitives::version::PROTOCOL_VERSION;
 use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_logic::{ExtCosts, VMConfig};
-use near_vm_runner::MockCompiledContractCache;
+use near_vm_runner::{MockCompiledContractCache, VMKind};
 use num_rational::Ratio;
 use rand::Rng;
 
@@ -101,7 +101,10 @@ static ALL_COSTS: &[(Cost, fn(&mut EstimatorContext) -> GasCost)] = &[
     (Cost::ActionFunctionCallBaseV2, action_function_call_base_v2),
     (Cost::ActionFunctionCallPerByteV2, action_function_call_per_byte_v2),
     (Cost::HostFunctionCall, host_function_call),
-    (Cost::WasmInstruction, wasm_instruction),
+    (Cost::WasmInstructionWasmer0, wasm_instruction_wasmer0),
+    (Cost::WasmInstructionWasmer0NoGas, wasm_instruction_wasmer0_no_gas),
+    (Cost::WasmInstructionWasmer2, wasm_instruction_wasmer2),
+    (Cost::WasmInstructionWasmer2NoGas, wasm_instruction_wasmer2_no_gas),
     (Cost::DataReceiptCreationBase, data_receipt_creation_base),
     (Cost::DataReceiptCreationPerByte, data_receipt_creation_per_byte),
     (Cost::ReadMemoryBase, read_memory_base),
@@ -552,9 +555,19 @@ fn noop_host_function_call_cost(ctx: &mut EstimatorContext) -> GasCost {
     cost
 }
 
-fn wasm_instruction(ctx: &mut EstimatorContext) -> GasCost {
-    let vm_kind = ctx.config.vm_kind;
-
+fn wasm_instruction_wasmer0(ctx: &mut EstimatorContext) -> GasCost {
+    wasm_instruction(ctx, VMKind::Wasmer0, false)
+}
+fn wasm_instruction_wasmer0_no_gas(ctx: &mut EstimatorContext) -> GasCost {
+    wasm_instruction(ctx, VMKind::Wasmer0, true)
+}
+fn wasm_instruction_wasmer2(ctx: &mut EstimatorContext) -> GasCost {
+    wasm_instruction(ctx, VMKind::Wasmer2, false)
+}
+fn wasm_instruction_wasmer2_no_gas(ctx: &mut EstimatorContext) -> GasCost {
+    wasm_instruction(ctx, VMKind::Wasmer2, true)
+}
+fn wasm_instruction(ctx: &mut EstimatorContext, vm_kind: VMKind, no_gas_metering: bool) -> GasCost {
     let code = read_resource(if cfg!(feature = "nightly_protocol_features") {
         "test-contract/res/nightly_large_contract.wasm"
     } else {
@@ -569,6 +582,9 @@ fn wasm_instruction(ctx: &mut EstimatorContext) -> GasCost {
     let cache = MockCompiledContractCache::default();
     let mut config = VMConfig::default();
     config.limit_config.max_gas_burnt = context.prepaid_gas;
+    if no_gas_metering {
+        config.regular_op_cost = 0;
+    }
     let fees = RuntimeFeesConfig::test();
     let promise_results = vec![];
 
