@@ -564,7 +564,9 @@ fn wasm_instruction(ctx: &mut EstimatorContext) -> GasCost {
 
     let code = ContractCode::new(code.to_vec(), None);
     let mut fake_external = MockedExternal::new();
-    let config = VMConfig::default();
+    let context = create_context(vec![]);
+    let mut config = VMConfig::default();
+    config.limit_config.max_gas_burnt = context.prepaid_gas;
     let fees = RuntimeFeesConfig::test();
     let promise_results = vec![];
 
@@ -583,7 +585,7 @@ fn wasm_instruction(ctx: &mut EstimatorContext) -> GasCost {
             None,
         );
         match (outcome, err) {
-            (Some(it), Some(_)) => it,
+            (Some(it), None) => it,
             _ => panic!(),
         }
     };
@@ -598,10 +600,10 @@ fn wasm_instruction(ctx: &mut EstimatorContext) -> GasCost {
         start.elapsed()
     };
 
-    let instructions_per_iter = {
-        let op_cost = config.regular_op_cost as u64;
-        warmup_outcome.burnt_gas / op_cost
-    };
+    let instructions_per_iter = 520673412;
+    if config.regular_op_cost > 0 {
+        assert_eq!(instructions_per_iter, warmup_outcome.burnt_gas / config.regular_op_cost as u64)
+    }
 
     let per_instruction = total / (instructions_per_iter * n_iters);
     per_instruction
