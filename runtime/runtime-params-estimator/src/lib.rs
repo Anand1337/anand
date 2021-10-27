@@ -68,6 +68,7 @@ use near_primitives::types::AccountId;
 use near_primitives::version::PROTOCOL_VERSION;
 use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_logic::{ExtCosts, VMConfig};
+use near_vm_runner::MockCompiledContractCache;
 use num_rational::Ratio;
 use rand::Rng;
 
@@ -565,6 +566,7 @@ fn wasm_instruction(ctx: &mut EstimatorContext) -> GasCost {
     let code = ContractCode::new(code.to_vec(), None);
     let mut fake_external = MockedExternal::new();
     let context = create_context(vec![]);
+    let cache = MockCompiledContractCache::default();
     let mut config = VMConfig::default();
     config.limit_config.max_gas_burnt = context.prepaid_gas;
     let fees = RuntimeFeesConfig::test();
@@ -582,7 +584,7 @@ fn wasm_instruction(ctx: &mut EstimatorContext) -> GasCost {
             &promise_results,
             vm_kind,
             PROTOCOL_VERSION,
-            None,
+            Some(&cache),
         );
         match (outcome, err) {
             (Some(it), None) => it,
