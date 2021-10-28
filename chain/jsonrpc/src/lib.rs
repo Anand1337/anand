@@ -36,6 +36,16 @@ use near_primitives::views::FinalExecutionOutcomeViewEnum;
 
 mod metrics;
 
+use ratelimit_meter::{DirectRateLimiter, GCRA};
+use nonzero_ext::nonzero;
+
+lazy_static::lazy_static! {
+    static ref TRANSACTION_LIMITER: DirectRateLimiter::<GCRA> = {
+        DirectRateLimiter::<GCRA>::per_second(nonzero!(10u32))
+    };
+}
+
+
 #[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub struct RpcPollingConfig {
     pub polling_interval: Duration,
@@ -263,13 +273,20 @@ impl JsonRpcHandler {
                     .map_err(|err| RpcError::serialization_error(err.to_string()))
             }
             "broadcast_tx_commit" => {
+                loop {
+                    let lim = TRANSACTION_LIMITER.clone().check();
+                    match lim {
+                        Ok(_) => break,
+                        Err(_) => sleep(Duration::from_millis(500)).await,
+                    }
+                }
                 let rpc_transaction_request =
-                    near_jsonrpc_primitives::types::transactions::RpcBroadcastTransactionRequest::parse(
-                        request.params,
-                    )?;
+                   near_jsonrpc_primitives::types::transactions::RpcBroadcastTransactionRequest::parse(
+                   request.params,
+                )?;
                 let send_tx_response = self.send_tx_commit(rpc_transaction_request).await?;
-                serde_json::to_value(send_tx_response)
-                    .map_err(|err| RpcError::serialization_error(err.to_string()))
+                   serde_json::to_value(send_tx_response)
+                   .map_err(|err| RpcError::serialization_error(err.to_string()))
             }
             "chunk" => {
                 let rpc_chunk_request =
