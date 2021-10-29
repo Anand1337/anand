@@ -68,6 +68,7 @@ struct CliArgs {
 }
 
 fn main() -> anyhow::Result<()> {
+    eprintln!("hello!");
     let start = time::Instant::now();
 
     let cli_args = CliArgs::parse();
@@ -76,6 +77,7 @@ fn main() -> anyhow::Result<()> {
     let state_dump_path = match cli_args.home {
         Some(it) => it,
         None => {
+            eprintln!("create home!");
             temp_dir = tempfile::tempdir()?;
 
             let contract_code = read_resource(if cfg!(feature = "nightly_protocol_features") {
@@ -119,6 +121,7 @@ fn main() -> anyhow::Result<()> {
             state_dump_path
         }
     };
+    eprintln!("next!");
 
     // TODO: consider implementing the same in Rust to reduce complexity.
     // Good example: runtime/near-test-contracts/build.rs
