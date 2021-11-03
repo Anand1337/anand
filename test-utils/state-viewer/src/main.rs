@@ -8,9 +8,10 @@ use std::sync::Arc;
 use ansi_term::Color::Red;
 use clap::{App, AppSettings, Arg, SubCommand};
 
-use borsh::BorshSerialize;
+// use borsh::BorshSerialize;
 use near_chain::chain::collect_receipts_from_response;
 use near_chain::migrations::check_if_block_is_first_with_chunk_of_version;
+use near_primitives::borsh::BorshSerialize;
 use near_chain::types::{ApplyTransactionResult, BlockHeaderInfo};
 use near_chain::{ChainStore, ChainStoreAccess, ChainStoreUpdate, RuntimeAdapter};
 use near_logger_utils::init_integration_logger;
@@ -29,6 +30,7 @@ use nearcore::{get_default_home, get_store_path, load_config, NearConfig, Nights
 use node_runtime::adapter::ViewRuntimeAdapter;
 use state_dump::state_dump;
 
+mod apply_chain_range;
 mod state_dump;
 
 #[allow(unused)]
@@ -475,6 +477,43 @@ fn main() {
                 .help("replay headers from chain"),
         )
         .subcommand(
+            SubCommand::with_name("apply_range")
+                .arg(
+                    Arg::with_name("start_index")
+                        .long("start_index")
+                        .required(false)
+                        .help("Start index of query")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("end_index")
+                        .long("end_index")
+                        .required(false)
+                        .help("End index of query")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("shard_id")
+                        .long("shard_id")
+                        .help("Id of the shard to apply")
+                        .default_value("0")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("verbose_output")
+                        .long("verbose_output")
+                        .required(false)
+                        .takes_value(false),
+                )
+                .arg(
+                    Arg::with_name("csv_file")
+                        .long("csv_file")
+                        .required(false)
+                        .takes_value(true),
+                )
+                .help("apply blocks at a range of heights for a single shard"),
+        )
+        .subcommand(
             SubCommand::with_name("apply")
                 .arg(
                     Arg::with_name("height")
@@ -634,6 +673,39 @@ fn main() {
             let shard_id =
                 args.value_of("shard_id").map(|s| s.parse::<u64>().unwrap()).unwrap_or_default();
             apply_block_at_height(store, home_dir, &near_config, height, shard_id);
+        }
+        ("apply_range", Some(args)) => {
+            let start_index = args.value_of("start_index").map(|s| s.parse::<u64>().unwrap());
+            let end_index = args.value_of("end_index").map(|s| s.parse::<u64>().unwrap());
+            let shard_id =
+                args.value_of("shard_id").map(|s| s.parse::<u64>().unwrap()).unwrap_or_default();
+            let verbose_output = args.is_present("verbose_output");
+            let csv_filename = args.value_of("csv_file");
+            let mut csv_file = None;
+            if let Some(filename) = csv_filename {
+                csv_file = Some(std::fs::File::create(filename).unwrap());
+            }
+
+
+            let runtime = NightshadeRuntime::new(
+                &home_dir,
+                store.clone(),
+                &near_config.genesis,
+                near_config.client_config.tracked_accounts.clone(),
+                near_config.client_config.tracked_shards.clone(),
+                None,
+                near_config.client_config.max_gas_burnt_view,
+            );
+            apply_chain_range::apply_chain_range(
+                store,
+                &near_config.genesis,
+                start_index,
+                end_index,
+                shard_id,
+                runtime,
+                verbose_output,
+                csv_file.as_mut(),
+            );
         }
         ("view_chain", Some(args)) => {
             let height = args.value_of("height").map(|s| s.parse::<u64>().unwrap());
