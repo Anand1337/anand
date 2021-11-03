@@ -18,7 +18,7 @@ use near_primitives::transaction::{ExecutionOutcomeWithId, ExecutionOutcomeWithI
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{BlockHeight, ShardId};
-use near_store::{get, DBCol, ShardUId, Store};
+use near_store::{get, DBCol, Store};
 use nearcore::NightshadeRuntime;
 
 fn inc_and_report_progress(cnt: &AtomicU64) {
@@ -80,7 +80,7 @@ pub fn apply_chain_range(
 
     println!("Printing results including outcomes of applying receipts");
     let csv_file_mutex = Arc::new(Mutex::new(csv_file));
-    maybe_add_to_csv(&csv_file_mutex, "Height,Hash,Author,#Tx,#Receipt,Timestamp,GasUsed,BlockPresent,ChunkPresent,#ProcessedDelayedReceipts,#DelayedReceipts");
+    maybe_add_to_csv(&csv_file_mutex, "Height,Hash,Author,#Tx,#Receipt,Timestamp,GasUsed,BlockPresent,ChunkPresent,#DelayedReceipts");
 
     let processed_blocks_cnt = AtomicU64::new(0);
     (start_height..=end_height).into_par_iter().for_each(|height| {
@@ -94,8 +94,6 @@ pub fn apply_chain_range(
                 },
             };
             let block = chain_store.get_block(&block_hash).unwrap().clone();
-            let shard_uid =
-                runtime_adapter.shard_id_to_uid(shard_id, block.header().epoch_id()).unwrap();
             assert!(block.chunks().len() > 0);
             let mut existing_chunk_extra = None;
             let mut prev_chunk_extra = None;
@@ -115,7 +113,7 @@ pub fn apply_chain_range(
             } else if block.chunks()[shard_id as usize].height_included() == height {
                 block_present = true;
                 chunk_present = true;
-                let res_existing_chunk_extra = chain_store.get_chunk_extra(&block_hash, &shard_uid);
+                let res_existing_chunk_extra = chain_store.get_chunk_extra(&block_hash, shard_id);
                 assert!(res_existing_chunk_extra.is_ok(), "Can't get existing chunk extra for block #{}", height);
                 existing_chunk_extra = Some(res_existing_chunk_extra.unwrap().clone());
                 let chunk = chain_store
@@ -129,7 +127,7 @@ pub fn apply_chain_range(
                         if verbose_output {
                             println!("Skipping applying block #{} because the previous block is unavailable and I can't determine the gas_price to use.", height);
                         }
-                        maybe_add_to_csv(&csv_file_mutex, &format!("{},{},{},,,{},,{},{},,", height, block_hash, block_author, block.header().raw_timestamp(), block_present, chunk_present));
+                        maybe_add_to_csv(&csv_file_mutex, &format!("{},{},{},,,{},,{},{},", height, block_hash, block_author, block.header().raw_timestamp(), block_present, chunk_present));
                         inc_and_report_progress(&processed_blocks_cnt);
                         return;
                     },
@@ -180,7 +178,7 @@ pub fn apply_chain_range(
             } else {
                 block_present = true;
                 chunk_present = false;
-                let chunk_extra = chain_store.get_chunk_extra(block.header().prev_hash(), &shard_uid).unwrap().clone();
+                let chunk_extra = chain_store.get_chunk_extra(block.header().prev_hash(), shard_id).unwrap().clone();
                 prev_chunk_extra = Some(chunk_extra.clone());
 
                 runtime_adapter
@@ -216,16 +214,9 @@ pub fn apply_chain_range(
                 apply_result.total_balance_burnt,
             );
 
-            let mut epoch_manager = EpochManager::new_from_genesis_config(store.clone(), &genesis.config).unwrap();
-            let shard_layout = epoch_manager.get_shard_layout(block.header().epoch_id()).unwrap();
-            let shard_uid = ShardUId::from_shard_id_and_layout(shard_id, shard_layout);
-            let state_update = runtime_adapter.get_tries().new_trie_update(shard_uid, *chunk_extra.state_root());
+            let state_update = runtime_adapter.get_tries().new_trie_update(shard_id, *chunk_extra.state_root());
             let delayed_indices = get::<DelayedReceiptIndices>(&state_update, &TrieKey::DelayedReceiptIndices).unwrap();
-            if delayed_indices.is_none() {
-                println!("no delayed_indices");
-            } else {
-                println!("delayed_indices: {:#?}", delayed_indices.as_ref().unwrap());
-            }
+            // if delayed_indices.is_none() { println!("no delayed_indices"); } else { println!("delayed_indices: {:#?}", delayed_indices.as_ref().unwrap()); }
 
         match existing_chunk_extra {
             Some(existing_chunk_extra) => {
@@ -242,7 +233,7 @@ pub fn apply_chain_range(
                 }
             },
         };
-        maybe_add_to_csv(&csv_file_mutex, &format!("{},{},{},{},{},{},{},{},{},{},{}", height, block_hash, block_author, num_tx, num_receipt, block.header().raw_timestamp(), apply_result.total_gas_burnt, block_present, chunk_present, apply_result.processed_delayed_receipts.len(), delayed_indices.map_or(0,|d|d.next_available_index-d.first_index)));
+        maybe_add_to_csv(&csv_file_mutex, &format!("{},{},{},{},{},{},{},{},{},{}", height, block_hash, block_author, num_tx, num_receipt, block.header().raw_timestamp(), apply_result.total_gas_burnt, block_present, chunk_present, delayed_indices.map_or(0,|d|d.next_available_index-d.first_index)));
         inc_and_report_progress(&processed_blocks_cnt);
     });
 

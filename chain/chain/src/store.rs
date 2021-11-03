@@ -2394,6 +2394,7 @@ impl<'a> ChainStoreUpdate<'a> {
             | DBCol::ColEpochValidatorInfo
             | DBCol::ColBlockOrdinal
             | DBCol::_ColTransactionRefCount
+            | DBCol::ColUnknownSomething
             | DBCol::ColCachedContractCode => {
                 unreachable!();
             }

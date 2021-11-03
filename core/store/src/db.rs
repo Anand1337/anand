@@ -119,10 +119,11 @@ pub enum DBCol {
     ColEpochValidatorInfo = 47,
     /// Header Hashes indexed by Height
     ColHeaderHashesByHeight = 48,
+    ColUnknownSomething = 49,
 }
 
 // Do not move this line from enum DBCol
-pub const NUM_COLS: usize = 49;
+pub const NUM_COLS: usize = 50;
 
 impl std::fmt::Display for DBCol {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
@@ -176,6 +177,7 @@ impl std::fmt::Display for DBCol {
             Self::ColCachedContractCode => "cached code",
             Self::ColEpochValidatorInfo => "epoch validator info",
             Self::ColHeaderHashesByHeight => "header hashes indexed by their height",
+            Self::ColUnknownSomething => "pretend it's not here",
         };
         write!(formatter, "{}", desc)
     }

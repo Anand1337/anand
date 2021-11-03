@@ -4792,19 +4792,25 @@ name = "state-viewer"
 version = "0.1.0"
 dependencies = [
  "ansi_term 0.12.1",
- "borsh 0.8.1",
+ "borsh 0.9.0",
  "clap 2.33.3",
  "near-chain",
  "near-chain-configs",
  "near-client",
  "near-crypto",
+ "near-epoch-manager",
  "near-logger-utils",
  "near-network",
  "near-primitives",
  "near-store",
  "nearcore",
  "node-runtime",
+ "rayon",
+ "serde",
  "serde_json",
+ "tempfile",
+ "testlib",
+ "tracing",
 ]
 
 [[package]]
