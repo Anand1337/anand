@@ -175,6 +175,15 @@ fn print_chain(
     }
 }
 
+fn coldump(
+    store: Arc<Store>,
+    home_dir: &Path,
+    near_config: &NearConfig,
+) {
+    let mut chain_store = ChainStore::new(store.clone(), near_config.genesis.config.genesis_height);
+    chain_store.iterate_state_sync_infos().iter().for_each(|x|println!("x: {:#?}",x));
+}
+
 fn replay_chain(
     store: Arc<Store>,
     home_dir: &Path,
@@ -479,6 +488,9 @@ fn main() {
                 .help("replay headers from chain"),
         )
         .subcommand(
+            SubCommand::with_name("col_dump")
+        )
+        .subcommand(
             SubCommand::with_name("apply_range")
                 .arg(
                     Arg::with_name("start_index")
@@ -672,6 +684,9 @@ fn main() {
             let shard_id =
                 args.value_of("shard_id").map(|s| s.parse::<u64>().unwrap()).unwrap_or_default();
             apply_block_at_height(store, home_dir, &near_config, height, shard_id);
+        }
+        ("col_dump", Some(args)) => {
+            coldump(store, home_dir, &near_config);
         }
         ("apply_range", Some(args)) => {
             let start_index = args.value_of("start_index").map(|s| s.parse::<u64>().unwrap());
