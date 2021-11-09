@@ -370,7 +370,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         let funcs2 = module_info.functions.len();
 
         let exports = module_info.exports.clone();
-        println!("{:?}", exports);
+        println!("{:?}", exports.len());
 
         println!(
             "{:?} {:?} {} {} {} {} {}",
