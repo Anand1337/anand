@@ -486,8 +486,8 @@ fn test_function_call_time() {
     // Run with
     // cargo test --release --lib function_call::test_function_call_time
     //    --features required  -- --exact --nocapture
-    // test_function_call(GasMetric::Time, VMKind::Wasmer0);
-    test_function_call(GasMetric::Time, VMKind::Wasmer2);
+    test_function_call(GasMetric::Time, VMKind::Wasmer0);
+    // test_function_call(GasMetric::Time, VMKind::Wasmer2);
     // test_function_call(GasMetric::Time, VMKind::Wasmtime);
 }
 
