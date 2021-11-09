@@ -319,24 +319,24 @@ fn test_prepare_contract(metric: GasMetric) {
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let nftspace_code = vec![];
-    // let reader = BufReader::new(
-    //     File::open("/host/nearcore/codes.json").expect("Could not open genesis config file."),
-    // );
-    // let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
-    // let codes: HashMap<String, Vec<u8>> = entries.into_iter().map(|(k, v)| (v, k)).collect();
-    // let nftspace_code = codes.get("nftspace.near").unwrap();
-    //
-    // let m = &mut Module::from_buffer(nftspace_code).unwrap();
-    // for i in 0..4000 {
-    //     if i % 10 == 0 {
-    //         println!("{}", i);
-    //     }
-    //     let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
-    //     hello_func.func_body().i32_const(1).drop();
-    //     let hello_func = hello_func.finish(vec![], &mut m.funcs);
-    //     m.exports.add(&format!("hello{}", i), hello_func);
-    // }
-    // let nftspace_code = m.emit_wasm();
+    let reader = BufReader::new(
+        File::open("/host/nearcore/codes.json").expect("Could not open genesis config file."),
+    );
+    let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
+    let codes: HashMap<String, Vec<u8>> = entries.into_iter().map(|(k, v)| (v, k)).collect();
+    let nftspace_code = codes.get("nftspace.near").unwrap();
+
+    let m = &mut Module::from_buffer(nftspace_code).unwrap();
+    for i in 0..1 {
+        if i % 10 == 0 {
+            println!("{}", i);
+        }
+        let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
+        hello_func.func_body().i32_const(1).drop();
+        let hello_func = hello_func.finish(vec![], &mut m.funcs);
+        m.exports.add(&format!("hello{}", i), hello_func);
+    }
+    let nftspace_code = m.emit_wasm();
 
     let mut xs = vec![];
     let mut ys = vec![];
@@ -344,8 +344,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     for (method_count, body_repeat) in
         // vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (10000, 1)].iter().cloned()
         // vec![(20000, 1), (20000, 4), (40000, 1)].iter().cloned()
-        vec![(20000, 1)].iter().cloned()
-    // vec![(0, 0)].iter().cloned()
+        // vec![(20000, 1)].iter().cloned()
+        vec![(0, 0)].iter().cloned()
     {
         let contract = if method_count != 0 {
             make_many_methods_contract(method_count, body_repeat)
