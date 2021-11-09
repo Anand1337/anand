@@ -323,11 +323,11 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     );
     let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
     let codes: HashMap<String, Vec<u8>> = entries.into_iter().map(|(k, v)| (v, k)).collect();
-    let nftspace_code = codes.get("nftspace.near").unwrap();
+    let nftspace_code = codes.get("mailgun.near").unwrap();
 
     let m = &mut Module::from_buffer(nftspace_code).unwrap();
     for i in 0..4000 {
-        if i % 10 == 0 {
+        if i % 100 == 0 {
             println!("{}", i);
         }
         let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
@@ -369,24 +369,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         let funcs = get_functions_number(contract.code(), &VMConfig::default());
         let funcs2 = module_info.functions.len();
 
-        // let name_table: Vec<(_, _)> = module_info
-        //     .function_names
-        //     .clone()
-        //     .iter()
-        //     .filter(|(&k, _)| module_info.is_imported_function(k))
-        //     .collect();
-        // let imports = module_info.imports.clone();
-        // println!("{:?}", imports);
         let exports = module_info.exports.clone();
         println!("{:?}", exports);
-
-        // let table = &module_info.name_table;
-        // let imported_funcs: Vec<_> = module_info
-        //     .imported_functions
-        //     .values()
-        //     .map(|i| (namespace_table.get(i.namespace_index), table.get(i.name_index)))
-        //     .collect();
-        // println!("{:?}", imported_funcs);
 
         println!(
             "{:?} {:?} {} {} {} {} {}",
