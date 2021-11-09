@@ -318,7 +318,6 @@ fn test_prepare_contract(metric: GasMetric) {
 
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
-    let nftspace_code = vec![];
     let reader = BufReader::new(
         File::open("/host/nearcore/codes.json").expect("Could not open genesis config file."),
     );
