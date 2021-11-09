@@ -326,7 +326,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let nftspace_code = codes.get("mailgun.near").unwrap();
 
     let m = &mut Module::from_buffer(nftspace_code).unwrap();
-    for i in 0..4000 {
+    for i in 0..1 {
         if i % 100 == 0 {
             println!("{}", i);
         }
