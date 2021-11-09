@@ -428,7 +428,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         // println!("{:?}", exports.len());
 
         let gas = ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128));
-        let teragas = (gas as f64) / 10f64.pow(12);
+        let teragas = (gas as f64) / 10f64.powf(12);
         println!(
             "{} {:?} {:?}, len = {}, funcs = {} {}, cost = {}, tgas = {}",
             account_id,
