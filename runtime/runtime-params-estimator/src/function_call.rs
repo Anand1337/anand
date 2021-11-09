@@ -481,6 +481,7 @@ fn test_measure_function_call_1s() {
 
 #[test]
 fn test_function_call_time() {
+    init_test_logger();
     // Run with
     // cargo test --release --lib function_call::test_function_call_time
     //    --features required  -- --exact --nocapture
