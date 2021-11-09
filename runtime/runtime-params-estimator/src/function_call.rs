@@ -527,13 +527,13 @@ fn compare_function_call_icount() {
         runtime_fees_config.action_creation_config.function_call_cost.execution;
     println!("old_function_call_fee = {}", old_function_call_fee);
 
-    let contract_bytes = &include_bytes!("/host/nearcore/aurora_nodata.wat")[..];
-    let wasm_code_cow = wat::parse_bytes(contract_bytes).unwrap().clone();
-    let wasm_code = wasm_code_cow.as_ref().clone();
+    // let contract_bytes = &include_bytes!("/host/nearcore/aurora_nodata.wat")[..];
+    // let wasm_code_cow = wat::parse_bytes(contract_bytes).unwrap().clone();
+    // let wasm_code = wasm_code_cow.as_ref().clone();
 
     let contracts_data = vec![
         get_aurora_small_contract_data(),
-        (wasm_code, "state_migration", None), //get_aurora_small_contract_nodata_data(),
+        // (wasm_code, "state_migration", None), //get_aurora_small_contract_nodata_data(),
         // get_aurora_with_deploy_data(),
         get_aurora_330_data(),
         get_aurora_contract_data(),
