@@ -408,7 +408,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         let contract = ContractCode::new(code.clone(), None);
 
         let args = vec![];
-        println!("LEN = {}", contract.code().len());
+        // println!("LEN = {}", contract.code().len());
         let cost = compute_function_call_cost(
             metric,
             vm_kind,
@@ -424,11 +424,13 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         let funcs = get_functions_number(contract.code(), &VMConfig::default());
         let funcs2 = module_info.functions.len();
 
-        let exports = module_info.exports.clone();
-        println!("{:?}", exports.len());
+        // let exports = module_info.exports.clone();
+        // println!("{:?}", exports.len());
 
+        let gas = ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128));
+        let teragas = (gas as f64) / 10f64.pow(12);
         println!(
-            "{} {:?} {:?} {} {} {} {} {}",
+            "{} {:?} {:?}, len = {}, funcs = {} {}, cost = {}, tgas = {}",
             account_id,
             vm_kind,
             metric,
@@ -436,7 +438,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
             funcs,
             funcs2,
             cost / REPEATS,
-            ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128))
+            teragas
         );
     }
 }
