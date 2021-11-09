@@ -438,25 +438,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
             cost / REPEATS,
             ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128))
         );
-
-        xs.push(contract.code().len() as u64);
-        ys.push(cost / REPEATS);
     }
-
-    // Regression analysis only makes sense for additive metrics.
-    if metric == GasMetric::Time {
-        return;
-    }
-
-    let (cost_base, cost_byte, _) = least_squares_method(&xs, &ys);
-
-    println!(
-        "{:?} {:?} function call base {} gas, per byte {} gas",
-        vm_kind,
-        metric,
-        ratio_to_gas_signed(metric, cost_base),
-        ratio_to_gas_signed(metric, cost_byte),
-    );
 }
 
 fn measure_function_call_1s(vm_kind: VMKind) {
