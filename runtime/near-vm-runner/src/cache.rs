@@ -320,6 +320,17 @@ pub mod wasmer2_cache {
         Ok(Ok(module))
     }
 
+    fn _deserialize(
+        serialized_module: &Vec<u8>,
+        store: &wasmer::Store,
+    ) -> Result<Result<wasmer::Module, CompilationError>, CacheError> {
+        let _span = tracing::debug_span!(target: "vm", "_deserialize").entered();
+        unsafe {
+            Ok(Ok(wasmer::Module::deserialize(store, serialized_module.as_slice())
+                .map_err(|_e| CacheError::DeserializationError)?))
+        }
+    }
+
     fn deserialize_wasmer2(
         serialized: &[u8],
         store: &wasmer::Store,
@@ -332,10 +343,7 @@ pub mod wasmer2_cache {
             CacheRecord::CompileModuleError(err) => return Ok(Err(err)),
             CacheRecord::Code(code) => code,
         };
-        unsafe {
-            Ok(Ok(wasmer::Module::deserialize(store, serialized_module.as_slice())
-                .map_err(|_e| CacheError::DeserializationError)?))
-        }
+        _deserialize(&serialized_module, store)
     }
 
     fn compile_module_cached_wasmer2_impl(
