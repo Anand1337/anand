@@ -4393,6 +4393,7 @@ dependencies = [
  "state-viewer",
  "tempfile",
  "testlib",
+ "tracing-span-tree",
  "wabt",
  "walrus",
  "wat",

@@ -24,6 +24,7 @@ anyhow = "1"
 chrono = "0.4"
 nalgebra = "0.29.0"
 smartcore = "0.2.0"
+tracing-span-tree = "0.1"
 
 genesis-populate = { path = "../../genesis-tools/genesis-populate"}
 near-chain-configs = { path = "../../core/chain-configs" }
