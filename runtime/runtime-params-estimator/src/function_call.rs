@@ -401,14 +401,16 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
             continue;
         }
         let m = &mut Module::from_buffer(code).unwrap();
-        for i in 0..4000 {
+        for i in 0..9600 {
             if i % 1000 == 0 {
                 println!("{}", i);
             }
             let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
             hello_func.func_body().i32_const(1).drop();
             let hello_func = hello_func.finish(vec![], &mut m.funcs);
-            m.exports.add(&format!("hello{}", i), hello_func);
+            if i == 0 {
+                m.exports.add(&format!("hello{}", i), hello_func);
+            }
         }
         let code = m.emit_wasm();
         let contract = ContractCode::new(code.clone(), None);
