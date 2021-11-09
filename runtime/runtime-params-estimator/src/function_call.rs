@@ -41,22 +41,6 @@ fn get_func_number(contract: &ContractCode) -> usize {
             .unwrap();
     let module_info = module.info();
 
-    println!("-------");
-    println!("{}", module_info.memories.len());
-    println!("{}", module_info.globals.len());
-    println!("{}", module_info.tables.len());
-    println!("{}", module_info.imported_functions.len());
-    println!("{}", module_info.imported_memories.len());
-    println!("{}", module_info.imported_tables.len());
-    println!("{}", module_info.imported_globals.len());
-    println!("{}", module_info.exports.map.len());
-    println!("{}", module_info.data_initializers.len());
-    println!("{}", module_info.elem_initializers.len());
-    println!("{}", module_info.func_assoc.len());
-    println!("{}", module_info.signatures.len());
-    println!("{}", module_info.backend.len());
-    println!("{}", module_info.custom_sections.len());
-    println!("-------");
     let namespace_table = &module_info.namespace_table;
     let table = &module_info.name_table;
     let imported_funcs: Vec<_> = module_info
@@ -343,7 +327,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     for (method_count, body_repeat) in
         // vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (10000, 1)].iter().cloned()
         // vec![(20000, 1), (20000, 4), (40000, 1)].iter().cloned()
-        vec![(20000, 1)].iter().cloned()
+        vec![(9990, 1)].iter().cloned()
     // vec![(0, 0)].iter().cloned()
     {
         let contract = if method_count != 0 {
@@ -581,135 +565,6 @@ fn compare_function_call_icount() {
 fn make_many_methods_contract(method_count: usize, body_repeat: usize) -> ContractCode {
     assert!(method_count > 1);
     let mut methods = String::new();
-    // let imports = [
-    //     ("env", "log_utf8"),
-    //     ("env", "promise_create"),
-    //     ("env", "storage_read"),
-    //     ("env", "register_len"),
-    //     ("env", "block_timestamp"),
-    //     ("env", "block_index"),
-    //     ("env", "read_register"),
-    //     ("env", "keccak256"),
-    //     ("env", "ecrecover"),
-    //     ("env", "sha256"),
-    //     ("env", "current_account_id"),
-    //     ("env", "predecessor_account_id"),
-    //     ("env", "storage_write"),
-    //     ("env", "storage_has_key"),
-    //     ("env", "value_return"),
-    //     ("env", "promise_then"),
-    //     ("env", "promise_return"),
-    //     ("env", "storage_remove"),
-    //     ("env", "signer_account_id"),
-    //     ("env", "ripemd160"),
-    //     ("env", "input"),
-    //     ("env", "panic_utf8"),
-    //     ("env", "promise_batch_create"),
-    //     ("env", "promise_batch_action_deploy_contract"),
-    //     ("env", "promise_batch_action_function_call"),
-    //     ("env", "promise_results_count"),
-    //     ("env", "promise_result"),
-    //     ("env", "attached_deposit"),
-    //     ("env", "promise_batch_action_transfer"),
-    //     ("env", "gas"),
-    // ];
-    // for i in imports.iter().cloned() {
-    //     write!(
-    //         &mut methods,
-    //         "
-    //                 (import \"{}\" \"{}\" (memory 1))
-    //         ",
-    //         i.0, i.1
-    //     )
-    //     .unwrap();
-    // }
-    //   write!(
-    //       &mut methods,
-    //       "
-    // (type (;0;) (func (param i32 i32 i32 i64 i64 i32 i32)))
-    // (type (;1;) (func (param i32 i32 i32 i32)))
-    // (type (;2;) (func (param i32 i32) (result i32)))
-    // (type (;3;) (func (param i32 i32)))
-    // (type (;4;) (func (param i32)))
-    // (type (;5;) (func (param i32 i32 i32) (result i32)))
-    // (type (;6;) (func (param i64 i64)))
-    // (type (;7;) (func (param i64 i64 i64 i64 i64 i64 i64 i64) (result i64)))
-    // (type (;8;) (func (param i64 i64 i64) (result i64)))
-    // (type (;9;) (func (param i64) (result i64)))
-    // (type (;10;) (func (result i64)))
-    // (type (;11;) (func (param i64 i64 i64)))
-    // (type (;12;) (func (param i64 i64 i64 i64 i64 i64 i64) (result i64)))
-    // (type (;13;) (func (param i64)))
-    // (type (;14;) (func (param i64 i64 i64 i64 i64) (result i64)))
-    // (type (;15;) (func (param i64 i64) (result i64)))
-    // (type (;16;) (func (param i64 i64 i64 i64 i64 i64 i64 i64 i64) (result i64)))
-    // (type (;17;) (func (param i64 i64 i64 i64 i64 i64 i64)))
-    // (type (;18;) (func (param i32 i32 i32)))
-    // (type (;19;) (func (param i32) (result i32)))
-    // (type (;20;) (func (param i32 i32 i32 i32 i32 i64 i64 i32 i32 i32 i32)))
-    // (type (;21;) (func (param i32 i32 i32 i32 i32 i32 i64 i64 i32)))
-    // (type (;22;) (func (param i32 i32 i64)))
-    // (type (;23;) (func (param i32 i32 i32 i32 i32 i32 i64 i32)))
-    // (type (;24;) (func (param i32) (result i64)))
-    // (type (;25;) (func (param i32 i32 i32 i32 i32 i32 i32)))
-    // (type (;26;) (func (param i32 i32 i32 i32 i32)))
-    // (type (;27;) (func (param i32 i32 i64 i64)))
-    // (type (;28;) (func (param i32 i32 i32 i32 i32 i32)))
-    // (type (;29;) (func (param i32 i32 i32 i32 i32 i64 i64 i32)))
-    // (type (;30;) (func (param i32 i32 i64 i32 i32)))
-    // (type (;31;) (func (param i32 i32 i32 i64 i32) (result i32)))
-    // (type (;32;) (func (param i32 i32 i32 i32 i32 i64 i32)))
-    // (type (;33;) (func (param i32 i32 i32 i32 i32) (result i32)))
-    // (type (;34;) (func))
-    // (type (;35;) (func (param i32 i64)))
-    // (type (;36;) (func (param i32 i32 i32 i32) (result i32)))
-    // (type (;37;) (func (param i32 i32 i32 i64)))
-    // (type (;38;) (func (param i32 i64 i32)))
-    // (type (;39;) (func (param i32 i64 i64)))
-    // (type (;40;) (func (param i32 i32 i32 i32 i32 i32 i64 i64 i64)))
-    // (type (;41;) (func (param i32 f64 i32 i32) (result i32)))
-    // (type (;42;) (func (param i64 i32 i32)))
-    // (type (;43;) (func (param i64 i64 i32 i32) (result i32)))
-    // (type (;44;) (func (param i32 i32 i32 i32 i32 i32) (result i32)))
-    // (type (;45;) (func (param i32 i32 i32) (result i64)))
-    // (type (;46;) (func (param i64 i32 i32) (result i32)))
-    // (type (;47;) (func (param f64 i32) (result f64)))
-    // (type (;48;) (func (param i32 i64 i64 i64 i64 i32)))
-    // (type (;49;) (func (param i32 i64 i64 i64 i64)))
-    // (type (;50;) (func (param f64 f64) (result f64)))
-    // (import \"env\" \"log_utf8\" (func (;0;) (type 6)))
-    // (import \"env\" \"promise_create\" (func (;1;) (type 7)))
-    // (import \"env\" \"storage_read\" (func (;2;) (type 8)))
-    // (import \"env\" \"register_len\" (func (;3;) (type 9)))
-    // (import \"env\" \"block_timestamp\" (func (;4;) (type 10)))
-    // (import \"env\" \"block_index\" (func (;5;) (type 10)))
-    // (import \"env\" \"read_register\" (func (;6;) (type 6)))
-    // (import \"env\" \"keccak256\" (func (;7;) (type 11)))
-    // (import \"env\" \"ecrecover\" (func (;8;) (type 12)))
-    // (import \"env\" \"sha256\" (func (;9;) (type 11)))
-    // (import \"env\" \"current_account_id\" (func (;10;) (type 13)))
-    // (import \"env\" \"predecessor_account_id\" (func (;11;) (type 13)))
-    // (import \"env\" \"storage_write\" (func (;12;) (type 14)))
-    // (import \"env\" \"storage_has_key\" (func (;13;) (type 15)))
-    // (import \"env\" \"value_return\" (func (;14;) (type 6)))
-    // (import \"env\" \"promise_then\" (func (;15;) (type 16)))
-    // (import \"env\" \"promise_return\" (func (;16;) (type 13)))
-    // (import \"env\" \"storage_remove\" (func (;17;) (type 8)))
-    // (import \"env\" \"signer_account_id\" (func (;18;) (type 13)))
-    //       "
-    //   );
-    /*
-    (import \"env\" \"ripemd160\" (func (;19;) (type 11)))
-    (import \"env\" \"input\" (func (;20;) (type 13)))
-    (import \"env\" \"panic_utf8\" (func (;21;) (type 6)))
-    (import \"env\" \"promise_batch_create\" (func (;22;) (type 15)))
-    (import \"env\" \"promise_batch_action_deploy_contract\" (func (;23;) (type 11)))
-    (import \"env\" \"promise_batch_action_function_call\" (func (;24;) (type 17)))
-    (import \"env\" \"promise_results_count\" (func (;25;) (type 10)))
-    (import \"env\" \"promise_result\" (func (;26;) (type 15)))
-    (import \"env\" \"attached_deposit\" (func (;27;) (type 13)))
-    (import \"env\" \"promise_batch_action_transfer\" (func (;28;) (type 6)))
-      */
     for i in 0..method_count {
         let mut body = String::new();
         write!(&mut body, "i32.const {i} drop ", i = i).unwrap();
