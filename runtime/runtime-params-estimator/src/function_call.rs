@@ -32,7 +32,7 @@ use std::sync::Arc;
 use walrus::ir::*;
 use walrus::{ExportItem, FunctionBuilder, ImportKind, Module, ModuleConfig, ValType};
 
-const REPEATS: u64 = 20;
+const REPEATS: u64 = 5;
 
 fn get_func_number(contract: &ContractCode) -> usize {
     let module =
@@ -428,7 +428,8 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         println!("{:?}", exports.len());
 
         println!(
-            "{:?} {:?} {} {} {} {} {}",
+            "{} {:?} {:?} {} {} {} {} {}",
+            account_id,
             vm_kind,
             metric,
             contract.code().len(),
@@ -540,6 +541,20 @@ fn test_function_call_icount() {
     // -cpu Westmere-v1 -plugin file=/host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/libcounter.so $@
     // test_function_call(GasMetric::ICount, VMKind::Wasmer0);
     test_function_call(GasMetric::ICount, VMKind::Wasmer2);
+    // test_function_call(GasMetric::ICount, VMKind::Wasmtime);
+}
+
+#[test]
+fn test_function_call_all_codes_icount() {
+    // Use smth like
+    // CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER=./runner.sh \
+    // cargo test --release --features no_cpu_compatibility_checks,required  \
+    // --lib function_call::test_function_call_icount -- --exact --nocapture
+    // Where runner.sh is
+    // /host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/qemu-x86_64 \
+    // -cpu Westmere-v1 -plugin file=/host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/libcounter.so $@
+    // test_function_call(GasMetric::ICount, VMKind::Wasmer0);
+    test_function_call_all_codes(GasMetric::ICount, VMKind::Wasmer2);
     // test_function_call(GasMetric::ICount, VMKind::Wasmtime);
 }
 
