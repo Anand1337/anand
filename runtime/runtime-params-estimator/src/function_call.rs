@@ -344,7 +344,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     for (method_count, body_repeat) in
         // vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (10000, 1)].iter().cloned()
         // vec![(20000, 1), (20000, 4), (40000, 1)].iter().cloned()
-        vec![(5000, 1)].iter().cloned()
+        vec![(20000, 1)].iter().cloned()
     // vec![(0, 0)].iter().cloned()
     {
         let contract = if method_count != 0 {
@@ -486,8 +486,8 @@ fn test_function_call_time() {
     // Run with
     // cargo test --release --lib function_call::test_function_call_time
     //    --features required  -- --exact --nocapture
-    test_function_call(GasMetric::Time, VMKind::Wasmer0);
-    // test_function_call(GasMetric::Time, VMKind::Wasmer2);
+    // test_function_call(GasMetric::Time, VMKind::Wasmer0);
+    test_function_call(GasMetric::Time, VMKind::Wasmer2);
     // test_function_call(GasMetric::Time, VMKind::Wasmtime);
 }
 
