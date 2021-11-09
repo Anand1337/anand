@@ -228,11 +228,17 @@ pub fn run_wasmer2(
         );
     }
 
-    let import_object =
-        imports::build_wasmer2(&store, memory_copy, &mut logic, current_protocol_version);
+    let import_object = {
+        let _span = tracing::debug_span!(target: "vm", "build_wasmer2").entered();
+        let obj = imports::build_wasmer2(&store, memory_copy, &mut logic, current_protocol_version);
+        obj
+    };
 
-    if let Err(e) = check_method(&module, method_name) {
-        return (None, Some(e));
+    {
+        let _span = tracing::debug_span!(target: "vm", "check_method").entered();
+        if let Err(e) = check_method(&module, method_name) {
+            return (None, Some(e));
+        }
     }
 
     let err = run_method(&module, &import_object, method_name).err();
