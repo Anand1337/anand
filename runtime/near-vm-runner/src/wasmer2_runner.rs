@@ -199,24 +199,31 @@ pub fn run_wasmer2(
         Err(err) => return (None, Some(err)),
     };
 
-    let mut memory = Wasmer2Memory::new(
-        &store,
-        wasm_config.limit_config.initial_memory_pages,
-        wasm_config.limit_config.max_memory_pages,
-    )
-    .expect("Cannot create memory for a contract call");
-    // Note that we don't clone the actual backing memory, just increase the RC.
-    let memory_copy = memory.clone();
+    let (mut memory, memory_copy) = {
+        let _span = tracing::debug_span!(target: "vm", "create_memory").entered();
+        let mut memory = Wasmer2Memory::new(
+            &store,
+            wasm_config.limit_config.initial_memory_pages,
+            wasm_config.limit_config.max_memory_pages,
+        )
+            .expect("Cannot create memory for a contract call");
+        // Note that we don't clone the actual backing memory, just increase the RC.
+        let memory_copy = memory.clone();
+        (memory, memory_copy)
+    }
 
-    let mut logic = VMLogic::new_with_protocol_version(
-        ext,
-        context,
-        wasm_config,
-        fees_config,
-        promise_results,
-        &mut memory,
-        current_protocol_version,
-    );
+    let mut logic = {
+        let _span = tracing::debug_span!(target: "vm", "create_vm_logic").entered();
+        VMLogic::new_with_protocol_version(
+            ext,
+            context,
+            wasm_config,
+            fees_config,
+            promise_results,
+            &mut memory,
+            current_protocol_version,
+        );
+    };
 
     // TODO: remove, as those costs are incorrectly computed, and we shall account it on deployment.
     if logic.add_contract_compile_fee(code.code().len() as u64).is_err() {
