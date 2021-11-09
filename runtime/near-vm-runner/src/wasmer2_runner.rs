@@ -222,7 +222,7 @@ pub fn run_wasmer2(
             promise_results,
             &mut memory,
             current_protocol_version,
-        );
+        )
     };
 
     // TODO: remove, as those costs are incorrectly computed, and we shall account it on deployment.
