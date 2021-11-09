@@ -401,7 +401,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
             continue;
         }
         let m = &mut Module::from_buffer(code).unwrap();
-        for i in 0..1 {
+        for i in 0..4000 {
             if i % 100 == 0 {
                 println!("{}", i);
             }
@@ -543,8 +543,8 @@ fn test_function_call_all_codes_icount() {
     // Where runner.sh is
     // /host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/qemu-x86_64 \
     // -cpu Westmere-v1 -plugin file=/host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/libcounter.so $@
-    test_function_call_all_codes(GasMetric::ICount, VMKind::Wasmer0);
-    // test_function_call_all_codes(GasMetric::ICount, VMKind::Wasmer2);
+    // test_function_call_all_codes(GasMetric::ICount, VMKind::Wasmer0);
+    test_function_call_all_codes(GasMetric::ICount, VMKind::Wasmer2);
     // test_function_call(GasMetric::ICount, VMKind::Wasmtime);
 }
 
