@@ -326,7 +326,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let nftspace_code = codes.get("nftspace.near").unwrap();
 
     let m = &mut Module::from_buffer(nftspace_code).unwrap();
-    for i in 0..1 {
+    for i in 0..4000 {
         if i % 10 == 0 {
             println!("{}", i);
         }
