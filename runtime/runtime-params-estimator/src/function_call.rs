@@ -353,18 +353,20 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         let funcs = get_functions_number(contract.code(), &VMConfig::default());
         let funcs2 = module_info.functions.len();
 
-        let exports = module_info.exports.clone();
-        println!("{:?}", exports.len());
+        // let exports = module_info.exports.clone();
+        // println!("{:?}", exports.len());
+        let gas = ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128));
+        let teragas = (gas as f64) / (10i64.pow(12) as f64);
 
         println!(
-            "{:?} {:?} {} {} {} {} {}",
+            "{:?} {:?} {} {} {} {}, cost = {} Tgas",
             vm_kind,
             metric,
             contract.code().len(),
             funcs,
             funcs2,
             cost / REPEATS,
-            ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128))
+            teragas
         );
 
         xs.push(contract.code().len() as u64);
