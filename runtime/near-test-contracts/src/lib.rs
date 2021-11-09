@@ -5,9 +5,18 @@ use serde_json::json;
 use std::fmt::Write;
 use std::path::Path;
 
+/// Standard test contract which can call various host functinos
+///
+/// Note: the contract relies on the latest protocol version, and
+/// might not work for tests using older version
 pub fn rs_contract() -> &'static [u8] {
     static CONTRACT: OnceCell<Vec<u8>> = OnceCell::new();
     CONTRACT.get_or_init(|| read_contract("test_contract_rs.wasm")).as_slice()
+}
+
+pub fn rs_contract_base_protocol() -> &'static [u8] {
+    static CONTRACT: OnceCell<Vec<u8>> = OnceCell::new();
+    CONTRACT.get_or_init(|| read_contract("test_contract_rs_base_protocol.wasm")).as_slice()
 }
 
 pub fn nightly_rs_contract() -> &'static [u8] {
@@ -25,6 +34,7 @@ pub fn tiny_contract() -> &'static [u8] {
     CONTRACT.get_or_init(|| read_contract("tiny_contract_rs.wasm")).as_slice()
 }
 
+<<<<<<< HEAD
 pub fn aurora_contract() -> &'static [u8] {
     static CONTRACT: OnceCell<Vec<u8>> = OnceCell::new();
     CONTRACT.get_or_init(|| read_contract("aurora_engine.wasm")).as_slice()
@@ -79,6 +89,11 @@ pub fn get_rs_contract_data() -> (&'static [u8], &'static str, Option<Vec<u8>>) 
     (rs_contract(), "hello0", None)
 }
 
+pub fn fuzzing_contract() -> &'static [u8] {
+    static CONTRACT: OnceCell<Vec<u8>> = OnceCell::new();
+    CONTRACT.get_or_init(|| read_contract("contract_for_fuzzing_rs.wasm")).as_slice()
+}
+
 /// Read given wasm file or panic if unable to.
 fn read_contract(file_name: &str) -> Vec<u8> {
     let base = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -95,6 +110,8 @@ fn smoke_test() {
     assert!(!nightly_rs_contract().is_empty());
     assert!(!ts_contract().is_empty());
     assert!(!tiny_contract().is_empty());
+    assert!(!fuzzing_contract().is_empty());
+    assert!(!rs_contract_base_protocol().is_empty());
 }
 
 pub fn many_functions_contract(function_count: u32) -> Vec<u8> {
