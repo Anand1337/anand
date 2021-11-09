@@ -357,7 +357,7 @@ pub mod wasmer2_cache {
             None => Ok(compile_module_wasmer2(wasm_code, config, store)),
             Some(cache) => {
                 let serialized = {
-                    let _span = tracing::debug_span!(target: "vm", "deserialize_wasmer2").entered();
+                    let _span = tracing::debug_span!(target: "vm", "get_serialized").entered();
                     get(&key.0).map_err(|_io_err| CacheError::WriteError)
                 }?;
                 match serialized {
