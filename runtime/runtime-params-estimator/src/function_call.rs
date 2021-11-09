@@ -395,7 +395,11 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         File::open("/host/nearcore/codes.json").expect("Could not open genesis config file."),
     );
     let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
+    let allowed_contracts = vec!["aurora", "cdao.near", "avrit.near"];
     for (code, account_id) in entries.iter() {
+        if !allowed_contracts.contains(&account_id.as_str()) {
+            continue;
+        }
         let m = &mut Module::from_buffer(code).unwrap();
         for i in 0..1 {
             if i % 100 == 0 {
@@ -525,8 +529,8 @@ fn test_function_call_icount() {
     // Where runner.sh is
     // /host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/qemu-x86_64 \
     // -cpu Westmere-v1 -plugin file=/host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/libcounter.so $@
-    // test_function_call(GasMetric::ICount, VMKind::Wasmer0);
-    test_function_call(GasMetric::ICount, VMKind::Wasmer2);
+    test_function_call(GasMetric::ICount, VMKind::Wasmer0);
+    // test_function_call(GasMetric::ICount, VMKind::Wasmer2);
     // test_function_call(GasMetric::ICount, VMKind::Wasmtime);
 }
 
