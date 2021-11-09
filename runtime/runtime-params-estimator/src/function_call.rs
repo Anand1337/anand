@@ -302,24 +302,24 @@ fn test_prepare_contract(metric: GasMetric) {
 
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
-    let reader = BufReader::new(
-        File::open("/host/nearcore/codes.json").expect("Could not open genesis config file."),
-    );
-    let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
-    let codes: HashMap<String, Vec<u8>> = entries.into_iter().map(|(k, v)| (v, k)).collect();
-    let nftspace_code = codes.get("nftspace.near").unwrap();
+    // let reader = BufReader::new(
+    //     File::open("/host/nearcore/codes.json").expect("Could not open genesis config file."),
+    // );
+    // let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
+    // let codes: HashMap<String, Vec<u8>> = entries.into_iter().map(|(k, v)| (v, k)).collect();
+    let nftspace_code = vec![]; //codes.get("nftspace.near").unwrap();
 
-    let m = &mut Module::from_buffer(nftspace_code).unwrap();
-    for i in 0..1 {
-        if i % 100 == 0 {
-            println!("{}", i);
-        }
-        let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
-        hello_func.func_body().i32_const(1).drop();
-        let hello_func = hello_func.finish(vec![], &mut m.funcs);
-        m.exports.add(&format!("hello{}", i), hello_func);
-    }
-    let nftspace_code = m.emit_wasm();
+    // let m = &mut Module::from_buffer(nftspace_code).unwrap();
+    // for i in 0..1 {
+    //     if i % 100 == 0 {
+    //         println!("{}", i);
+    //     }
+    //     let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
+    //     hello_func.func_body().i32_const(1).drop();
+    //     let hello_func = hello_func.finish(vec![], &mut m.funcs);
+    //     m.exports.add(&format!("hello{}", i), hello_func);
+    // }
+    // let nftspace_code = m.emit_wasm();
 
     let mut xs = vec![];
     let mut ys = vec![];
@@ -335,6 +335,77 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         } else {
             ContractCode::new(nftspace_code.clone(), None)
         };
+
+        let args = vec![];
+        println!("LEN = {}", contract.code().len());
+        let cost = compute_function_call_cost(
+            metric,
+            vm_kind,
+            REPEATS,
+            &contract,
+            "hello0",
+            None,
+            args.clone(),
+        );
+
+        let module = compile_w2(&contract).unwrap();
+        let module_info = module.info();
+        let funcs = get_functions_number(contract.code(), &VMConfig::default());
+        let funcs2 = module_info.functions.len();
+
+        let exports = module_info.exports.clone();
+        println!("{:?}", exports.len());
+
+        println!(
+            "{:?} {:?} {} {} {} {} {}",
+            vm_kind,
+            metric,
+            contract.code().len(),
+            funcs,
+            funcs2,
+            cost / REPEATS,
+            ratio_to_gas_signed(metric, Ratio::new(cost as i128, REPEATS as i128))
+        );
+
+        xs.push(contract.code().len() as u64);
+        ys.push(cost / REPEATS);
+    }
+
+    // Regression analysis only makes sense for additive metrics.
+    if metric == GasMetric::Time {
+        return;
+    }
+
+    let (cost_base, cost_byte, _) = least_squares_method(&xs, &ys);
+
+    println!(
+        "{:?} {:?} function call base {} gas, per byte {} gas",
+        vm_kind,
+        metric,
+        ratio_to_gas_signed(metric, cost_base),
+        ratio_to_gas_signed(metric, cost_byte),
+    );
+}
+
+#[allow(dead_code)]
+fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
+    let reader = BufReader::new(
+        File::open("/host/nearcore/codes.json").expect("Could not open genesis config file."),
+    );
+    let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
+    for (code, account_id) in entries.iter() {
+        let m = &mut Module::from_buffer(code).unwrap();
+        for i in 0..1 {
+            if i % 100 == 0 {
+                println!("{}", i);
+            }
+            let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
+            hello_func.func_body().i32_const(1).drop();
+            let hello_func = hello_func.finish(vec![], &mut m.funcs);
+            m.exports.add(&format!("hello{}", i), hello_func);
+        }
+        let code = m.emit_wasm();
+        let contract = ContractCode::new(code.clone(), None);
 
         let args = vec![];
         println!("LEN = {}", contract.code().len());
