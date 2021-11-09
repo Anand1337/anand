@@ -323,7 +323,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     );
     let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
     let codes: HashMap<String, Vec<u8>> = entries.into_iter().map(|(k, v)| (v, k)).collect();
-    let nftspace_code = codes.get("mailgun.near").unwrap();
+    let nftspace_code = codes.get("nftspace.near").unwrap();
 
     let m = &mut Module::from_buffer(nftspace_code).unwrap();
     for i in 0..1 {
