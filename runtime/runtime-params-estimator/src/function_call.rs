@@ -402,7 +402,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         }
         let m = &mut Module::from_buffer(code).unwrap();
         for i in 0..4000 {
-            if i % 100 == 0 {
+            if i % 1000 == 0 {
                 println!("{}", i);
             }
             let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
