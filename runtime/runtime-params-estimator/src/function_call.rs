@@ -401,7 +401,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
             continue;
         }
         let m = &mut Module::from_buffer(code).unwrap();
-        for i in 0..4800 {
+        for i in 0..9600 {
             if i % 1000 == 0 {
                 println!("{}", i);
             }
@@ -532,6 +532,18 @@ fn test_function_call_icount() {
     test_function_call(GasMetric::ICount, VMKind::Wasmer0);
     // test_function_call(GasMetric::ICount, VMKind::Wasmer2);
     // test_function_call(GasMetric::ICount, VMKind::Wasmtime);
+}
+
+#[test]
+fn test_function_call_all_codes_time() {
+    // init_test_logger();
+    tracing_span_tree::span_tree().enable();
+    // Run with
+    // cargo test --release --lib function_call::test_function_call_time
+    //    --features required  -- --exact --nocapture
+    // test_function_call(GasMetric::Time, VMKind::Wasmer0);
+    test_function_call_all_codes(GasMetric::Time, VMKind::Wasmer2);
+    // test_function_call(GasMetric::Time, VMKind::Wasmtime);
 }
 
 #[test]
@@ -691,6 +703,10 @@ pub fn compute_function_call_cost(
     let mut fake_external = MockedExternal::new();
     let fake_context = create_context(args);
     let fees = RuntimeFeesConfig::test();
+    let protocol_version = ProtocolVersion::MAX;
+    let config_store = RuntimeConfigStore::new(None);
+    let config = config_store.get_config(protocol_version);
+    let wasm_config = config.wasm_config.clone();
     let promise_results = vec![];
     // precompile_contract(&contract, &vm_config, cache);
 
@@ -703,11 +719,11 @@ pub fn compute_function_call_cost(
                 "new",
                 &mut fake_external,
                 init_context,
-                &vm_config,
+                &wasm_config,
                 &fees,
                 &promise_results,
                 vm_kind,
-                ProtocolVersion::MAX,
+                protocol_version,
                 cache,
             );
             if result.1.is_some() {
@@ -726,11 +742,11 @@ pub fn compute_function_call_cost(
             method_name,
             &mut fake_external,
             fake_context.clone(),
-            &vm_config,
+            &wasm_config,
             &fees,
             &promise_results,
             vm_kind,
-            ProtocolVersion::MAX,
+            protocol_version,
             cache,
         );
         if result.1.is_some() {
@@ -748,11 +764,11 @@ pub fn compute_function_call_cost(
             method_name,
             &mut fake_external,
             fake_context.clone(),
-            &vm_config,
+            &wasm_config,
             &fees,
             &promise_results,
             vm_kind,
-            ProtocolVersion::MAX,
+            protocol_version,
             cache,
         );
         assert!(result.1.is_none());
