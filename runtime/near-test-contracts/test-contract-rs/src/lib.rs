@@ -795,8 +795,7 @@ fn call_promise() {
 }
 
 #[no_mangle]
-pub unsafe fn hello0() {
-
+pub unsafe fn hello0() {}
 #[cfg(not(feature = "base_protocol"))]
 #[no_mangle]
 fn do_ripemd() {
