@@ -537,8 +537,8 @@ fn test_function_call_all_codes_icount() {
     // Where runner.sh is
     // /host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/qemu-x86_64 \
     // -cpu Westmere-v1 -plugin file=/host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/libcounter.so $@
-    // test_function_call(GasMetric::ICount, VMKind::Wasmer0);
-    test_function_call_all_codes(GasMetric::ICount, VMKind::Wasmer2);
+    test_function_call_all_codes(GasMetric::ICount, VMKind::Wasmer0);
+    // test_function_call_all_codes(GasMetric::ICount, VMKind::Wasmer2);
     // test_function_call(GasMetric::ICount, VMKind::Wasmtime);
 }
 
