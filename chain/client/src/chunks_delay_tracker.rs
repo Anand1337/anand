@@ -5,7 +5,6 @@ use near_primitives::types::{BlockHeight, ShardId};
 
 use crate::metrics;
 use std::cmp::max;
-use std::ops::{RangeTo, RangeToInclusive};
 
 /// Provides monitoring information about the delays of receiving blocks and their corresponding chunks.
 /// Keeps timestamps of a limited number of blocks before the current head.
@@ -37,12 +36,11 @@ impl ChunksDelayTracker {
     }
 
     fn remove_old_entries(&mut self, head_height: BlockHeight) {
-        let mut heights_to_drop = vec![];
-        for (&k, _) in
-            self.heights.range(RangeTo { end: ChunksDelayTracker::lowest_height(head_height) })
-        {
-            heights_to_drop.push(k);
-        }
+        let heights_to_drop: Vec<BlockHeight> = self
+            .heights
+            .range(..ChunksDelayTracker::lowest_height(head_height))
+            .map(|(&k, _v)| k)
+            .collect();
         for h in heights_to_drop {
             self.heights.remove(&h);
         }
@@ -53,7 +51,7 @@ impl ChunksDelayTracker {
             return;
         }
         let mut max_delay = 0;
-        for (_, v) in self.heights.range(RangeToInclusive { end: head_height }) {
+        for (_, v) in self.heights.range(..=head_height) {
             if let Some(block_received) = v.block_received {
                 if let Some(latest_chunk) = v.chunks_received.values().max() {
                     if latest_chunk > &block_received {
@@ -68,7 +66,7 @@ impl ChunksDelayTracker {
     }
 
     fn update_blocks_missing_chunks_metric(&mut self, head_height: BlockHeight) {
-        let value = if let Some((&latest, _)) = self.heights.iter().rev().next() {
+        let value = if let Some((&latest, _)) = self.heights.iter().next_back() {
             latest.saturating_sub(head_height)
         } else {
             0
@@ -89,17 +87,7 @@ impl ChunksDelayTracker {
     ) {
         self.remove_old_entries(head_height);
         if height >= head_height {
-            self.heights
-                .entry(height)
-                .and_modify(|info| {
-                    if info.block_received.is_none() {
-                        info.block_received = Some(timestamp)
-                    }
-                })
-                .or_insert_with(|| HeightInfo {
-                    block_received: Some(timestamp),
-                    chunks_received: Default::default(),
-                });
+            self.heights.entry(height).or_default().block_received.get_or_insert(timestamp);
         }
         self.update_metrics(head_height);
     }
