@@ -613,6 +613,7 @@ impl Trie {
     }
 
     pub(crate) fn retrieve_raw_bytes(&self, hash: &CryptoHash) -> Result<Vec<u8>, StorageError> {
+        let _span = tracing::debug_span!(target: "vm", "retrieve_raw_bytes").entered();
         self.counter.increment();
         self.storage.retrieve_raw_bytes(hash)
     }
