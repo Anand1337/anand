@@ -871,8 +871,8 @@ impl Client {
                     ProcessPartialEncodedChunkResult::Known => Ok(vec![]),
                     ProcessPartialEncodedChunkResult::HaveAllPartsAndReceipts(_) => {
                         self.record_receive_chunk_timestamp(
-                            partial_encoded_chunk.height_created(),
-                            partial_encoded_chunk.shard_id(),
+                            pec_v2.header.height_created(),
+                            pec_v2.header.shard_id(),
                         );
                         self.chain.blocks_with_missing_chunks.accept_chunk(&chunk_hash);
                         Ok(self.process_blocks_with_missing_chunks(protocol_version))
