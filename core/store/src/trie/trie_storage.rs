@@ -172,6 +172,7 @@ impl TrieStorage for TrieCachingStorage {
                 .store
                 .get(ColState, key.as_ref())
                 .map_err(|_| StorageError::StorageInternalError)?;
+            eprintln!("key hash = {}, val len = {}", hash, val.unwrap_or_default().len());
             if let Some(val) = val {
                 if val.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
                     guard.cache_set(*hash, val.clone());
