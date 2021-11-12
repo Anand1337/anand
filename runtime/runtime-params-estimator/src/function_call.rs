@@ -26,7 +26,7 @@ use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::fs::{File, OpenOptions};
-use std::io::{BufReader, Write};
+use std::io::{BufReader, Write as OtherWrite};
 use std::str;
 use std::sync::Arc;
 use walrus::ir::*;
