@@ -542,7 +542,7 @@ fn test_function_call_icount() {
 #[test]
 fn test_function_call_all_codes_time() {
     // init_test_logger();
-    tracing_span_tree::span_tree().enable();
+    // tracing_span_tree::span_tree().enable();
     // Run with
     // cargo test --release --lib function_call::test_function_call_time
     //    --features required  -- --exact --nocapture
