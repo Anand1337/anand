@@ -411,7 +411,9 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
             m.exports.add(&format!("hello{}", i), hello_func);
         }
         let code = m.emit_wasm();
-        let mut file = File::create(format!("/host/nearcore/{}_test.wasm", account_id)).unwrap();
+        let fname = format!("/host/nearcore/{}_test.wasm", account_id);
+        eprintln!("{}", fname);
+        let mut file = File::create(fname).unwrap();
         // Write a slice of bytes to the file
         file.write_all(&code).unwrap();
         let contract = ContractCode::new(code.clone(), None);
