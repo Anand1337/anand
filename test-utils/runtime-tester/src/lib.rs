@@ -62,7 +62,7 @@ fn perf_cliff() {
     let code = vec![92; 256];
     let num_accounts = 200_000;
     let block_size = 100;
-    let n_blocks = 120;
+    let n_blocks = 240;
 
     let seeds: Vec<String> = (0..num_accounts).map(|i| format!("near_{}_{}", i, i)).collect();
     let accounts: Vec<AccountId> = seeds.iter().map(|id| id.parse().unwrap()).collect();
