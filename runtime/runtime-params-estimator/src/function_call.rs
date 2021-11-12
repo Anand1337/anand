@@ -26,7 +26,7 @@ use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::fs::{File, OpenOptions};
-use std::io::BufReader;
+use std::io::{BufReader, Write};
 use std::str;
 use std::sync::Arc;
 use walrus::ir::*;
@@ -411,6 +411,9 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
             m.exports.add(&format!("hello{}", i), hello_func);
         }
         let code = m.emit_wasm();
+        let mut file = File::create(format!("/host/nearcore/{}_test.wasm", account_id))?;
+        // Write a slice of bytes to the file
+        file.write_all(&code)?;
         let contract = ContractCode::new(code.clone(), None);
 
         let args = vec![];
