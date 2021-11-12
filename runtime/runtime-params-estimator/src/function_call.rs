@@ -15,10 +15,10 @@ use nearcore::get_store_path;
 use num_rational::Ratio;
 use std::fmt::Write;
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, Write as OtherWrite};
 use std::sync::Arc;
 
-const REPEATS: u64 = 1;
+const REPEATS: u64 = 5;
 
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
@@ -56,11 +56,17 @@ fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
     let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
 
     // for params in vec![(9990, 50), (20010, 10), (50010, 1), (100010, 1)].iter().cloned() {
-    for (code, account_id) in entries.iter() {
-        let params = account_id;
-        // let (method_count, body_repeat) = params;
+    for params in vec![(9990, 110), (9990, 1)].iter().cloned() {
+        // for (code, account_id) in entries.iter() {
+        //     let params = account_id;
+        let (method_count, body_repeat) = params;
         // let code = many_functions_contract(method_count);
-        // let code = many_functions_contract_with_repeats(method_count, body_repeat);
+        let code = many_functions_contract_with_repeats(method_count, body_repeat);
+        let fname = format!("/home/Aleksandr1/nearcore/test_{}_{}.wasm", method_count, body_repeat);
+        eprintln!("{}", fname);
+        let mut file = File::create(fname).unwrap();
+        // Write a slice of bytes to the file
+        file.write_all(&code).unwrap();
         let contract = ContractCode::new(code.clone(), None);
         let store = RuntimeConfigStore::new(None);
         let config = store.get_config(ProtocolVersion::MAX);
