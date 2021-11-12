@@ -1,10 +1,10 @@
+use std::cmp::max;
 use std::collections::{BTreeMap, HashMap};
 use std::time::Instant;
 
 use near_primitives::types::{BlockHeight, ShardId};
 
 use crate::metrics;
-use std::cmp::max;
 
 /// Provides monitoring information about the delays of receiving blocks and their corresponding chunks.
 /// Keeps timestamps of a limited number of blocks before the current head.
