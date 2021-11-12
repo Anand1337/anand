@@ -2,13 +2,14 @@ use std::time::Duration;
 
 use actix::Addr;
 use actix_cors::Cors;
-use actix_web::{http, middleware, web, App, Error as HttpError, HttpResponse, HttpServer};
+use actix_web::{http, middleware, web, App, Error as HttpError, HttpResponse, HttpServer, HttpRequest };
 use futures::Future;
 use futures::FutureExt;
 use prometheus;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::time::{sleep, timeout};
+use tokio::sync::{Mutex};
 use tracing::info;
 
 use near_chain_configs::GenesisConfig;
@@ -34,14 +35,16 @@ use near_primitives::transaction::SignedTransaction;
 use near_primitives::types::AccountId;
 use near_primitives::views::FinalExecutionOutcomeViewEnum;
 
-mod metrics;
-
 use ratelimit_meter::{DirectRateLimiter, GCRA};
 use nonzero_ext::nonzero;
+use core::num::NonZeroU32;
+
+mod metrics;
+
 
 lazy_static::lazy_static! {
-    static ref TRANSACTION_LIMITER: DirectRateLimiter::<GCRA> = {
-        DirectRateLimiter::<GCRA>::per_second(nonzero!(10u32))
+    static ref TRANSACTION_LIMITER: Mutex<DirectRateLimiter::<GCRA>> = {
+        Mutex::new(DirectRateLimiter::<GCRA>::per_second(nonzero!(10u32)))
     };
 }
 
@@ -274,7 +277,8 @@ impl JsonRpcHandler {
             }
             "broadcast_tx_commit" => {
                 loop {
-                    let lim = TRANSACTION_LIMITER.clone().check();
+                    let lim = TRANSACTION_LIMITER.lock().await.clone().check();
+                    // TRANSACTION_LIMITER = DirectRateLimiter::<GCRA>::per_second(nonzero!(10u32));
                     match lim {
                         Ok(_) => break,
                         Err(_) => sleep(Duration::from_millis(500)).await,
@@ -1155,6 +1159,34 @@ fn rpc_handler(
     response.boxed()
 }
 
+#[derive(Deserialize)]
+struct UpdateThrottling {
+    tps: NonZeroU32,
+}
+
+fn throttle_handler(
+    req: HttpRequest,
+    throttle_request: web::Json<UpdateThrottling>,
+) -> impl Future<Output = Result<HttpResponse, HttpError>> {
+    async move {
+        let mut le = TRANSACTION_LIMITER.lock().await;
+        let auth = req.headers().get(http::header::AUTHORIZATION);
+        match auth {
+            Some(value) => {
+                match value.to_str() {
+                    Some(st) => {
+                      *le = DirectRateLimiter::<GCRA>::per_second(throttle_request.tps);
+                      info!(target:"stats", "tps: {}, auth: {}", throttle_request.tps, *st);
+                      Ok(HttpResponse::Ok().finish())
+                    }
+                    None(_) => Ok(HttpResponse::BadRequest().finish()),
+                }
+            },
+            None => Ok(HttpResponse::Unauthorized().finish()),
+        }
+    }
+}
+
 fn status_handler(
     handler: web::Data<JsonRpcHandler>,
 ) -> impl Future<Output = Result<HttpResponse, HttpError>> {
@@ -1254,6 +1286,7 @@ pub fn start_http(
             )
             .service(web::resource("/network_info").route(web::get().to(network_info_handler)))
             .service(web::resource("/metrics").route(web::get().to(prometheus_handler)))
+            .service(web::resource("/throttle").route(web::post().to(throttle_handler)))
     })
     .bind(addr)
     .unwrap()
