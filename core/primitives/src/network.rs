@@ -1,5 +1,6 @@
 use std::fmt;
 use std::hash::Hash;
+use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
@@ -13,9 +14,25 @@ use crate::types::{AccountId, EpochId};
 #[derive(
     BorshSerialize, BorshDeserialize, Clone, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash,
 )]
-pub struct PeerId(pub PublicKey);
+pub struct PeerId(pub Arc<PeerIdInner>);
+
+/// Peer id is the public key.
+#[derive(
+    BorshSerialize, BorshDeserialize, Clone, Eq, PartialOrd, Ord, Serialize, Deserialize, Hash,
+)]
+pub struct PeerIdInner(pub PublicKey);
 
 impl PeerId {
+    pub fn new(key: PublicKey) -> Self {
+        Self(Arc::new(PeerIdInner(key)))
+    }
+
+    pub fn public_key(&self) -> PublicKey {
+        self.0 .0.clone()
+    }
+}
+
+impl PeerIdInner {
     pub fn new(key: PublicKey) -> Self {
         Self(key)
     }
@@ -39,7 +56,7 @@ impl From<&PeerId> for Vec<u8> {
 
 impl From<PublicKey> for PeerId {
     fn from(public_key: PublicKey) -> PeerId {
-        PeerId(public_key)
+        PeerId::new(public_key)
     }
 }
 
@@ -47,11 +64,17 @@ impl TryFrom<Vec<u8>> for PeerId {
     type Error = Box<dyn std::error::Error>;
 
     fn try_from(bytes: Vec<u8>) -> Result<PeerId, Self::Error> {
-        Ok(PeerId(PublicKey::try_from_slice(&bytes)?))
+        Ok(PeerId::new(PublicKey::try_from_slice(&bytes)?))
     }
 }
 
 impl PartialEq for PeerId {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 .0 == other.0 .0
+    }
+}
+
+impl PartialEq for PeerIdInner {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
@@ -59,13 +82,13 @@ impl PartialEq for PeerId {
 
 impl fmt::Display for PeerId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.0 .0)
     }
 }
 
 impl fmt::Debug for PeerId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.0 .0)
     }
 }
 
