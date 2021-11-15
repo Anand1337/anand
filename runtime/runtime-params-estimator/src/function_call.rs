@@ -309,7 +309,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let codes: HashMap<String, Vec<u8>> = entries.into_iter().map(|(k, v)| (v, k)).collect();
     let mut custom_code = Vec::new();
     let mut f = File::open("/host/nearcore/cdao.near.with_noop.wasm").unwrap();
-    f.read_to_end(&mut buffer).unwrap();
+    f.read_to_end(&mut custom_code).unwrap();
     //codes.get("nftspace.near").unwrap();
 
     // let m = &mut Module::from_buffer(nftspace_code).unwrap();
