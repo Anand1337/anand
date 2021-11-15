@@ -26,7 +26,7 @@ use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::fs::{File, OpenOptions};
-use std::io::{BufReader, Write as OtherWrite};
+use std::io::{BufReader, Read, Write as OtherWrite};
 use std::str;
 use std::sync::Arc;
 use walrus::ir::*;
@@ -307,7 +307,10 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // );
     // let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
     // let codes: HashMap<String, Vec<u8>> = entries.into_iter().map(|(k, v)| (v, k)).collect();
-    let custom_code = vec![]; //codes.get("nftspace.near").unwrap();
+    let mut custom_code = Vec::new();
+    let mut f = File::open("/host/nearcore/cdao.near.with_noop.wasm").unwrap();
+    f.read_to_end(&mut buffer).unwrap();
+    //codes.get("nftspace.near").unwrap();
 
     // let m = &mut Module::from_buffer(nftspace_code).unwrap();
     // for i in 0..1 {
