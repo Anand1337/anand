@@ -307,7 +307,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // );
     // let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
     // let codes: HashMap<String, Vec<u8>> = entries.into_iter().map(|(k, v)| (v, k)).collect();
-    let nftspace_code = vec![]; //codes.get("nftspace.near").unwrap();
+    let custom_code = vec![]; //codes.get("nftspace.near").unwrap();
 
     // let m = &mut Module::from_buffer(nftspace_code).unwrap();
     // for i in 0..1 {
@@ -333,7 +333,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         let contract = if method_count != 0 {
             make_many_methods_contract(method_count, body_repeat)
         } else {
-            ContractCode::new(nftspace_code.clone(), None)
+            ContractCode::new(custom_code.clone(), None)
         };
 
         let args = vec![];
