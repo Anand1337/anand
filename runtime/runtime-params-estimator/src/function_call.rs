@@ -401,7 +401,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
             continue;
         }
         let m = &mut Module::from_buffer(code).unwrap();
-        for i in 0..100 {
+        for i in 0..1 {
             if i % 1000 == 0 {
                 println!("{}", i);
             }
@@ -411,7 +411,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
             m.exports.add(&format!("hello{}", i), hello_func);
         }
         let code = m.emit_wasm();
-        let fname = format!("/home/Aleksandr1/nearcore/{}_test.wasm", account_id);
+        let fname = format!("/home/Aleksandr1/nearcore/{}.with_noop.wasm", account_id);
         eprintln!("{}", fname);
         let mut file = File::create(fname).unwrap();
         // Write a slice of bytes to the file
