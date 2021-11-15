@@ -288,7 +288,10 @@ cargo build --manifest-path /host/nearcore/Cargo.toml \
         cmd.args(&["/usr/bin/env", "bash", "-c", &init]);
     }
 
+    eprintln!("{:?}", cmd);
+    panic!("panic");
     cmd.status()?;
+
     Ok(())
 }
 
