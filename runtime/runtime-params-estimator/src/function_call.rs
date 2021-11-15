@@ -381,15 +381,15 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         return;
     }
 
-    let (cost_base, cost_byte, _) = least_squares_method(&xs, &ys);
-
-    println!(
-        "{:?} {:?} function call base {} gas, per byte {} gas",
-        vm_kind,
-        metric,
-        ratio_to_gas_signed(metric, cost_base),
-        ratio_to_gas_signed(metric, cost_byte),
-    );
+    // let (cost_base, cost_byte, _) = least_squares_method(&xs, &ys);
+    //
+    // println!(
+    //     "{:?} {:?} function call base {} gas, per byte {} gas",
+    //     vm_kind,
+    //     metric,
+    //     ratio_to_gas_signed(metric, cost_base),
+    //     ratio_to_gas_signed(metric, cost_byte),
+    // );
 }
 
 #[allow(dead_code)]
@@ -537,8 +537,8 @@ fn test_function_call_icount() {
     // Where runner.sh is
     // /host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/qemu-x86_64 \
     // -cpu Westmere-v1 -plugin file=/host/nearcore/runtime/runtime-params-estimator/emu-cost/counter_plugin/libcounter.so $@
-    test_function_call(GasMetric::ICount, VMKind::Wasmer0);
-    // test_function_call(GasMetric::ICount, VMKind::Wasmer2);
+    // test_function_call(GasMetric::ICount, VMKind::Wasmer0);
+    test_function_call(GasMetric::ICount, VMKind::Wasmer2);
     // test_function_call(GasMetric::ICount, VMKind::Wasmtime);
 }
 
