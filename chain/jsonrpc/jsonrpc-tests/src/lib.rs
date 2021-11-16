@@ -8,7 +8,7 @@ use near_client::ViewClientActor;
 use near_jsonrpc::{start_http, RpcConfig};
 use near_jsonrpc_primitives::message::{from_slice, Message};
 #[cfg(feature = "test_features")]
-use near_network::test_utils::make_peer_manager_routing_table_addr_pair;
+use near_network::make_peer_manager_routing_table_addr_pair;
 use near_network::test_utils::open_port;
 use near_primitives::types::NumBlocks;
 
