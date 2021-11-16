@@ -55,8 +55,6 @@
 //! }
 //! ```
 
-pub mod near_gauge;
-
 pub use prometheus::{
     Encoder, Histogram, HistogramVec, IntCounter, IntCounterVec, IntGauge, Result, TextEncoder,
 };
