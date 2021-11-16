@@ -384,9 +384,22 @@ impl RocksDBOptions {
 
     /// Opens a read only database.
     pub fn read_only<P: AsRef<std::path::Path>>(self, path: P) -> Result<RocksDB, DBError> {
-        let options = self.rocksdb_options.unwrap_or_default();
-        let cf_names: Vec<_> = self.cf_names.unwrap_or_else(|| vec!["col0".to_string()]);
-        let db = DB::open_cf_for_read_only(&options, path, cf_names.iter(), false)?;
+        use strum::IntoEnumIterator;
+        let options = self.rocksdb_options.unwrap_or_else(|| rocksdb_options());
+        let cf_names = self
+            .cf_names
+            .unwrap_or_else(|| DBCol::iter().map(|col| format!("col{}", col as usize)).collect());
+        let cf_descriptors = self.cf_descriptors.unwrap_or_else(|| {
+            DBCol::iter()
+                .map(|col| {
+                    ColumnFamilyDescriptor::new(
+                        format!("col{}", col as usize),
+                        rocksdb_column_options(col),
+                    )
+                })
+                .collect()
+        });
+        let db = DB::open_cf_descriptors_read_only(&options, path, cf_descriptors, false)?;
         let cfs =
             cf_names.iter().map(|n| db.cf_handle(n).unwrap() as *const ColumnFamily).collect();
         Ok(RocksDB {
@@ -521,7 +534,7 @@ impl Database for RocksDB {
     fn write(&self, transaction: DBTransaction) -> Result<(), DBError> {
         if let Err(check) = self.pre_write_check() {
             if check.is_io() {
-                warn!("unable to verify remaing disk space: {}, continueing write without verifying (this may result in unrecoverable data loss if disk space is exceeded", check)
+                warn!("unable to verify remaining disk space: {}, continuing write without verifying (this may result in unrecoverable data loss if disk space is exceeded", check)
             } else {
                 panic!("{}", check)
             }
@@ -704,7 +717,7 @@ impl RocksDB {
         })
     }
 
-    fn new_read_only<P: AsRef<std::path::Path>>(path: P) -> Result<Self, DBError> {
+    pub fn new_read_only<P: AsRef<std::path::Path>>(path: P) -> Result<Self, DBError> {
         RocksDBOptions::default().read_only(path)
     }
 

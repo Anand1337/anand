@@ -25,7 +25,7 @@ use near_primitives::trie_key::TrieKey;
 use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{BlockHeight, ShardId, StateRoot};
 use near_store::test_utils::create_test_store;
-use near_store::{create_store, Store, TrieIterator};
+use near_store::{create_store_read_only, Store, TrieIterator};
 use nearcore::{get_default_home, get_store_path, load_config, NearConfig, NightshadeRuntime};
 use node_runtime::adapter::ViewRuntimeAdapter;
 use state_dump::state_dump;
@@ -607,7 +607,7 @@ fn main() {
     let home_dir = matches.value_of("home").map(|dir| Path::new(dir)).unwrap();
     let near_config = load_config(home_dir);
 
-    let store = create_store(&get_store_path(&home_dir));
+    let store = create_store_read_only(&get_store_path(&home_dir));
 
     match matches.subcommand() {
         ("peers", Some(_args)) => {

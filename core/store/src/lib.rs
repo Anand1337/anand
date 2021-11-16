@@ -303,6 +303,11 @@ pub fn create_store(path: &Path) -> Arc<Store> {
     Arc::new(Store::new(db))
 }
 
+pub fn create_store_read_only(path: &Path) -> Arc<Store> {
+    let db = Arc::pin(RocksDB::new_read_only(path).expect("Failed to open the database"));
+    Arc::new(Store::new(db))
+}
+
 /// Reads an object from Trie.
 /// # Errors
 /// see StorageError
