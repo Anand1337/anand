@@ -60,7 +60,7 @@ impl Encoder<Vec<u8>> for Codec {
             {
                 error!(target: "network", "{} throwing away message, because buffer is full item.len(): {} buf.capacity: {}", get_tid(), item.len(), buf.capacity());
 
-                metrics::DROPPED_MESSAGES_COUNT.inc_by(1);
+                metrics::DROPPED_MESSAGES_COUNT.inc();
                 return Err(Error::new(ErrorKind::Other, "Buf max capacity exceeded"));
             }
             // First four bytes is the length of the buffer.

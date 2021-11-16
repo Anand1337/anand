@@ -245,7 +245,7 @@ impl RoutingTableActor {
         for peer in self.peer_forwarding.keys() {
             self.peer_last_time_reachable.insert(peer.clone(), now);
         }
-        metrics::ROUTING_TABLE_RECALCULATIONS.inc_by(1);
+        metrics::ROUTING_TABLE_RECALCULATIONS.inc();
         metrics::PEER_REACHABLE.set(self.peer_forwarding.len() as i64);
     }
 
