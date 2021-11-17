@@ -25,6 +25,7 @@ tokio = { version = "1.1", features = ["full"] }
 tokio-stream = { version = "0.1.2", features = ["net"] }
 tokio-util = { version = "0.6", features = ["codec"] }
 tracing = "0.1.13"
+tempfile = "3"
 
 delay-detector = { path = "../../tools/delay_detector", optional = true}
 near-chain-configs = { path = "../../core/chain-configs" }
