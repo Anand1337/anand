@@ -234,7 +234,7 @@ lazy_static! {
 lazy_static! {
     pub static ref IS_COL_RC: Vec<bool> = {
         let mut col_rc = vec![false; NUM_COLS];
-        col_rc[DBCol::ColState as usize] = true;
+        col_rc[DBCol::ColState as usize] = false;
         col_rc[DBCol::ColTransactions as usize] = true;
         col_rc[DBCol::ColReceipts as usize] = true;
         col_rc[DBCol::ColReceiptIdToShardId as usize] = true;
