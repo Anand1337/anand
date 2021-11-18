@@ -4,7 +4,7 @@ extern crate bencher;
 use bencher::{black_box, Bencher};
 use near_primitives::borsh::maybestd::sync::Arc;
 use near_primitives::errors::StorageError;
-use near_store::db::DBCol::ColState;
+use near_store::db::DBCol::{ColBlock, ColState};
 use near_store::{create_store, Store};
 use std::time::{Duration, Instant};
 
@@ -71,7 +71,8 @@ fn write_to_db(store: &Arc<Store>, keys: &[Vec<u8>]) {
     for key in keys.iter() {
         let x: u32 = rand::random::<u32>() % 333;
         let val: Vec<u8> = (0..x).map(|_| rand::random::<u8>()).collect();
-        store_update.set(ColState, key.as_slice().clone(), &val);
+        store_update.set(ColBlock, key.as_slice().clone(), &val);
+        // store_update.set(ColState, key.as_slice().clone(), &val);
     }
     store_update.commit().unwrap();
 }
