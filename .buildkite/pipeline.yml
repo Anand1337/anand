@@ -128,6 +128,16 @@ steps:
     agents:
     - "distro=amazonlinux"
 
+  - label: "compile fuzzer"
+    command: |
+      source ~/.cargo/env && set -eux
+      cd test-utils/runtime-tester/fuzz
+      RUSTC_BOOTSTRAP=1 cargo fuzz build runtime-fuzzer --release
+    timeout: 60
+    agents:
+    - "distro=amazonlinux"
+    branches: "!master"
+
   #- label: "near-sdk-rs tests"
   #  trigger: "near-sdk-rs"
   #  branches: "!master"
