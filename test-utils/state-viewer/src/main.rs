@@ -11,16 +11,17 @@ use clap::{App, AppSettings, Arg, SubCommand};
 // use borsh::BorshSerialize;
 use near_chain::chain::collect_receipts_from_response;
 use near_chain::migrations::check_if_block_is_first_with_chunk_of_version;
-use near_primitives::borsh::BorshSerialize;
 use near_chain::types::{ApplyTransactionResult, BlockHeaderInfo};
 use near_chain::{ChainStore, ChainStoreAccess, ChainStoreUpdate, RuntimeAdapter};
 use near_logger_utils::init_integration_logger;
 use near_network::peer_store::PeerStore;
 use near_primitives::block::BlockHeader;
+use near_primitives::borsh::BorshSerialize;
 use near_primitives::contract::ContractCode;
 use near_primitives::hash::CryptoHash;
 use near_primitives::serialize::to_base;
 use near_primitives::state_record::StateRecord;
+use near_primitives::transaction::Action;
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{BlockHeight, ShardId, StateRoot};
@@ -109,13 +110,19 @@ pub fn format_hash(h: CryptoHash) -> String {
     to_base(&h)[..7].to_string()
 }
 
+fn gas_pretty(gas: near_primitives::types::Gas) -> f64 {
+    f64::from(u32::try_from(gas / 1_000_000_000).unwrap()) / 1000.0
+}
+
 fn print_chain(
     store: Arc<Store>,
     home_dir: &Path,
     near_config: &NearConfig,
     start_height: BlockHeight,
     end_height: BlockHeight,
+    mut csv: std::fs::File,
 ) {
+    write!(csv, "Height,action_idx,Signer,Receiver,Type,Method,Gas,\n").unwrap();
     let mut chain_store = ChainStore::new(store.clone(), near_config.genesis.config.genesis_height);
     let runtime = NightshadeRuntime::new(
         &home_dir,
@@ -126,15 +133,16 @@ fn print_chain(
         None,
         near_config.client_config.max_gas_burnt_view,
     );
+    // let mut tx_map = HashMap::new();
     let mut account_id_to_blocks = HashMap::new();
     let mut cur_epoch_id = None;
     for height in start_height..=end_height {
         if let Ok(block_hash) = chain_store.get_block_hash_by_height(height) {
-            let header = chain_store.get_block_header(&block_hash).unwrap().clone();
+            let block = chain_store.get_block(&block_hash).unwrap().clone();
+            let header = block.header();
             if height == 0 {
                 println!("{: >3} {}", header.height(), format_hash(*header.hash()));
             } else {
-                let parent_header = chain_store.get_block_header(header.prev_hash()).unwrap();
                 let epoch_id = runtime.get_epoch_id_from_prev_block(header.prev_hash()).unwrap();
                 cur_epoch_id = Some(epoch_id.clone());
                 if runtime.is_next_block_epoch_start(header.prev_hash()).unwrap() {
@@ -154,14 +162,75 @@ fn print_chain(
                     .entry(block_producer.clone())
                     .and_modify(|e| *e += 1)
                     .or_insert(1);
+
                 println!(
-                    "{: >3} {} | {: >10} | parent: {: >3} {}",
+                    "{: >3} {} | {: >10} ",
                     header.height(),
                     format_hash(*header.hash()),
                     block_producer,
-                    parent_header.height(),
-                    format_hash(*parent_header.hash()),
                 );
+                for chunk_header in block.chunks().iter() {
+                    let chunk = chain_store.get_chunk(&chunk_header.chunk_hash()).unwrap();
+                    print!(
+                        "{} {:.3} gas: ",
+                        chunk_header.height_included(),
+                        gas_pretty(chunk_header.gas_used())
+                    );
+                    for stx in chunk.transactions().iter() {
+                        let tx = &stx.transaction;
+
+                        print!("[");
+                        for (i, action) in tx.actions.iter().enumerate() {
+                            write!(
+                                csv,
+                                "{},{},{},{},",
+                                chunk_header.height_included(),
+                                i,
+                                tx.signer_id,
+                                tx.receiver_id
+                            )
+                            .unwrap();
+
+                            match action {
+                                Action::CreateAccount(_) => {
+                                    print!(" +ACC");
+                                    write!(csv, "CREATEACC,,,\n").unwrap();
+                                }
+                                Action::DeployContract(d) => {
+                                    print!(" DPLY({})", d.code.len());
+                                    write!(csv, "DPLY,,,\n").unwrap();
+                                }
+                                Action::FunctionCall(f) => {
+                                    write!(csv, "FN,{},{},\n", f.method_name, f.gas).unwrap();
+                                    print!(" FN({}: {:.3})", f.method_name, gas_pretty(f.gas));
+                                }
+                                Action::Transfer(_) => {
+                                    write!(csv, "TXFR,,,\n").unwrap();
+                                    print!(" TXFR");
+                                }
+                                Action::Stake(_) => {
+                                    write!(csv, "STK,,,\n").unwrap();
+                                    print!(" STK");
+                                }
+                                Action::AddKey(_) => {
+                                    write!(csv, "ADDKEY,,,\n").unwrap();
+                                    print!(" +KEY");
+                                }
+                                Action::DeleteKey(_) => {
+                                    write!(csv, "DELKEY,,,\n").unwrap();
+                                    print!(" -KEY");
+                                }
+                                Action::DeleteAccount(_) => {
+                                    write!(csv, "DECACC,,,\n").unwrap();
+                                    print!(" -ACC");
+                                }
+                            }
+                        }
+                        print!("]");
+                    }
+                    println!("");
+                }
+                println!("--------------");
             }
         } else {
             if let Some(epoch_id) = &cur_epoch_id {
@@ -456,6 +525,7 @@ fn main() {
                         .help("End index of query")
                         .takes_value(true),
                 )
+                .arg(Arg::with_name("csv_file").long("csv_file").required(true).takes_value(true))
                 .help("print chain from start_index to end_index"),
         )
         .subcommand(
@@ -505,12 +575,7 @@ fn main() {
                         .required(false)
                         .takes_value(false),
                 )
-                .arg(
-                    Arg::with_name("csv_file")
-                        .long("csv_file")
-                        .required(false)
-                        .takes_value(true),
-                )
+                .arg(Arg::with_name("csv_file").long("csv_file").required(false).takes_value(true))
                 .help("apply blocks at a range of heights for a single shard"),
         )
         .subcommand(
@@ -660,7 +725,9 @@ fn main() {
             let start_index =
                 args.value_of("start_index").map(|s| s.parse::<u64>().unwrap()).unwrap();
             let end_index = args.value_of("end_index").map(|s| s.parse::<u64>().unwrap()).unwrap();
-            print_chain(store, home_dir, &near_config, start_index, end_index);
+            let csv_filename = args.value_of("csv_file").unwrap();
+            let csv_file = std::fs::File::create(csv_filename).unwrap();
+            print_chain(store, home_dir, &near_config, start_index, end_index, csv_file);
         }
         ("replay", Some(args)) => {
             let start_index =
@@ -685,7 +752,6 @@ fn main() {
             if let Some(filename) = csv_filename {
                 csv_file = Some(std::fs::File::create(filename).unwrap());
             }
-
 
             let runtime = NightshadeRuntime::new(
                 &home_dir,
