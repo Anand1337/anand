@@ -10,15 +10,13 @@ use near_chain::migrations::check_if_block_is_first_with_chunk_of_version;
 use near_chain::types::ApplyTransactionResult;
 use near_chain::{ChainStore, ChainStoreAccess, ChainStoreUpdate, RuntimeAdapter};
 use near_chain_configs::Genesis;
-use near_epoch_manager::EpochManager;
 use near_primitives::borsh::maybestd::sync::Arc;
 use near_primitives::hash::CryptoHash;
 use near_primitives::receipt::DelayedReceiptIndices;
-use near_primitives::transaction::{ExecutionOutcomeWithId, ExecutionOutcomeWithIdAndProof};
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{BlockHeight, ShardId};
-use near_store::{get, DBCol, Store};
+use near_store::{get, Store};
 use nearcore::NightshadeRuntime;
 
 fn inc_and_report_progress(cnt: &AtomicU64) {
@@ -26,26 +24,6 @@ fn inc_and_report_progress(cnt: &AtomicU64) {
     if (prev + 1) % 10000 == 0 {
         println!("Processed {} blocks", prev + 1);
     }
-}
-
-fn old_outcomes(
-    store: Arc<Store>,
-    new_outcomes: &Vec<ExecutionOutcomeWithId>,
-) -> Vec<ExecutionOutcomeWithId> {
-    new_outcomes
-        .iter()
-        .map(|outcome| {
-            store
-                .get_ser::<Vec<ExecutionOutcomeWithIdAndProof>>(
-                    DBCol::ColTransactionResult,
-                    outcome.id.as_ref(),
-                )
-                .unwrap()
-                .unwrap()[0]
-                .outcome_with_id
-                .clone()
-        })
-        .collect()
 }
 
 fn maybe_add_to_csv(csv_file_mutex: &Arc<Mutex<Option<&mut File>>>, s: &str) {
