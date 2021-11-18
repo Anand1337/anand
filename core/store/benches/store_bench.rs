@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 // try to write to db `10m` keys and then read all of them in random order
 fn benchmark_write_then_read_successful(bench: &mut Bencher) {
     let store = create_store_in_random_folder();
-    let num_keys = 10000000;
+    let num_keys = 100;
     let keys = generate_keys(num_keys);
     write_to_db(&store, &keys);
 
