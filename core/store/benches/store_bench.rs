@@ -55,7 +55,7 @@ fn read_from_db(store: &Arc<Store>, keys: &Vec<Vec<u8>>) -> usize {
         let r = rand::random::<u32>() % (keys.len() as u32);
         let key = &keys[r as usize];
 
-        let val = store.get(ColBlock, key.as_ref()).map_err(|_| StorageError::StorageInternalError);
+        let val = store.get(ColState, key.as_ref()).map_err(|_| StorageError::StorageInternalError);
 
         if let Ok(Some(x)) = val {
             black_box(x);
@@ -71,8 +71,8 @@ fn write_to_db(store: &Arc<Store>, keys: &[Vec<u8>]) {
     for key in keys.iter() {
         let x: u32 = rand::random::<u32>() % 333;
         let val: Vec<u8> = (0..x).map(|_| rand::random::<u8>()).collect();
-        store_update.set(ColBlock, key.as_slice().clone(), &val);
-        // store_update.set(ColState, key.as_slice().clone(), &val);
+        // store_update.set(ColBlock, key.as_slice().clone(), &val);
+        store_update.set(ColState, key.as_slice().clone(), &val);
     }
     store_update.commit().unwrap();
 }
