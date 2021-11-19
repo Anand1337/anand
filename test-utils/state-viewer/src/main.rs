@@ -13,7 +13,7 @@ use near_chain::chain::collect_receipts_from_response;
 use near_chain::migrations::check_if_block_is_first_with_chunk_of_version;
 use near_chain::types::{ApplyTransactionResult, BlockHeaderInfo};
 use near_chain::{ChainStore, ChainStoreAccess, ChainStoreUpdate, RuntimeAdapter};
-use near_logger_utils::init_integration_logger;
+use near_logger_utils::{init_integration_debug_logger, init_integration_logger};
 use near_network::peer_store::PeerStore;
 use near_primitives::block::BlockHeader;
 use near_primitives::borsh::BorshSerialize;
@@ -487,8 +487,6 @@ fn dump_code(account: &str, contract_code: ContractCode, output: &str) {
 }
 
 fn main() {
-    init_integration_logger();
-
     let default_home = get_default_home();
     let matches = App::new("state-viewer")
         .setting(AppSettings::SubcommandRequiredElseHelp)
@@ -498,6 +496,12 @@ fn main() {
                 .default_value(&default_home)
                 .help("Directory for config and data (default \"~/.near\")")
                 .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("debug_log")
+                .long("debug_log")
+                .help("verbose logging")
+                .takes_value(false),
         )
         .subcommand(SubCommand::with_name("peers"))
         .subcommand(SubCommand::with_name("state"))
@@ -671,6 +675,12 @@ fn main() {
                 .help("dump contract data in storage of given account to binary file"),
         )
         .get_matches();
+
+    if matches.is_present("debug_log") {
+        init_integration_debug_logger();
+    } else {
+        init_integration_logger();
+    }
 
     let home_dir = matches.value_of("home").map(|dir| Path::new(dir)).unwrap();
     let near_config = load_config(home_dir);

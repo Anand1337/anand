@@ -1,3 +1,4 @@
+use tracing::metadata::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
 fn setup_subscriber_from_filter(mut env_filter: EnvFilter) {
@@ -39,5 +40,10 @@ pub fn init_test_module_logger(module: &str) {
 
 pub fn init_integration_logger() {
     let env_filter = EnvFilter::new("actix_web=warn,info");
+    setup_subscriber_from_filter(env_filter);
+}
+
+pub fn init_integration_debug_logger() {
+    let env_filter = EnvFilter::new("actix_web=warn,info").add_directive(LevelFilter::DEBUG.into());
     setup_subscriber_from_filter(env_filter);
 }
