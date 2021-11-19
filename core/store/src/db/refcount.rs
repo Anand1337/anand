@@ -66,7 +66,7 @@ pub fn decode_value_with_rc(bytes: &[u8]) -> (Option<&[u8]>, i64) {
     }
 }
 
-pub(crate) fn encode_value_with_rc(data: &[u8], rc: i64) -> Vec<u8> {
+pub fn encode_value_with_rc(data: &[u8], rc: i64) -> Vec<u8> {
     if rc == 0 {
         return vec![];
     }

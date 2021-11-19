@@ -20,7 +20,7 @@ use crate::db::refcount::merge_refcounted_records;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 
-pub(crate) mod refcount;
+pub mod refcount;
 pub(crate) mod v6_to_v7;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -234,7 +234,7 @@ lazy_static! {
 lazy_static! {
     pub static ref IS_COL_RC: Vec<bool> = {
         let mut col_rc = vec![false; NUM_COLS];
-        col_rc[DBCol::ColState as usize] = false;
+        col_rc[DBCol::ColState as usize] = true;
         col_rc[DBCol::ColTransactions as usize] = true;
         col_rc[DBCol::ColReceipts as usize] = true;
         col_rc[DBCol::ColReceiptIdToShardId as usize] = true;
