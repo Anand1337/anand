@@ -36,7 +36,7 @@ const REPEATS: u64 = 50;
 
 fn get_func_number(contract: &ContractCode) -> usize {
     let module =
-        cache::wasmer0_cache::compile_module_cached_wasmer0(&contract, &VMConfig::default(), None)
+        cache::wasmer0_cache::compile_module_cached_wasmer0(&contract, &VMConfig::test(), None)
             .unwrap()
             .unwrap();
     let module_info = module.info();
@@ -55,7 +55,7 @@ fn get_func_number(contract: &ContractCode) -> usize {
 
 fn get_complexity(contract: &ContractCode) -> usize {
     let module =
-        cache::wasmer0_cache::compile_module_cached_wasmer0(&contract, &VMConfig::default(), None)
+        cache::wasmer0_cache::compile_module_cached_wasmer0(&contract, &VMConfig::test(), None)
             .unwrap()
             .unwrap();
     let module_info = module.info();
@@ -189,13 +189,10 @@ fn test_function_call_try_complexity_metric(metric: GasMetric, vm_kind: VMKind) 
             None,
             args.clone(),
         );
-        let module = cache::wasmer0_cache::compile_module_cached_wasmer0(
-            &contract,
-            &VMConfig::default(),
-            None,
-        )
-        .unwrap()
-        .unwrap();
+        let module =
+            cache::wasmer0_cache::compile_module_cached_wasmer0(&contract, &VMConfig::test(), None)
+                .unwrap()
+                .unwrap();
         let module_info = module.info();
         let funcs = module_info.func_assoc.len();
 
@@ -353,7 +350,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
 
         let module = compile_w2(&contract).unwrap();
         let module_info = module.info();
-        let funcs = get_functions_number(contract.code(), &VMConfig::default());
+        let funcs = get_functions_number(contract.code(), &VMConfig::test());
         let funcs2 = module_info.functions.len();
 
         // let exports = module_info.exports.clone();
@@ -435,7 +432,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
 
         let module = compile_w2(&contract).unwrap();
         let module_info = module.info();
-        let funcs = get_functions_number(contract.code(), &VMConfig::default());
+        let funcs = get_functions_number(contract.code(), &VMConfig::test());
         let funcs2 = module_info.functions.len();
 
         // let exports = module_info.exports.clone();
@@ -470,7 +467,7 @@ fn measure_function_call_1s(vm_kind: VMKind) {
     let store = create_store(&get_store_path(workdir.path()));
     let cache_store = Arc::new(StoreCompiledContractCache { store });
     let cache: Option<&dyn CompiledContractCache> = Some(cache_store.as_ref());
-    let vm_config = VMConfig::default();
+    let vm_config = VMConfig::test();
     let mut fake_external = MockedExternal::new();
     let fake_context = create_context(vec![]);
     let fees = RuntimeFeesConfig::test();
@@ -707,16 +704,15 @@ pub fn compute_function_call_cost(
     let store = create_store(&get_store_path(workdir.path()));
     let cache_store = Arc::new(StoreCompiledContractCache { store });
     let cache: Option<&dyn CompiledContractCache> = Some(cache_store.as_ref());
-    let vm_config = VMConfig::default();
-    let mut fake_external = MockedExternal::new();
-    let fake_context = create_context(args);
-    let fees = RuntimeFeesConfig::test();
     let protocol_version = ProtocolVersion::MAX;
     let config_store = RuntimeConfigStore::new(None);
-    let config = config_store.get_config(protocol_version);
-    let wasm_config = config.wasm_config.clone();
+    let runtime_config = config_store.get_config(protocol_version).as_ref();
+    let wasm_config = runtime_config.wasm_config.clone();
+    let fees = runtime_config.transaction_costs.clone();
+    let mut fake_external = MockedExternal::new();
+    let fake_context = create_context(args);
     let promise_results = vec![];
-    // precompile_contract(&contract, &vm_config, cache);
+    // precompile_contract(&contract, &wasm_config, cache);
 
     match init_args {
         Some(args) => {

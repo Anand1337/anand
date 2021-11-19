@@ -5,12 +5,12 @@ use std::mem::swap;
 use std::ops::DerefMut;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
-use std::time::Instant;
 
 use actix::actors::mocker::Mocker;
 use actix::{Actor, Addr, AsyncContext, Context};
-use chrono::{DateTime, Utc};
+use chrono::DateTime;
 use futures::{future, FutureExt};
+use near_primitives::time::Utc;
 use num_rational::Rational;
 use rand::{thread_rng, Rng};
 
@@ -20,22 +20,19 @@ use near_chain::{
 };
 use near_chain_configs::ClientConfig;
 use near_crypto::{InMemorySigner, KeyType, PublicKey};
-use near_network::routing::routing::EdgeInfo;
+use near_network::routing::EdgeInfo;
 use near_network::test_utils::MockPeerManagerAdapter;
 use near_network::types::{
-    AccountOrPeerIdOrHash, NetworkInfo, NetworkViewClientMessages, NetworkViewClientResponses,
-    PeerChainInfoV2, PeerManagerMessageRequest, PeerManagerMessageResponse,
-};
-use near_network::{
     FullPeerInfo, NetworkClientMessages, NetworkClientResponses, NetworkRecipient, NetworkRequests,
-    NetworkResponses, PeerInfo, PeerManagerActor, PeerManagerAdapter,
+    NetworkResponses, PeerManagerAdapter,
 };
+use near_network::PeerManagerActor;
 use near_primitives::block::{ApprovalInner, Block, GenesisId};
 use near_primitives::hash::{hash, CryptoHash};
 use near_primitives::merkle::{merklize, MerklePath};
 use near_primitives::receipt::Receipt;
 use near_primitives::shard_layout::ShardUId;
-use near_primitives::sharding::{EncodedShardChunk, ReedSolomonWrapper};
+use near_primitives::sharding::{EncodedShardChunk, PartialEncodedChunk, ReedSolomonWrapper};
 use near_primitives::transaction::SignedTransaction;
 use near_primitives::types::{
     AccountId, Balance, BlockHeight, BlockHeightDelta, EpochId, NumBlocks, NumSeats, NumShards,
@@ -54,7 +51,14 @@ use crate::{start_view_client, Client, ClientActor, SyncStatus, ViewClientActor}
 use near_chain::chain::{do_apply_chunks, BlockCatchUpRequest, StateSplitRequest};
 use near_chain::types::AcceptedBlock;
 use near_client_primitives::types::Error;
+use near_network::types::{NetworkInfo, PeerManagerMessageRequest, PeerManagerMessageResponse};
+use near_network_primitives::types::{
+    AccountOrPeerIdOrHash, NetworkViewClientMessages, NetworkViewClientResponses, PeerChainInfoV2,
+    PeerInfo,
+};
+use near_primitives::network::PeerId;
 use near_primitives::runtime::config::RuntimeConfig;
+use near_primitives::time::{Clock, Instant};
 use near_primitives::utils::MaybeValidated;
 
 pub type PeerManagerMock = Mocker<PeerManagerActor>;
@@ -139,7 +143,7 @@ pub fn setup(
         config,
         chain_genesis,
         runtime,
-        PublicKey::empty(KeyType::ED25519).into(),
+        PeerId::new(PublicKey::empty(KeyType::ED25519)),
         network_adapter,
         Some(signer),
         telemetry,
@@ -282,7 +286,7 @@ pub fn setup_mock_with_validity_period_and_no_epoch_sync(
             false,
             network_adapter.clone(),
             transaction_validity_period,
-            Utc::now(),
+            Clock::utc(),
             ctx,
         );
         vca = Some(view_client_addr);
@@ -322,7 +326,7 @@ impl BlockStats {
             hash2depth: HashMap::new(),
             num_blocks: 0,
             max_chain_length: 0,
-            last_check: Instant::now(),
+            last_check: Clock::instant(),
             max_divergence: 0,
             last_hash: None,
             parent: HashMap::new(),
@@ -371,7 +375,7 @@ impl BlockStats {
     }
 
     pub fn check_stats(&mut self, force: bool) {
-        let now = Instant::now();
+        let now = Clock::instant();
         let diff = now.duration_since(self.last_check);
         if !force && diff.lt(&Duration::from_secs(60)) {
             return;
@@ -485,7 +489,7 @@ pub fn setup_mock_all_validators(
     let key_pairs = key_pairs;
 
     let addresses: Vec<_> = (0..key_pairs.len()).map(|i| hash(vec![i as u8].as_ref())).collect();
-    let genesis_time = Utc::now();
+    let genesis_time = Clock::utc();
     let mut ret = vec![];
 
     let connectors: Arc<RwLock<Vec<(Addr<ClientActor>, Addr<ViewClientActor>)>>> =
@@ -1324,8 +1328,8 @@ impl TestEnv {
                 ) = request
                 {
                     self.client(&account_id)
-                        .process_partial_encoded_chunk(MaybeValidated::NotValidated(
-                            partial_encoded_chunk.into(),
+                        .process_partial_encoded_chunk(MaybeValidated::from(
+                            PartialEncodedChunk::from(partial_encoded_chunk),
                         ))
                         .unwrap();
                 }
