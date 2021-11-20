@@ -353,6 +353,7 @@ pub mod wasmer2_cache {
         cache: Option<&dyn CompiledContractCache>,
         store: &wasmer::Store,
     ) -> Result<Result<wasmer::Module, CompilationError>, CacheError> {
+        eprintln!("c");
         match cache {
             None => Ok(compile_module_wasmer2(wasm_code, config, store)),
             Some(cache) => {
