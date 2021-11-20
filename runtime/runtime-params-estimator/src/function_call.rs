@@ -583,7 +583,7 @@ fn compare_function_call_icount() {
     // test_function_call(GasMetric::ICount, VMKind::Wasmer0);
 
     let runtime_fees_config = RuntimeFeesConfig::test();
-    let ext_costs_config = ExtCostsConfig::default();
+    let ext_costs_config = ExtCostsConfig::test();
 
     let old_function_call_fee =
         runtime_fees_config.action_creation_config.function_call_cost.execution;
