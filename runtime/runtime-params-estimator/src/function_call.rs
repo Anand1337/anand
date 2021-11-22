@@ -297,6 +297,20 @@ fn test_prepare_contract(metric: GasMetric) {
     }
 }
 
+fn blow_up_code(code: &[u8]) -> Vec<u8> {
+    let m = &mut Module::from_buffer(code).unwrap();
+    for i in 0..1000 {
+        if i % 1000 == 0 {
+            println!("{}", i);
+        }
+        let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
+        hello_func.func_body().i32_const(1).drop();
+        let hello_func = hello_func.finish(vec![], &mut m.funcs);
+        m.exports.add(&format!("hello{}", i), hello_func);
+    }
+    m.emit_wasm()
+}
+
 #[allow(dead_code)]
 fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let reader = BufReader::new(
@@ -305,7 +319,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
     // let codes: HashMap<String, Vec<u8>> = entries.into_iter().map(|(k, v)| (v, k)).collect();
     let mut custom_code = Vec::new();
-    let mut f = File::open("/host/nearcore/cdao.near.with_noop.wasm").unwrap();
+    let mut f = File::open("/host/nearcore/cosmos_test.wasm").unwrap();
     f.read_to_end(&mut custom_code).unwrap();
     //codes.get("nftspace.near").unwrap();
 
@@ -325,15 +339,21 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     let mut ys = vec![];
 
     for (method_count, body_repeat) in
-        vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (9990, 1)].iter().cloned()
-    // vec![(20000, 1), (20000, 4), (40000, 1)].iter().cloned()
-    // vec![(9990, 1), (9990, 100)].iter().cloned()
-    // vec![(0, 0)].iter().cloned()
+        // vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (9990, 1)].iter().cloned()
+        // vec![(20000, 1), (20000, 4), (40000, 1)].iter().cloned()
+        // vec![(9990, 1), (9990, 100)].iter().cloned()
+        vec![(0, 0)].iter().cloned()
     {
         let contract = if method_count != 0 {
             make_many_methods_contract(method_count, body_repeat)
         } else {
-            ContractCode::new(custom_code.clone(), None)
+            let code = blow_up_code(&custom_code);
+            let fname = format!("/home/Aleksandr1/nearcore/{}.with_noop.wasm", account_id);
+            eprintln!("{}", fname);
+            let mut file = File::create(fname).unwrap();
+            // Write a slice of bytes to the file
+            file.write_all(&code).unwrap();
+            ContractCode::new(code, None)
         };
 
         let args = vec![];
@@ -400,17 +420,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         if !allowed_contracts.contains(&account_id.as_str()) {
             continue;
         }
-        let m = &mut Module::from_buffer(code).unwrap();
-        for i in 0..1 {
-            if i % 1000 == 0 {
-                println!("{}", i);
-            }
-            let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
-            hello_func.func_body().i32_const(1).drop();
-            let hello_func = hello_func.finish(vec![], &mut m.funcs);
-            m.exports.add(&format!("hello{}", i), hello_func);
-        }
-        let code = m.emit_wasm();
+        let code = blow_up_code(code);
         let fname = format!("/home/Aleksandr1/nearcore/{}.with_noop.wasm", account_id);
         eprintln!("{}", fname);
         let mut file = File::create(fname).unwrap();
