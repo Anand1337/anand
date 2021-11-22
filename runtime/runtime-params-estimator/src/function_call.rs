@@ -348,7 +348,7 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
             make_many_methods_contract(method_count, body_repeat)
         } else {
             let code = blow_up_code(&custom_code);
-            let fname = format!("/home/Aleksandr1/nearcore/{}.with_noop.wasm", account_id);
+            let fname = "/home/Aleksandr1/nearcore/cosmos_test.with_noop.wasm";
             eprintln!("{}", fname);
             let mut file = File::create(fname).unwrap();
             // Write a slice of bytes to the file
