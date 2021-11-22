@@ -299,7 +299,7 @@ fn test_prepare_contract(metric: GasMetric) {
 
 fn blow_up_code(code: &[u8]) -> Vec<u8> {
     let m = &mut Module::from_buffer(code).unwrap();
-    for i in 0..1000 {
+    for i in 0..10000 {
         if i % 1000 == 0 {
             println!("{}", i);
         }
