@@ -178,7 +178,8 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
     // estimate
     let mut estimations: Vec<Estimation> = Vec::new();
     for estimated_code in estimated_codes.iter() {
-        println!("running {}", estimated_code.id);
+        let fns = get_functions_number(&estimated_code.code, vm_config) as u64;
+        println!("running {}, fns = {}", estimated_code.id, fns);
         let contract = ContractCode::new(estimated_code.code.clone(), None);
         let store = RuntimeConfigStore::new(None);
         let config = store.get_config(ProtocolVersion::MAX);
@@ -192,7 +193,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         };
         estimations.push(Estimation {
             id: estimated_code.id.clone(),
-            fns: get_functions_number(&estimated_code.code, vm_config) as u64,
+            fns,
             len: estimated_code.code.len() as u64,
             result,
         })
