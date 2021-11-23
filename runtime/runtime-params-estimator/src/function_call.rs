@@ -112,8 +112,14 @@ fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
 }
 
 fn blow_up_code(code: &[u8]) -> Vec<u8> {
+    let store = RuntimeConfigStore::new(None);
+    let config = store.get_config(ProtocolVersion::MAX);
+    let vm_config = &config.wasm_config;
+    let fns = get_functions_number(&code, vm_config) as u64;
+    let add_fns = 9990 - fns;
+
     let m = &mut Module::from_buffer(code).unwrap();
-    for i in 0..4000 {
+    for i in 0..add_fns {
         if i % 1000 == 0 {
             println!("{}", i);
         }
