@@ -5060,7 +5060,7 @@ dependencies = [
  "near-store",
  "near-test-contracts",
  "near-vm-errors",
- "num-rational",
+ "num-rational 0.3.2",
  "once_cell",
  "rand 0.7.3",
  "serde_json",

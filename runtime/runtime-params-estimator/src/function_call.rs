@@ -289,9 +289,12 @@ fn test_prepare_contract(metric: GasMetric) {
         let total_raw = end_count(metric, &start) as i128;
 
         println!(
-            "total cost = {}, average gas cost = {}, len = {}",
+            "total cost = {}, average teragas cost = {}, len = {}",
             total_raw,
-            ratio_to_gas_signed(metric, Ratio::new(total_raw as i128, REPEATS as i128)),
+            ratio_to_gas_signed(
+                metric,
+                Ratio::new(total_raw as i128, 10i128.pow(12) * REPEATS as i128)
+            ),
             code.len()
         );
     }

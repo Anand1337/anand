@@ -48,7 +48,6 @@ impl<'a> ContractModule<'a> {
             }
         }
         // println!("{}", func_ranges.len());
-        #[cfg(feature = "protocol_feature_limit_contract_functions_number")]
         if let Some(max_functions_number) = config.limit_config.max_functions_number_per_contract {
             let functions_number = func_ranges.len() as u64;
             // println!("fn = {}", functions_number);
