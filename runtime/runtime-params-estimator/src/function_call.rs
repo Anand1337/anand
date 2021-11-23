@@ -492,7 +492,7 @@ fn measure_function_call_1s(vm_kind: VMKind) {
     let start = start_count(gas_metric);
     let mut i = 0;
     loop {
-        let result = run_vm(
+        let result = runtime.run(
             &contract,
             method_name,
             &mut fake_external,
