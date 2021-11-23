@@ -106,7 +106,7 @@ pub fn many_functions_contract_with_repeats(function_count: u32, body_repeat: u3
 
     let code = format!(
         r#"(module
-            (export "main" (func 0))
+            (export "hello0" (func 0))
             {})"#,
         functions
     );

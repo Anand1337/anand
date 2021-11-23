@@ -215,7 +215,7 @@ fn test_function_call_all_codes_icount() {
 #[test]
 fn test_function_call_all_codes_time() {
     // test_function_call_all_codes(GasMetric::Time, VMKind::Wasmer2);
-    test_function_call_all_codes(GasMetric::Time, VMKind::Wasmer0);
+    test_function_call_all_codes(GasMetric::Time, VMKind::Wasmer2);
 }
 
 #[test]
