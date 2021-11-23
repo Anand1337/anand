@@ -23,6 +23,7 @@ use near_vm_runner::prepare::{get_functions_number, prepare_contract};
 use near_vm_runner::runner::compile_w2;
 use nearcore::get_store_path;
 use num_rational::Ratio;
+use num_traits::Pow;
 use std::cmp::max;
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -288,14 +289,12 @@ fn test_prepare_contract(metric: GasMetric) {
             }
         }
         let total_raw = end_count(metric, &start) as i128;
-
+        let gas = ratio_to_gas_signed(metric, Ratio::new(total_raw as i128, REPEATS as i128));
+        let teragas = (gas as f64) / 10f64.pow(12);
         println!(
             "total cost = {}, average teragas cost = {}, len = {}",
             total_raw,
-            ratio_to_gas_signed(
-                metric,
-                Ratio::new(total_raw as i128, 10i128.pow(12) * REPEATS as i128)
-            ),
+            teragas,
             code.len()
         );
     }
