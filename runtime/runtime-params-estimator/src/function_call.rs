@@ -116,7 +116,7 @@ fn blow_up_code(code: &[u8]) -> Vec<u8> {
     let config = store.get_config(ProtocolVersion::MAX);
     let vm_config = &config.wasm_config;
     let fns = get_functions_number(&code, vm_config) as u64;
-    let add_fns = 9000 - fns;
+    let add_fns = 9990 - fns;
 
     let m = &mut Module::from_buffer(code).unwrap();
     for i in 0..add_fns {
@@ -126,7 +126,9 @@ fn blow_up_code(code: &[u8]) -> Vec<u8> {
         let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
         hello_func.func_body().i32_const(1).drop();
         let hello_func = hello_func.finish(vec![], &mut m.funcs);
-        m.exports.add(&format!("hello{}", i), hello_func);
+        if i == 0 {
+            m.exports.add(&format!("hello{}", i), hello_func);
+        }
     }
     m.emit_wasm()
 }
