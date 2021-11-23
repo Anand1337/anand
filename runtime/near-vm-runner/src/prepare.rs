@@ -50,20 +50,23 @@ impl<'a> ContractModule<'a> {
         // }
         // // println!("{}", func_ranges.len());
 
-        let validator = wasmparser::Validator::new().wasm_features(WASM_FEATURES);
-        let mut func_ranges = Vec::new();
-        for payload in Parser::new(0).parse_all(bytes) {
-            if let ValidPayload::Func(a, b) = validator.payload(&payload?)? {
-                func_ranges += 1;
-            }
-        }
-        if let Some(max_functions_number) = config.limit_config.max_functions_number_per_contract {
-            let functions_number = func_ranges.len() as u64;
-            // println!("fn = {}", functions_number);
-            if functions_number > max_functions_number {
-                return Err(PrepareError::TooManyFunctions);
-            }
-        }
+        // let validator = wasmparser::Validator::new().wasm_features(WASM_FEATURES);
+        // let mut func_ranges = Vec::new();
+        // for payload in Parser::new(0).parse_all(original_code) {
+        //     if let ValidPayload::Func(a, b) = validator
+        //         .payload(&payload.map_err(|_| PrepareError::Deserialization)?)
+        //         .map_err(|_| PrepareError::Deserialization)?
+        //     {
+        //         func_ranges += 1;
+        //     }
+        // }
+        // if let Some(max_functions_number) = config.limit_config.max_functions_number_per_contract {
+        //     let functions_number = func_ranges.len() as u64;
+        //     // println!("fn = {}", functions_number);
+        //     if functions_number > max_functions_number {
+        //         return Err(PrepareError::TooManyFunctions);
+        //     }
+        // }
         validator.validate_all(original_code).map_err(|_| PrepareError::Deserialization)?;
 
         let module = elements::deserialize_buffer(original_code)
