@@ -62,9 +62,7 @@ impl<'a> ContractModule<'a> {
             }
         }
         if let Some(max_functions_number) = config.limit_config.max_functions_number_per_contract {
-            let functions_number = func_ranges.len() as u64;
-            // println!("fn = {}", functions_number);
-            if functions_number > max_functions_number {
+            if func_ranges > max_functions_number {
                 return Err(PrepareError::TooManyFunctions);
             }
         }
