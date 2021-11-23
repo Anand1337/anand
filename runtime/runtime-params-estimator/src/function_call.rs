@@ -317,6 +317,7 @@ pub fn compute_function_call_cost(
             protocol_version,
             cache,
         );
+        println!("{:?}", result.1);
         assert!(result.1.is_none());
     }
     // Run with gas metering.
