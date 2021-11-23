@@ -1,8 +1,5 @@
 #![doc = include_str!("../README.md")]
 
-#[cfg(test)]
-mod tests;
-
 pub mod cache;
 mod errors;
 mod imports;

@@ -16,14 +16,14 @@ use near_vm_errors::VMError;
 use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_logic::{VMConfig, VMContext, VMOutcome};
 
-const CURRENT_ACCOUNT_ID: &str = "alice";
-const SIGNER_ACCOUNT_ID: &str = "bob";
-const SIGNER_ACCOUNT_PK: [u8; 3] = [0, 1, 2];
-const PREDECESSOR_ACCOUNT_ID: &str = "carol";
+pub const CURRENT_ACCOUNT_ID: &str = "alice";
+pub const SIGNER_ACCOUNT_ID: &str = "bob";
+pub const SIGNER_ACCOUNT_PK: [u8; 3] = [0, 1, 2];
+pub const PREDECESSOR_ACCOUNT_ID: &str = "carol";
 
-const LATEST_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion::MAX;
+pub const LATEST_PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion::MAX;
 
-fn with_vm_variants(runner: fn(VMKind) -> ()) {
+pub fn with_vm_variants(runner: fn(VMKind) -> ()) {
     #[cfg(feature = "wasmer0_vm")]
     runner(VMKind::Wasmer0);
 
@@ -34,7 +34,7 @@ fn with_vm_variants(runner: fn(VMKind) -> ()) {
     runner(VMKind::Wasmer2);
 }
 
-fn create_context(input: Vec<u8>) -> VMContext {
+pub fn create_context(input: Vec<u8>) -> VMContext {
     VMContext {
         current_account_id: CURRENT_ACCOUNT_ID.parse().unwrap(),
         signer_account_id: SIGNER_ACCOUNT_ID.parse().unwrap(),
@@ -55,7 +55,7 @@ fn create_context(input: Vec<u8>) -> VMContext {
     }
 }
 
-fn make_simple_contract_call_with_gas_vm(
+pub fn make_simple_contract_call_with_gas_vm(
     code: &[u8],
     method_name: &str,
     prepaid_gas: u64,
@@ -84,7 +84,7 @@ fn make_simple_contract_call_with_gas_vm(
     )
 }
 
-fn make_simple_contract_call_with_protocol_version_vm(
+pub fn make_simple_contract_call_with_protocol_version_vm(
     code: &[u8],
     method_name: &str,
     protocol_version: ProtocolVersion,
@@ -113,7 +113,7 @@ fn make_simple_contract_call_with_protocol_version_vm(
     )
 }
 
-fn make_simple_contract_call_vm(
+pub fn make_simple_contract_call_vm(
     code: &[u8],
     method_name: &str,
     vm_kind: VMKind,
@@ -121,7 +121,7 @@ fn make_simple_contract_call_vm(
     make_simple_contract_call_with_gas_vm(code, method_name, 10u64.pow(14), vm_kind)
 }
 
-fn make_cached_contract_call_vm(
+pub fn make_cached_contract_call_vm(
     cache: &mut dyn CompiledContractCache,
     code: &[u8],
     method_name: &str,
