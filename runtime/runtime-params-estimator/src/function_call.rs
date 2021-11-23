@@ -487,6 +487,7 @@ fn measure_function_call_1s(vm_kind: VMKind) {
     let fees = RuntimeFeesConfig::test();
     let promise_results = vec![];
     let gas_metric = GasMetric::Time;
+    let runtime = vm_kind.runtime().expect("runtime has not been enabled");
     // precompile_contract(&contract, &vm_config, cache);
 
     let start = start_count(gas_metric);
