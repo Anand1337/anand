@@ -17,9 +17,9 @@ use near_test_contracts::{
 use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_logic::ExtCostsConfig;
 use near_vm_runner::cache;
+use near_vm_runner::precompile_contract;
 use near_vm_runner::prepare::{get_functions_number, prepare_contract};
 use near_vm_runner::runner::compile_w2;
-use near_vm_runner::{precompile_contract, run_vm, VMKind};
 use nearcore::get_store_path;
 use num_rational::Ratio;
 use std::cmp::max;
@@ -710,6 +710,7 @@ pub fn compute_function_call_cost(
     init_args: Option<Vec<u8>>,
     args: Vec<u8>,
 ) -> u64 {
+    let runtime = vm_kind.runtime().expect("runtime has not been enabled");
     let workdir = tempfile::Builder::new().prefix("runtime_testbed").tempdir().unwrap();
     let store = create_store(&get_store_path(workdir.path()));
     let cache_store = Arc::new(StoreCompiledContractCache { store });
@@ -751,7 +752,7 @@ pub fn compute_function_call_cost(
 
     // Warmup.
     if repeats != 1 {
-        let result = run_vm(
+        let result = runtime.run(
             &contract,
             method_name,
             &mut fake_external,
@@ -759,7 +760,6 @@ pub fn compute_function_call_cost(
             &wasm_config,
             &fees,
             &promise_results,
-            vm_kind,
             protocol_version,
             cache,
         );
@@ -771,9 +771,8 @@ pub fn compute_function_call_cost(
     }
     // Run with gas metering.
     let start = start_count(gas_metric);
-    for i in 0..repeats {
-        print!("{} ", i);
-        let result = run_vm(
+    for _ in 0..repeats {
+        let result = runtime.run(
             &contract,
             method_name,
             &mut fake_external,
@@ -781,7 +780,6 @@ pub fn compute_function_call_cost(
             &wasm_config,
             &fees,
             &promise_results,
-            vm_kind,
             protocol_version,
             cache,
         );
