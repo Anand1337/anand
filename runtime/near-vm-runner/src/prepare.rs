@@ -50,7 +50,7 @@ impl<'a> ContractModule<'a> {
         // }
         // // println!("{}", func_ranges.len());
 
-        // let validator = wasmparser::Validator::new().wasm_features(WASM_FEATURES);
+        let validator = wasmparser::Validator::new().wasm_features(WASM_FEATURES);
         // let mut func_ranges = Vec::new();
         // for payload in Parser::new(0).parse_all(original_code) {
         //     if let ValidPayload::Func(a, b) = validator
