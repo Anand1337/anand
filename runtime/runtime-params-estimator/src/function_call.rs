@@ -728,12 +728,14 @@ pub fn compute_function_call_cost(
     let fake_context = create_context(args);
     let promise_results = vec![];
     // precompile_contract(&contract, &wasm_config, cache);
+    let runtime = vm_kind.runtime().expect("runtime has not been enabled");
+    // precompile_contract(&contract, &vm_config, cache);
 
     match init_args {
         Some(args) => {
             let mut init_context = create_context(args);
             init_context.attached_deposit = 0;
-            let result = run_vm(
+            let result = runtime.run(
                 &contract,
                 "new",
                 &mut fake_external,
@@ -741,7 +743,6 @@ pub fn compute_function_call_cost(
                 &wasm_config,
                 &fees,
                 &promise_results,
-                vm_kind,
                 protocol_version,
                 cache,
             );
