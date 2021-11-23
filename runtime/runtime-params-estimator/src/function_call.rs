@@ -152,6 +152,9 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
     );
     let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
     for (code, account_id) in entries.iter() {
+        if code.is_empty() {
+            continue;
+        }
         let code = blow_up_code(code);
         estimated_codes
             .push(EstimatedCode { id: format!("from_mainnet_with_noop.{}", account_id), code });
