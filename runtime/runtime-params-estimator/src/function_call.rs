@@ -17,6 +17,7 @@ use near_test_contracts::{
 use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_logic::ExtCostsConfig;
 use near_vm_runner::cache;
+use near_vm_runner::internal::VMKind;
 use near_vm_runner::precompile_contract;
 use near_vm_runner::prepare::{get_functions_number, prepare_contract};
 use near_vm_runner::runner::compile_w2;
