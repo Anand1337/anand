@@ -501,7 +501,6 @@ fn measure_function_call_1s(vm_kind: VMKind) {
             &vm_config,
             &fees,
             &promise_results,
-            vm_kind,
             ProtocolVersion::MAX,
             cache,
         );
