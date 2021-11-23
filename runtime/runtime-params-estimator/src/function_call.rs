@@ -178,12 +178,12 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
     // estimate
     let mut estimations: Vec<Estimation> = Vec::new();
     for estimated_code in estimated_codes.iter() {
-        let fns = get_functions_number(&estimated_code.code, vm_config) as u64;
-        println!("running {}, fns = {}", estimated_code.id, fns);
         let contract = ContractCode::new(estimated_code.code.clone(), None);
         let store = RuntimeConfigStore::new(None);
         let config = store.get_config(ProtocolVersion::MAX);
         let vm_config = &config.wasm_config;
+        let fns = get_functions_number(&estimated_code.code, vm_config) as u64;
+        println!("running {}, fns = {}", estimated_code.id, fns);
 
         let raw_result = (compute_function_call_cost(metric, vm_kind, REPEATS, &contract) as f64)
             / (REPEATS as f64);
