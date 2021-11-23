@@ -11,7 +11,7 @@ use near_test_contracts::{many_functions_contract, many_functions_contract_with_
 use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_runner::internal::VMKind;
 use near_vm_runner::prepare::{prepare_contract, ContractModule};
-use near_vm_runner::{precompile_contract_vm, run_vm, MockCompiledContractCache};
+use near_vm_runner::{precompile_contract_vm, MockCompiledContractCache};
 use nearcore::get_store_path;
 use num_rational::Ratio;
 use std::fmt::Write;
