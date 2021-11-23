@@ -52,7 +52,7 @@ impl<'a> ContractModule<'a> {
 
         let mut validator = wasmparser::Validator::new();
         let validator = validator.wasm_features(WASM_FEATURES);
-        let mut func_ranges = Vec::new();
+        let mut func_ranges = 0;
         for payload in Parser::new(0).parse_all(original_code) {
             if let ValidPayload::Func(a, b) = validator
                 .payload(&payload.map_err(|_| PrepareError::Deserialization)?)
