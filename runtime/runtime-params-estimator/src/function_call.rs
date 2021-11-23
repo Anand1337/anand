@@ -174,10 +174,11 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         let config = store.get_config(ProtocolVersion::MAX);
         let vm_config = &config.wasm_config;
 
-        let raw_result = compute_function_call_cost(metric, vm_kind, REPEATS, &contract);
+        let raw_result = (compute_function_call_cost(metric, vm_kind, REPEATS, &contract) as f64)
+            / (REPEATS as f64);
         let result = match metric {
-            GasMetric::ICount => (raw_result as f64) / REPEATS / (10i64.pow(12) as f64), // teragas
-            GasMetric::Time => (raw_result as f64) / REPEATS / (1_000_000 as f64),       // ms
+            GasMetric::ICount => raw_result / (10i64.pow(12) as f64), // teragas
+            GasMetric::Time => raw_result / (1_000_000 as f64),       // ms
         };
         estimations.push(Estimation {
             id: estimated_code.id.clone(),
