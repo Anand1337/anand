@@ -271,7 +271,7 @@ fn test_prepare_contract(metric: GasMetric) {
     for (method_count, _) in
         // vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (10000, 1)].iter().cloned()
         // vec![(10010, 1), (20010, 1), (50010, 1), (100010, 1)].iter().cloned()
-        vec![(150010, 1), (200010, 1), (100010, 1)].iter().cloned()
+        vec![(399_990, 1), (199_990, 1), (99_990, 1)].iter().cloned()
     // vec![(0, 0)].iter().cloned()
     {
         let code = many_functions_contract(method_count);
