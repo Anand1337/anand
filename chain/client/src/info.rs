@@ -1,6 +1,6 @@
+use near_primitives::time::Instant;
 use std::cmp::min;
 use std::sync::Arc;
-use std::time::Instant;
 
 use actix::Addr;
 use ansi_term::Color::{Blue, Cyan, Green, White, Yellow};
@@ -24,6 +24,7 @@ use near_telemetry::{telemetry, TelemetryActor};
 use crate::metrics;
 use crate::SyncStatus;
 use near_client_primitives::types::ShardSyncStatus;
+use near_primitives::time::Clock;
 
 pub struct ValidatorInfoHelper {
     pub is_validator: bool,
@@ -63,7 +64,7 @@ impl InfoHelper {
             nearcore_version: client_config.version.clone(),
             sys: System::new(),
             pid: get_current_pid().ok(),
-            started: Instant::now(),
+            started: Clock::instant(),
             num_blocks_processed: 0,
             gas_used: 0,
             telemetry_actor,
@@ -160,7 +161,7 @@ impl InfoHelper {
         let teragas = 1_000_000_000_000u64;
         set_gauge(&metrics::AVG_TGAS_USAGE, (avg_gas_used as f64 / teragas as f64).round() as i64);
 
-        self.started = Instant::now();
+        self.started = Clock::instant();
         self.num_blocks_processed = 0;
         self.gas_used = 0;
 
@@ -235,8 +236,8 @@ fn display_sync_status(
                 highest_height - current_height
             )
         }
-        SyncStatus::StateSync(_sync_hash, shard_statuses) => {
-            let mut res = String::from("State ");
+        SyncStatus::StateSync(sync_hash, shard_statuses) => {
+            let mut res = format!("State {:?}", sync_hash).to_string();
             let mut shard_statuses: Vec<_> = shard_statuses.iter().collect();
             shard_statuses.sort_by_key(|(shard_id, _)| *shard_id);
             for (shard_id, shard_status) in shard_statuses {
