@@ -31,30 +31,30 @@ struct ContractModule<'a> {
 
 impl<'a> ContractModule<'a> {
     fn init(original_code: &[u8], config: &'a VMConfig) -> Result<Self, PrepareError> {
-        let mut parser = ValidatingParser::new(original_code, None);
-        let mut parser_input = None;
-        let mut func_ranges = Vec::new();
-        loop {
-            let next_input = parser_input.take().unwrap_or(ParserInput::Default);
-            let state = parser.read_with_input(next_input);
-            match *state {
-                ParserState::EndWasm => break,
-                ParserState::Error(ref e) => return Err(PrepareError::Deserialization),
-                ParserState::BeginFunctionBody { range } => {
-                    parser_input = Some(ParserInput::SkipFunctionBody);
-                    func_ranges.push(range);
-                }
-                _ => (),
-            }
-        }
-        // println!("{}", func_ranges.len());
-        if let Some(max_functions_number) = config.limit_config.max_functions_number_per_contract {
-            let functions_number = func_ranges.len() as u64;
-            // println!("fn = {}", functions_number);
-            if functions_number > max_functions_number {
-                return Err(PrepareError::TooManyFunctions);
-            }
-        }
+        // let mut parser = ValidatingParser::new(original_code, None);
+        // let mut parser_input = None;
+        // let mut func_ranges = Vec::new();
+        // loop {
+        //     let next_input = parser_input.take().unwrap_or(ParserInput::Default);
+        //     let state = parser.read_with_input(next_input);
+        //     match *state {
+        //         ParserState::EndWasm => break,
+        //         ParserState::Error(ref e) => return Err(PrepareError::Deserialization),
+        //         ParserState::BeginFunctionBody { range } => {
+        //             parser_input = Some(ParserInput::SkipFunctionBody);
+        //             func_ranges.push(range);
+        //         }
+        //         _ => (),
+        //     }
+        // }
+        // // println!("{}", func_ranges.len());
+        // if let Some(max_functions_number) = config.limit_config.max_functions_number_per_contract {
+        //     let functions_number = func_ranges.len() as u64;
+        //     // println!("fn = {}", functions_number);
+        //     if functions_number > max_functions_number {
+        //         return Err(PrepareError::TooManyFunctions);
+        //     }
+        // }
 
         wasmparser::Validator::new()
             .wasm_features(WASM_FEATURES)

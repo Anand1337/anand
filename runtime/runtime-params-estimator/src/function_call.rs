@@ -34,7 +34,7 @@ use std::sync::Arc;
 use walrus::ir::*;
 use walrus::{ExportItem, FunctionBuilder, ImportKind, Module, ModuleConfig, ValType};
 
-const REPEATS: u64 = 50;
+const REPEATS: u64 = 5;
 
 fn get_func_number(contract: &ContractCode) -> usize {
     let module =
