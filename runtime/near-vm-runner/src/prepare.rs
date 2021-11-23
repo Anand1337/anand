@@ -31,24 +31,23 @@ pub struct ContractModule<'a> {
 
 impl<'a> ContractModule<'a> {
     pub fn init(original_code: &[u8], config: &'a VMConfig) -> Result<Self, PrepareError> {
-        // let mut validator = wasmparser::Validator::new();
-        // let validator = validator.wasm_features(WASM_FEATURES);
-        // let mut func_ranges = 0;
-        // for payload in Parser::new(0).parse_all(original_code) {
-        //     if let ValidPayload::Func(a, b) = validator
-        //         .payload(&payload.map_err(|_| PrepareError::Deserialization)?)
-        //         .map_err(|_| PrepareError::Deserialization)?
-        //     {
-        //         func_ranges += 1;
-        //     }
-        // }
-        // if let Some(max_functions_number) = config.limit_config.max_functions_number_per_contract {
-        //     println!("{} {}", max_functions_number, func_ranges);
-        //     if func_ranges > max_functions_number {
-        //         return Err(PrepareError::TooManyFunctions);
-        //     }
-        // }
-        // validator.validate_all(original_code).map_err(|_| PrepareError::Deserialization)?;
+        let mut validator = wasmparser::Validator::new();
+        let validator = validator.wasm_features(WASM_FEATURES);
+        let mut func_ranges = 0;
+        for payload in Parser::new(0).parse_all(original_code) {
+            if let ValidPayload::Func(a, b) = validator
+                .payload(&payload.map_err(|_| PrepareError::Deserialization)?)
+                .map_err(|_| PrepareError::Deserialization)?
+            {
+                func_ranges += 1;
+            }
+        }
+        if let Some(max_functions_number) = config.limit_config.max_functions_number_per_contract {
+            println!("{} {}", max_functions_number, func_ranges);
+            if func_ranges > max_functions_number {
+                return Err(PrepareError::TooManyFunctions);
+            }
+        }
 
         wasmparser::Validator::new()
             .wasm_features(WASM_FEATURES)
