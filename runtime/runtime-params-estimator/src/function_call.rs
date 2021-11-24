@@ -182,7 +182,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
     // estimate
     let mut estimations: Vec<Estimation> = Vec::new();
     for estimated_code in estimated_codes.iter() {
-        let fname = format!("/home/Aleksandr1/contracts/{}.wasm", estimated_code.id);
+        let fname = format!("/host/nearcore/contracts/{}.wasm", estimated_code.id);
         std::fs::write(fname, &estimated_code.code).unwrap();
 
         let contract = ContractCode::new(estimated_code.code.clone(), None);
