@@ -179,7 +179,6 @@ impl<'a> ContractModule<'a> {
             self.config.limit_config.max_functions_number_per_contract
         {
             let functions_number = self.module.functions_space() as u64;
-            println!("{} {}", max_functions_number, functions_number);
             if functions_number > max_functions_number {
                 return Err(PrepareError::TooManyFunctions);
             }

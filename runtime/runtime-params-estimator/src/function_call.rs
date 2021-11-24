@@ -14,6 +14,7 @@ use near_vm_runner::prepare::{prepare_contract, ContractModule};
 use near_vm_runner::{precompile_contract_vm, MockCompiledContractCache};
 use nearcore::get_store_path;
 use num_rational::Ratio;
+use num_traits::Pow;
 use std::fmt::Write;
 use std::fs::File;
 use std::io::{BufReader, Write as OtherWrite};
@@ -116,7 +117,7 @@ fn blow_up_code(code: &[u8]) -> Vec<u8> {
     let config = store.get_config(ProtocolVersion::MAX);
     let vm_config = &config.wasm_config;
     let fns = get_functions_number(&code, vm_config) as u64;
-    let add_fns = 9000 - fns;
+    let add_fns = 9500 - fns;
 
     let m = &mut Module::from_buffer(code).unwrap();
     for i in 0..add_fns {
@@ -155,22 +156,23 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
     let mut estimated_codes: Vec<EstimatedCode> = Vec::new();
 
     /// prepare mainnet contracts
-    let reader = BufReader::new(
-        File::open("/host/nearcore/codes.json").expect("Could not open genesis config file."),
-    );
-    let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
-    for (code, account_id) in entries.iter() {
-        if code.is_empty() {
-            continue;
-        }
-        let code = blow_up_code(code);
-        estimated_codes
-            .push(EstimatedCode { id: format!("from_mainnet_with_noop.{}", account_id), code });
-    }
+    // let contracts_bytes =
+    //     std::fs::read("/host/nearcore/codes.json").expect("Could not open codes file.");
+    // let entries: Vec<(Vec<u8>, String)> = serde_json::from_slice(&contracts_bytes).unwrap();
+    // for (code, account_id) in entries.iter() {
+    //     if code.is_empty() {
+    //         continue;
+    //     }
+    //     let code = blow_up_code(code);
+    //     estimated_codes
+    //         .push(EstimatedCode { id: format!("from_mainnet_with_noop.{}", account_id), code });
+    // }
 
     /// prepare params
     for (method_count, body_repeat) in
-        vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (9990, 1)].iter().cloned()
+        vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (9990, 1), (9990, 10), (9990, 110)]
+            .iter()
+            .cloned()
     {
         let code = many_functions_contract_with_repeats(method_count, body_repeat);
         estimated_codes
@@ -181,9 +183,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
     let mut estimations: Vec<Estimation> = Vec::new();
     for estimated_code in estimated_codes.iter() {
         let fname = format!("/home/Aleksandr1/contracts/{}.wasm", estimated_code.id);
-        let mut file = File::create(fname).unwrap();
-        // Write a slice of bytes to the file
-        file.write_all(&estimated_code.code).unwrap();
+        std::fs::write(fname, &estimated_code.code).unwrap();
 
         let contract = ContractCode::new(estimated_code.code.clone(), None);
         let store = RuntimeConfigStore::new(None);
@@ -192,11 +192,14 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         let fns = get_functions_number(&estimated_code.code, vm_config) as u64;
         println!("running {}, fns = {}", estimated_code.id, fns);
 
-        let raw_result = (compute_function_call_cost(metric, vm_kind, REPEATS, &contract) as f64)
-            / (REPEATS as f64);
+        let raw_result = compute_function_call_cost(metric, vm_kind, REPEATS, &contract);
         let result = match metric {
-            GasMetric::ICount => raw_result / (10i64.pow(12) as f64), // teragas
-            GasMetric::Time => raw_result / (1_000_000 as f64),       // ms
+            GasMetric::ICount => {
+                (ratio_to_gas_signed(metric, Ratio::new(raw_result as i128, REPEATS as i128))
+                    as f64)
+                    / 10f64.pow(12)
+            } // teragas
+            GasMetric::Time => raw_result / (REPEATS * 1_000_000 as f64), // ms
         };
         estimations.push(Estimation {
             id: estimated_code.id.clone(),
