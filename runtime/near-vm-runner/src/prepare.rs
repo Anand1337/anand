@@ -51,7 +51,7 @@ fn validate_contract(original_code: &[u8], config: &VMConfig) -> Result<(), Prep
     }
 
     for (mut validator, body) in functions_to_validate {
-        validator.validate(&body)?;
+        validator.validate(&body).map_err(|_| PrepareError::Deserialization)?;
     }
     Ok(())
 }
