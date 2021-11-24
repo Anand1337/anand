@@ -323,7 +323,8 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
     // let entries: Vec<(Vec<u8>, String)> = serde_json::from_reader(reader).unwrap();
     // let codes: HashMap<String, Vec<u8>> = entries.into_iter().map(|(k, v)| (v, k)).collect();
     let mut custom_code = Vec::new();
-    let mut f = File::open("/host/nearcore/cosmos_test.wasm").unwrap();
+    // let mut f = File::open("/host/nearcore/cosmos_test.wasm").unwrap();
+    let mut f = File::open("/host/nearcore/from_mainnet_with_noop.tipjargon.near.wasm").unwrap();
     f.read_to_end(&mut custom_code).unwrap();
     //codes.get("nftspace.near").unwrap();
 
@@ -351,13 +352,13 @@ fn test_function_call(metric: GasMetric, vm_kind: VMKind) {
         let contract = if method_count != 0 {
             make_many_methods_contract(method_count, body_repeat)
         } else {
-            let code = blow_up_code(&custom_code);
-            let fname = "/home/Aleksandr1/nearcore/cosmos_test.with_noop.wasm";
-            eprintln!("{}", fname);
-            let mut file = File::create(fname).unwrap();
-            // Write a slice of bytes to the file
-            file.write_all(&code).unwrap();
-            ContractCode::new(code, None)
+            // let code = blow_up_code(&custom_code);
+            // let fname = "/home/Aleksandr1/nearcore/cosmos_test.with_noop.wasm";
+            // eprintln!("{}", fname);
+            // let mut file = File::create(fname).unwrap();
+            // // Write a slice of bytes to the file
+            // file.write_all(&code).unwrap();
+            ContractCode::new(custom_code.clone(), None)
         };
 
         let args = vec![];
@@ -728,8 +729,6 @@ pub fn compute_function_call_cost(
     let fake_context = create_context(args);
     let promise_results = vec![];
     // precompile_contract(&contract, &wasm_config, cache);
-    let runtime = vm_kind.runtime().expect("runtime has not been enabled");
-    // precompile_contract(&contract, &vm_config, cache);
 
     match init_args {
         Some(args) => {

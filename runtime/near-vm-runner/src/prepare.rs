@@ -52,17 +52,18 @@ impl<'a> ContractModule<'a> {
 
         let mut validator = wasmparser::Validator::new();
         let validator = validator.wasm_features(WASM_FEATURES);
-        let mut func_ranges = 0;
+        let mut functions_number = 0;
         for payload in Parser::new(0).parse_all(original_code) {
             if let ValidPayload::Func(a, b) = validator
                 .payload(&payload.map_err(|_| PrepareError::Deserialization)?)
                 .map_err(|_| PrepareError::Deserialization)?
             {
-                func_ranges += 1;
+                functions_number += 1;
             }
         }
+        println!("functions_number = {}", functions_number);
         if let Some(max_functions_number) = config.limit_config.max_functions_number_per_contract {
-            if func_ranges > max_functions_number {
+            if functions_number > max_functions_number {
                 return Err(PrepareError::TooManyFunctions);
             }
         }
@@ -194,7 +195,7 @@ impl<'a> ContractModule<'a> {
             self.config.limit_config.max_functions_number_per_contract
         {
             let functions_number = self.module.functions_space() as u64;
-            // println!("fn = {}", functions_number);
+            println!("functions_number = {}", functions_number);
             if functions_number > max_functions_number {
                 return Err(PrepareError::TooManyFunctions);
             }
@@ -226,6 +227,7 @@ pub fn prepare_contract(original_code: &[u8], config: &VMConfig) -> Result<Vec<u
         .inject_gas_metering()?
         .inject_stack_height_metering()?
         .scan_imports()?
+        .validate_functions_number()?
         .into_wasm_code()
 }
 
