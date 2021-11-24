@@ -67,7 +67,10 @@ impl<'a> ContractModule<'a> {
                 return Err(PrepareError::TooManyFunctions);
             }
         }
-        validator.validate_all(original_code).map_err(|_| PrepareError::Deserialization)?;
+        wasmparser::Validator::new()
+            .wasm_features(WASM_FEATURES)
+            .validate_all(original_code)
+            .map_err(|_| PrepareError::Deserialization)?;
 
         let module = elements::deserialize_buffer(original_code)
             .map_err(|_| PrepareError::Deserialization)?;
