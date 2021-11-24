@@ -211,7 +211,6 @@ pub fn prepare_contract(original_code: &[u8], config: &VMConfig) -> Result<Vec<u
         .inject_gas_metering()?
         .inject_stack_height_metering()?
         .scan_imports()?
-        .validate_functions_number()?
         .into_wasm_code()
 }
 

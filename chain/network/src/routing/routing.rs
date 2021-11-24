@@ -11,8 +11,6 @@ use near_primitives::network::{AnnounceAccount, PeerId};
 use near_primitives::time::Clock;
 use near_primitives::types::AccountId;
 use near_store::{ColAccountAnnouncements, Store};
-#[cfg(feature = "test_features")]
-use serde::Serialize;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
@@ -32,7 +30,7 @@ pub const DELETE_PEERS_AFTER_TIME: Duration = Duration::from_secs(3_600);
 pub const MAX_NUM_PEERS: usize = 128;
 
 #[derive(Debug)]
-#[cfg_attr(feature = "test_features", derive(Serialize))]
+#[cfg_attr(feature = "test_features", derive(serde::Serialize))]
 pub struct PeerRequestResult {
     pub peers: Vec<PeerInfo>,
 }
@@ -50,7 +48,7 @@ where
 }
 
 #[derive(MessageResponse, Debug)]
-#[cfg_attr(feature = "test_features", derive(Serialize))]
+#[cfg_attr(feature = "test_features", derive(serde::Serialize))]
 pub struct GetRoutingTableResult {
     pub edges_info: Vec<SimpleEdge>,
 }
@@ -203,8 +201,8 @@ impl RoutingTableView {
         }
     }
 
-    pub fn add_route_back(&mut self, hash: CryptoHash, peer_id: PeerId) -> bool {
-        self.route_back.insert(hash, peer_id)
+    pub fn add_route_back(&mut self, hash: CryptoHash, peer_id: PeerId) {
+        self.route_back.insert(hash, peer_id);
     }
 
     // Find route back with given hash and removes it from cache.
