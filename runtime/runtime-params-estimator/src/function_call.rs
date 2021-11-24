@@ -156,17 +156,17 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
     let mut estimated_codes: Vec<EstimatedCode> = Vec::new();
 
     /// prepare mainnet contracts
-    // let contracts_bytes =
-    //     std::fs::read("/host/nearcore/codes.json").expect("Could not open codes file.");
-    // let entries: Vec<(Vec<u8>, String)> = serde_json::from_slice(&contracts_bytes).unwrap();
-    // for (code, account_id) in entries.iter() {
-    //     if code.is_empty() {
-    //         continue;
-    //     }
-    //     let code = blow_up_code(code);
-    //     estimated_codes
-    //         .push(EstimatedCode { id: format!("from_mainnet_with_noop.{}", account_id), code });
-    // }
+    let contracts_bytes =
+        std::fs::read("/host/nearcore/codes.json").expect("Could not open codes file.");
+    let entries: Vec<(Vec<u8>, String)> = serde_json::from_slice(&contracts_bytes).unwrap();
+    for (code, account_id) in entries.iter() {
+        if code.is_empty() {
+            continue;
+        }
+        let code = blow_up_code(code);
+        estimated_codes
+            .push(EstimatedCode { id: format!("from_mainnet_with_noop.{}", account_id), code });
+    }
 
     /// prepare params
     for (method_count, body_repeat) in
@@ -335,7 +335,7 @@ pub fn compute_function_call_cost(
             protocol_version,
             cache,
         );
-        println!("{:?}", result.1);
+        // println!("{:?}", result.1);
         assert!(result.1.is_none());
     }
     // Run with gas metering.
