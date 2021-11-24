@@ -4,6 +4,7 @@
 use parity_wasm::builder;
 use parity_wasm::elements::{self, External, MemorySection, Type};
 use pwasm_utils::{self, rules};
+use wasmparser::{Parser, ValidPayload};
 
 use near_vm_errors::PrepareError;
 use near_vm_logic::VMConfig;
@@ -28,12 +29,36 @@ struct ContractModule<'a> {
     config: &'a VMConfig,
 }
 
+fn validate_contract(original_code: &[u8], config: &VMConfig) -> Result<(), PrepareError> {
+    let max_functions_number_per_contract =
+        match config.limit_config.max_functions_number_per_contract {
+            Some(max_functions_number) => max_functions_number,
+            None => u64::MAX,
+        };
+    let mut validator = wasmparser::Validator::new();
+    let validator = validator.wasm_features(WASM_FEATURES);
+    let mut functions_to_validate = Vec::new();
+    for payload in Parser::new(0).parse_all(original_code) {
+        let payload = payload.map_err(|_| PrepareError::Deserialization)?;
+        if let ValidPayload::Func(a, b) =
+            validator.payload(&payload).map_err(|_| PrepareError::Deserialization)?
+        {
+            functions_to_validate.push((a, b));
+            if functions_to_validate.len() as u64 > max_functions_number_per_contract {
+                return Err(PrepareError::TooManyFunctions);
+            }
+        }
+    }
+
+    for (mut validator, body) in functions_to_validate {
+        validator.validate(&body)?;
+    }
+    Ok(())
+}
+
 impl<'a> ContractModule<'a> {
     fn init(original_code: &[u8], config: &'a VMConfig) -> Result<Self, PrepareError> {
-        wasmparser::Validator::new()
-            .wasm_features(WASM_FEATURES)
-            .validate_all(original_code)
-            .map_err(|_| PrepareError::Deserialization)?;
+        validate_contract(original_code, config)?;
         let module = elements::deserialize_buffer(original_code)
             .map_err(|_| PrepareError::Deserialization)?;
         Ok(ContractModule { module, config })
