@@ -164,8 +164,10 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
             continue;
         }
         let code = blow_up_code(code);
-        estimated_codes
-            .push(EstimatedCode { id: format!("from_mainnet_with_noop.{}", account_id), code });
+        estimated_codes.push(EstimatedCode {
+            id: format!("from_mainnet_with_noop_small.{}", account_id),
+            code,
+        });
     }
 
     // prepare params
