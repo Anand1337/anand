@@ -139,7 +139,7 @@ struct EstimatedCode {
     code: Vec<u8>,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Estimation {
     id: String,
     fns: u64,
