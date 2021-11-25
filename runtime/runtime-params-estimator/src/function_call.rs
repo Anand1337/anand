@@ -117,7 +117,7 @@ fn blow_up_code(code: &[u8]) -> Vec<u8> {
     let config = store.get_config(ProtocolVersion::MAX);
     let vm_config = &config.wasm_config;
     let fns = get_functions_number(&code, vm_config) as u64;
-    let add_fns = 9500 - fns;
+    let add_fns = 1; //9500 - fns;
 
     let m = &mut Module::from_buffer(code).unwrap();
     for i in 0..add_fns {
@@ -155,7 +155,7 @@ pub fn get_functions_number(original_code: &[u8], config: &VMConfig) -> usize {
 fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
     let mut estimated_codes: Vec<EstimatedCode> = Vec::new();
 
-    /// prepare mainnet contracts
+    // prepare mainnet contracts
     let contracts_bytes =
         std::fs::read("/host/nearcore/codes.json").expect("Could not open codes file.");
     let entries: Vec<(Vec<u8>, String)> = serde_json::from_slice(&contracts_bytes).unwrap();
@@ -168,7 +168,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
             .push(EstimatedCode { id: format!("from_mainnet_with_noop.{}", account_id), code });
     }
 
-    /// prepare params
+    // prepare params
     for (method_count, body_repeat) in
         vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (9990, 1), (9990, 10), (9990, 110)]
             .iter()
@@ -211,7 +211,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
 
     // show
     for estimation in estimations.iter() {
-        println!("{:?}", estimation);
+        println!("{:?}", serde_json::to_string(estimation).unwrap());
     }
 }
 
