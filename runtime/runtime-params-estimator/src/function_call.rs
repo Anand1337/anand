@@ -16,6 +16,7 @@ use nearcore::get_store_path;
 use num_rational::Ratio;
 use num_traits::Pow;
 use serde::{Deserialize, Serialize};
+use std::cmp::max;
 use std::fmt::Write;
 use std::fs::File;
 use std::io::{BufReader, Write as OtherWrite};
@@ -118,7 +119,7 @@ fn blow_up_code(code: &[u8]) -> Vec<u8> {
     let config = store.get_config(ProtocolVersion::MAX);
     let vm_config = &config.wasm_config;
     let fns = get_functions_number(&code, vm_config) as u64;
-    let add_fns = 1800 - fns;
+    let add_fns = max(1, 1800 - fns);
 
     let m = &mut Module::from_buffer(code).unwrap();
     for i in 0..add_fns {
