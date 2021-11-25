@@ -119,7 +119,7 @@ fn blow_up_code(code: &[u8]) -> Vec<u8> {
     let config = store.get_config(ProtocolVersion::MAX);
     let vm_config = &config.wasm_config;
     let fns = get_functions_number(&code, vm_config) as u64;
-    let add_fns = max(1, 1800u64.saturating_sub(fns));
+    let add_fns = 1; //max(1, 1800u64.saturating_sub(fns));
 
     let m = &mut Module::from_buffer(code).unwrap();
     for i in 0..add_fns {
@@ -215,7 +215,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
 
     // show
     for estimation in estimations.iter() {
-        println!("{:?}", serde_json::to_string(estimation).unwrap());
+        println!("{}", serde_json::to_string(estimation).unwrap());
     }
 }
 
