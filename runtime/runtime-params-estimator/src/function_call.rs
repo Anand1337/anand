@@ -15,6 +15,7 @@ use near_vm_runner::{precompile_contract_vm, MockCompiledContractCache};
 use nearcore::get_store_path;
 use num_rational::Ratio;
 use num_traits::Pow;
+use serde::{Deserialize, Serialize};
 use std::fmt::Write;
 use std::fs::File;
 use std::io::{BufReader, Write as OtherWrite};
