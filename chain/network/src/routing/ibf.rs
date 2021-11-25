@@ -120,11 +120,11 @@ impl Ibf {
     pub fn merge(&mut self, rhs_data: &[IbfBox], rhs_seed: u64) -> bool {
         if self.data.len() != rhs_data.len() || self.seed != rhs_seed {
             error!(target: "network",
-                "Failed to merge len: {} {} seed: {} {}",
-                self.data.len(),
-                rhs_data.len(),
-                self.seed,
-                rhs_seed
+                message = "Failed to merge",
+                old_len = self.data.len(),
+                new_len = rhs_data.len(),
+                seed1 = self.seed,
+                seed2 = rhs_seed
             );
             return false;
         }

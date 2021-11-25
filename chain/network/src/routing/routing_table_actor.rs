@@ -525,7 +525,7 @@ impl RoutingTableActor {
             crate::routing::ibf::Ibf::from_vec(ibf_vec.clone(), seed ^ (ibf_level.0 as u64));
 
         if !new_ibf.merge(&ibf.data, seed ^ (ibf_level.0 as u64)) {
-            tracing::error!(target: "network", "exchange routing tables failed with peer {}", peer_id);
+            tracing::error!(target: "network", message = "exchange routing tables failed with peer", peer_id);
             return (Default::default(), Default::default(), 0);
         }
 
@@ -683,7 +683,7 @@ impl Handler<RoutingTableMessages> for RoutingTableActor {
                                 ibf_msg: Some(ibf_msg),
                             }
                         } else {
-                            tracing::error!(target: "network", "Peer not found {}", peer_id);
+                            tracing::error!(target: "network", message = "Peer not found", peer_id);
                             RoutingTableMessagesResponse::Empty
                         }
                     }
@@ -711,7 +711,7 @@ impl Handler<RoutingTableMessages> for RoutingTableActor {
                                 }),
                             }
                         } else {
-                            tracing::error!(target: "network", "Peer not found {}", peer_id);
+                            tracing::error!(target: "network", message = "Peer not found", peer_id);
                             RoutingTableMessagesResponse::Empty
                         }
                     }

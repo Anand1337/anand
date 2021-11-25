@@ -269,7 +269,7 @@ impl PeerManagerActor {
                         act.ban_peer(ctx, &peer, ReasonForBan::InvalidEdge);
                     }
                 }
-                _ => error!(target: "network", "expected RoutingTableUpdateResponse"),
+                _ => error!(target: "network", message = "expected RoutingTableUpdateResponse"),
             })
             .spawn(ctx);
     }
@@ -312,7 +312,7 @@ impl PeerManagerActor {
                         }
                     }
                 }
-                _ => error!(target: "network", "expected AddIbfSetResponse"),
+                _ => error!(target: "network", message = "expected AddIbfSetResponse"),
             })
             .spawn(ctx);
     }
@@ -458,7 +458,7 @@ impl PeerManagerActor {
                         Ok(RoutingTableMessagesResponse::AddPeerResponse { seed }) => {
                             act.start_routing_table_syncv2(ctx, addr, seed)
                         }
-                        _ => error!(target: "network", "expected AddIbfSetResponse"),
+                        _ => error!(target: "network", message = "expected AddIbfSetResponse"),
                     })
                     .spawn(ctx);
             }
@@ -479,7 +479,7 @@ impl PeerManagerActor {
                 Ok(RoutingTableMessagesResponse::StartRoutingTableSyncResponse(response)) => {
                     let _ = addr.do_send(SendMessage { message: response });
                 }
-                _ => error!(target: "network", "expected StartRoutingTableSyncResponse"),
+                _ => error!(target: "network", message = "expected StartRoutingTableSyncResponse"),
             })
             .spawn(ctx);
     }
@@ -564,7 +564,7 @@ impl PeerManagerActor {
                             routing_table,
                         );
                     }
-                    _ => error!(target: "network", "expected AddIbfSetResponse"),
+                    _ => error!(target: "network", message = "expected AddIbfSetResponse"),
                 })
                 .spawn(ctx);
         });
@@ -990,7 +990,7 @@ impl PeerManagerActor {
                 .addr
                 .send(QueryPeerStats {})
                 .into_actor(self)
-                .map(|result, _, _| result.map_err(|err| error!(target: "network", "Failed sending message(monitor_peer_stats): {}", err)))
+                .map(|result, _, _| result.map_err(|err| error!(target: "network", message = "Failed sending message(monitor_peer_stats)", err)))
                 .map(move |res, act, _| {
                     let _ignore = res.map(|res| {
                         if res.is_abusive {
@@ -1250,7 +1250,7 @@ impl PeerManagerActor {
                     res.map_err(|e| {
                         // Peer could have disconnect between check and sending the message.
                         if act.active_peers.contains_key(&peer_id) {
-                            error!(target: "network", "Failed sending message(send_message, {}): {}", msg_kind, e)
+                            error!(target: "network", message = "Failed sending message(send_message)", msg_kind, e)
                         }
                     })
                 )

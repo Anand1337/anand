@@ -90,7 +90,7 @@ where
         item.hash(&mut h);
         let h = h.finish();
         if self.h2e.remove(&h).is_none() {
-            error!(target: "network", "trying to remove not existing edge from IbfSet");
+            error!(target: "network", message = "trying to remove not existing edge from IbfSet");
             return false;
         }
         for ibf in self.ibf.iter_mut() {

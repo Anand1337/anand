@@ -189,7 +189,9 @@ impl PeerActor {
                     )
                 }
             }
-            Err(err) => error!(target: "network", "Error converting message to bytes: {}", err),
+            Err(err) => {
+                error!(target: "network", message = "Error converting message to bytes", err)
+            }
         };
     }
 
@@ -204,7 +206,7 @@ impl PeerActor {
                         actix::fut::ready(())
                     }
                     Err(err) => {
-                        error!(target: "network", "Failed sending GetChain to client: {}", err);
+                        error!(target: "network", message = "Failed sending GetChain to client", err);
                         actix::fut::ready(())
                     }
                     _ => actix::fut::ready(()),
@@ -214,7 +216,7 @@ impl PeerActor {
 
     fn send_handshake(&mut self, ctx: &mut Context<PeerActor>) {
         if self.peer_id().is_none() {
-            error!(target: "network", "Sending handshake to an unknown peer");
+            error!(target: "network", message = "Sending handshake to an unknown peer");
             return;
         }
 
@@ -246,7 +248,7 @@ impl PeerActor {
                             act.edge_info.as_ref().unwrap().clone(),
                         )),
                         _ => {
-                            error!(target: "network", "Trying to talk with peer with no supported version: {}", act.protocol_version);
+                            error!(target: "network", message = "Trying to talk with peer with no supported version", act.protocol_version);
                             return actix::fut::ready(());
                         }
                     };
@@ -255,7 +257,7 @@ impl PeerActor {
                     actix::fut::ready(())
                 }
                 Err(err) => {
-                    error!(target: "network", "Failed sending GetChain to client: {}", err);
+                    error!(target: "network", message = "Failed sending GetChain to client: {}", err);
                     actix::fut::ready(())
                 }
                 _ => actix::fut::ready(()),
@@ -313,7 +315,7 @@ impl PeerActor {
                         NetworkViewClientMessages::StateRequestPart { shard_id, sync_hash, part_id }
                     }
                     body => {
-                        error!(target: "network", "Peer receive_view_client_message received unexpected type: {:?}", body);
+                        error!(target: "network", message = "Peer receive_view_client_message received unexpected type", body);
                         return;
                     }
                 }
@@ -329,7 +331,7 @@ impl PeerActor {
                 NetworkViewClientMessages::EpochSyncFinalizationRequest { epoch_id }
             }
             peer_message => {
-                error!(target: "network", "Peer receive_view_client_message received unexpected type: {:?}", peer_message);
+                error!(target: "network", message = "Peer receive_view_client_message received unexpected type", peer_message);
                 return;
             }
         };
@@ -382,7 +384,7 @@ impl PeerActor {
                     Err(err) => {
                         error!(
                             target: "network",
-                            "Received error sending message to view client: {} for {}",
+                            message = "Received error sending message to view client",
                             err, act.peer_info
                         );
                         return actix::fut::ready(());
@@ -468,7 +470,7 @@ impl PeerActor {
                     | RoutedMessageBody::StateRequestHeader(_, _)
                     | RoutedMessageBody::StateRequestPart(_, _, _)
                     | RoutedMessageBody::Unused => {
-                        error!(target: "network", "Peer receive_client_message received unexpected type: {:?}", routed_message);
+                        error!(target: "network", message = "Peer receive_client_message received unexpected type", >routed_message);
                         return;
                     }
                 }
@@ -494,12 +496,12 @@ impl PeerActor {
             | PeerMessage::BlockHeadersRequest(_)
             | PeerMessage::EpochSyncRequest(_)
             | PeerMessage::EpochSyncFinalizationRequest(_) => {
-                error!(target: "network", "Peer receive_client_message received unexpected type: {:?}", msg);
+                error!(target: "network", message = "Peer receive_client_message received unexpected type", ?msg);
                 return;
             }
             #[cfg(feature = "protocol_feature_routing_exchange_algorithm")]
             PeerMessage::RoutingTableSyncV2(_) => {
-                error!(target: "network", "Peer receive_client_message received unexpected type: {:?}", msg);
+                error!(target: "network", message = "Peer receive_client_message received unexpected type", ?msg);
                 return;
             }
         };
@@ -520,7 +522,7 @@ impl PeerActor {
                     Err(err) => {
                         error!(
                             target: "network",
-                            "Received error sending message to client: {} for {}",
+                            message = "Received error sending message to client",
                             err, act.peer_info
                         );
                         return actix::fut::ready(());
