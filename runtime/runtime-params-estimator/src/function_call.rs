@@ -118,7 +118,7 @@ fn blow_up_code(code: &[u8]) -> Vec<u8> {
     let config = store.get_config(ProtocolVersion::MAX);
     let vm_config = &config.wasm_config;
     let fns = get_functions_number(&code, vm_config) as u64;
-    let add_fns = 1; //9500 - fns;
+    let add_fns = 1800 - fns;
 
     let m = &mut Module::from_buffer(code).unwrap();
     for i in 0..add_fns {
