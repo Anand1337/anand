@@ -114,12 +114,12 @@ fn test_prepare_contract(metric: GasMetric, vm_kind: VMKind) {
     }
 }
 
-fn blow_up_code(code: &[u8]) -> Vec<u8> {
+fn blow_up_code(code: &[u8], body_repeat: u64) -> Vec<u8> {
     let store = RuntimeConfigStore::new(None);
     let config = store.get_config(ProtocolVersion::MAX);
     let vm_config = &config.wasm_config;
     let fns = get_functions_number(&code, vm_config) as u64;
-    let add_fns = 1; //max(1, 1800u64.saturating_sub(fns));
+    let add_fns = max(1, 9800u64.saturating_sub(fns));
 
     let m = &mut Module::from_buffer(code).unwrap();
     for i in 0..add_fns {
@@ -127,8 +127,11 @@ fn blow_up_code(code: &[u8]) -> Vec<u8> {
             println!("{}", i);
         }
         let mut hello_func = FunctionBuilder::new(&mut m.types, &[], &[]);
-        hello_func.func_body().i32_const(1).drop();
-        let hello_func = hello_func.finish(vec![], &mut m.funcs);
+        let mut func_body = hello_func.func_body();
+        for _ in 0..body_repeat {
+            func_body.i32_const(1).drop();
+        }
+        let hello_func = hello_func.clone().finish(vec![], &mut m.funcs);
         if i == 0 {
             m.exports.add(&format!("hello{}", i), hello_func);
         }
@@ -162,12 +165,12 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         std::fs::read("/host/nearcore/codes.json").expect("Could not open codes file.");
     let entries: Vec<(Vec<u8>, String)> = serde_json::from_slice(&contracts_bytes).unwrap();
     for (code, account_id) in entries.iter() {
-        if code.is_empty() {
+        if code.is_empty() || account_id != "cdao.near" {
             continue;
         }
-        let code = blow_up_code(code);
+        let code = blow_up_code(code, 100);
         estimated_codes.push(EstimatedCode {
-            id: format!("from_mainnet_with_noop_small.{}", account_id),
+            id: format!("from_mainnet_with_noop_increased_{}.{}", 100, account_id),
             code,
         });
     }
