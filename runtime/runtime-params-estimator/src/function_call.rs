@@ -131,7 +131,7 @@ fn blow_up_code(code: &[u8], body_repeat: u64) -> Vec<u8> {
         for _ in 0..body_repeat {
             func_body.i32_const(1).drop();
         }
-        let hello_func = hello_func.clone().finish(vec![], &mut m.funcs);
+        let hello_func = hello_func.finish(vec![], &mut m.funcs);
         if i == 0 {
             m.exports.add(&format!("hello{}", i), hello_func);
         }
