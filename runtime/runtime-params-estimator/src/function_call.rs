@@ -132,10 +132,8 @@ fn blow_up_code(code: &[u8], body_repeat: u64) -> Vec<u8> {
             func_body.i32_const(1).drop();
         }
         let hello_func = hello_func.finish(vec![], &mut m.funcs);
-        if true {
-            // i == 0 {
-            m.exports.add(&format!("hello{}", i), hello_func);
-        }
+        // It seems safe to export everything, because we don't limit it currently
+        m.exports.add(&format!("hello{}", i), hello_func);
     }
     m.emit_wasm()
 }
@@ -166,7 +164,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         std::fs::read("/host/nearcore/codes.json").expect("Could not open codes file.");
     let entries: Vec<(Vec<u8>, String)> = serde_json::from_slice(&contracts_bytes).unwrap();
     for (code, account_id) in entries.iter() {
-        if code.is_empty() || account_id != "cdao.near" {
+        if code.is_empty() {
             continue;
         }
         let code = blow_up_code(code, 100);
@@ -177,15 +175,15 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
     }
 
     // prepare params
-    // for (method_count, body_repeat) in
-    //     vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (9990, 1), (9990, 10), (9990, 110)]
-    //         .iter()
-    //         .cloned()
-    // {
-    //     let code = many_functions_contract_with_repeats(method_count, body_repeat);
-    //     estimated_codes
-    //         .push(EstimatedCode { id: format!("many_fns_{}_{}", method_count, body_repeat), code });
-    // }
+    for (method_count, body_repeat) in
+        vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (9990, 1), (9990, 10), (9990, 110)]
+            .iter()
+            .cloned()
+    {
+        let code = many_functions_contract_with_repeats(method_count, body_repeat);
+        estimated_codes
+            .push(EstimatedCode { id: format!("many_fns_{}_{}", method_count, body_repeat), code });
+    }
 
     // parse files
     // for fname in vec!["cdao_test.near.wasm"].iter().cloned() {
