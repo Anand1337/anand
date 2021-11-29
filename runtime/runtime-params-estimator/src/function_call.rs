@@ -162,19 +162,19 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
     let mut estimated_codes: Vec<EstimatedCode> = Vec::new();
 
     // prepare mainnet contracts
-    let contracts_bytes =
-        std::fs::read("/host/nearcore/codes.json").expect("Could not open codes file.");
-    let entries: Vec<(Vec<u8>, String)> = serde_json::from_slice(&contracts_bytes).unwrap();
-    for (code, account_id) in entries.iter() {
-        if code.is_empty() || account_id != "cdao.near" {
-            continue;
-        }
-        let code = blow_up_code(code, 100);
-        estimated_codes.push(EstimatedCode {
-            id: format!("from_mainnet_with_noop_increased_{}.{}", 100, account_id),
-            code,
-        });
-    }
+    // let contracts_bytes =
+    //     std::fs::read("/host/nearcore/codes.json").expect("Could not open codes file.");
+    // let entries: Vec<(Vec<u8>, String)> = serde_json::from_slice(&contracts_bytes).unwrap();
+    // for (code, account_id) in entries.iter() {
+    //     if code.is_empty() || account_id != "cdao.near" {
+    //         continue;
+    //     }
+    //     let code = blow_up_code(code, 100);
+    //     estimated_codes.push(EstimatedCode {
+    //         id: format!("from_mainnet_with_noop_increased_{}.{}", 100, account_id),
+    //         code,
+    //     });
+    // }
 
     // prepare params
     // for (method_count, body_repeat) in
@@ -188,11 +188,11 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
     // }
 
     // parse files
-    // for fname in vec!["cdao_test.near.wasm"].iter().cloned() {
-    //     let fpath = format!("/host/nearcore/contracts/{}", fname);
-    //     let code = std::fs::read(fpath).expect("Could not open codes file.");
-    //     estimated_codes.push(EstimatedCode { id: format!("{}", fname), code });
-    // }
+    for fname in vec!["cdao_test.near.wasm"].iter().cloned() {
+        let fpath = format!("/host/nearcore/contracts/{}", fname);
+        let code = std::fs::read(fpath).expect("Could not open codes file.");
+        estimated_codes.push(EstimatedCode { id: format!("{}", fname), code });
+    }
 
     // estimate
     let mut estimations: Vec<Estimation> = Vec::new();
