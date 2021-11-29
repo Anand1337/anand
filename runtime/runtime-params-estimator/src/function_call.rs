@@ -214,6 +214,8 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
             } // teragas
             GasMetric::Time => raw_result as f64 / (REPEATS as f64 * 1_000_000 as f64), // ms
         };
+        println!("gas result = {}", result);
+
         estimations.push(Estimation {
             id: estimated_code.id.clone(),
             fns,
