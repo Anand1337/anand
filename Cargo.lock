@@ -5490,8 +5490,8 @@ checksum = "0237232789cf037d5480773fe568aac745bfe2afbc11a863e97901780a6b47cc"
 
 [[package]]
 name = "wasmer-compiler-near"
-version = "2.0.3"
-source = "git+https://github.com/near/wasmer?rev=7945c3e#7945c3e7bd579d64d978e8b3fad8e13af414d403"
+version = "2.1.0"
+source = "git+https://github.com/near/wasmer?rev=0a4fdc4#0a4fdc4e044167b70370dd2965b9c8120a4f5905"
 dependencies = [
  "enumset",
  "loupe",
@@ -5508,8 +5508,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-compiler-singlepass-near"
-version = "2.0.3"
-source = "git+https://github.com/near/wasmer?rev=7945c3e#7945c3e7bd579d64d978e8b3fad8e13af414d403"
+version = "2.1.0"
+source = "git+https://github.com/near/wasmer?rev=0a4fdc4#0a4fdc4e044167b70370dd2965b9c8120a4f5905"
 dependencies = [
  "byteorder",
  "dynasm",
@@ -5527,8 +5527,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-derive-near"
-version = "2.0.3"
-source = "git+https://github.com/near/wasmer?rev=7945c3e#7945c3e7bd579d64d978e8b3fad8e13af414d403"
+version = "2.1.0"
+source = "git+https://github.com/near/wasmer?rev=0a4fdc4#0a4fdc4e044167b70370dd2965b9c8120a4f5905"
 dependencies = [
  "proc-macro-error",
  "proc-macro2",
@@ -5539,7 +5539,7 @@ dependencies = [
 [[package]]
 name = "wasmer-engine-dylib"
 version = "2.0.0"
-source = "git+https://github.com/near/wasmer?rev=7945c3e#7945c3e7bd579d64d978e8b3fad8e13af414d403"
+source = "git+https://github.com/near/wasmer?rev=0a4fdc4#0a4fdc4e044167b70370dd2965b9c8120a4f5905"
 dependencies = [
  "cfg-if 1.0.0",
  "leb128",
@@ -5559,8 +5559,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-engine-near"
-version = "2.0.3"
-source = "git+https://github.com/near/wasmer?rev=7945c3e#7945c3e7bd579d64d978e8b3fad8e13af414d403"
+version = "2.1.0"
+source = "git+https://github.com/near/wasmer?rev=0a4fdc4#0a4fdc4e044167b70370dd2965b9c8120a4f5905"
 dependencies = [
  "backtrace",
  "lazy_static",
@@ -5579,8 +5579,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-engine-universal-near"
-version = "2.0.3"
-source = "git+https://github.com/near/wasmer?rev=7945c3e#7945c3e7bd579d64d978e8b3fad8e13af414d403"
+version = "2.1.0"
+source = "git+https://github.com/near/wasmer?rev=0a4fdc4#0a4fdc4e044167b70370dd2965b9c8120a4f5905"
 dependencies = [
  "cfg-if 1.0.0",
  "leb128",
@@ -5596,8 +5596,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-near"
-version = "2.0.3"
-source = "git+https://github.com/near/wasmer?rev=7945c3e#7945c3e7bd579d64d978e8b3fad8e13af414d403"
+version = "2.1.0"
+source = "git+https://github.com/near/wasmer?rev=0a4fdc4#0a4fdc4e044167b70370dd2965b9c8120a4f5905"
 dependencies = [
  "cfg-if 1.0.0",
  "indexmap",
@@ -5621,7 +5621,7 @@ dependencies = [
 [[package]]
 name = "wasmer-object"
 version = "2.0.0"
-source = "git+https://github.com/near/wasmer?rev=7945c3e#7945c3e7bd579d64d978e8b3fad8e13af414d403"
+source = "git+https://github.com/near/wasmer?rev=0a4fdc4#0a4fdc4e044167b70370dd2965b9c8120a4f5905"
 dependencies = [
  "object 0.26.2",
  "thiserror",
@@ -5695,8 +5695,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-types-near"
-version = "2.0.3"
-source = "git+https://github.com/near/wasmer?rev=7945c3e#7945c3e7bd579d64d978e8b3fad8e13af414d403"
+version = "2.1.0"
+source = "git+https://github.com/near/wasmer?rev=0a4fdc4#0a4fdc4e044167b70370dd2965b9c8120a4f5905"
 dependencies = [
  "indexmap",
  "loupe",
@@ -5707,8 +5707,8 @@ dependencies = [
 
 [[package]]
 name = "wasmer-vm-near"
-version = "2.0.3"
-source = "git+https://github.com/near/wasmer?rev=7945c3e#7945c3e7bd579d64d978e8b3fad8e13af414d403"
+version = "2.1.0"
+source = "git+https://github.com/near/wasmer?rev=0a4fdc4#0a4fdc4e044167b70370dd2965b9c8120a4f5905"
 dependencies = [
  "backtrace",
  "cc",
