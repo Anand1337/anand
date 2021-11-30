@@ -470,10 +470,14 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
 }
 
 fn measure_function_call_1s(vm_kind: VMKind) {
-    init_test_logger();
+    // init_test_logger();
 
-    let (contract, method_name, init_args) = get_rs_contract_data();
-    let contract = ContractCode::new(contract.iter().cloned().collect(), None);
+    let fpath = format!("/host/nearcore/contracts/many_fns_9990_1.wasm");
+    let contract = std::fs::read(fpath).expect("Could not open codes file.");
+    let method_name = "hello0";
+
+    // let (contract, method_name, init_args) = get_rs_contract_data();
+    let contract = ContractCode::new(contract, None);
     let contract_len = contract.code().len();
     println!("contract length = {}", contract_len);
     println!("method name = {}", method_name);
@@ -520,12 +524,13 @@ fn measure_function_call_1s(vm_kind: VMKind) {
 
 #[test]
 fn test_measure_function_call_1s() {
+    tracing_span_tree::span_tree().enable();
     // Run with
     // cargo test --release --lib function_call::test_function_call_time
     //    --features required  -- --exact --nocapture
-    measure_function_call_1s(VMKind::Wasmer0);
+    // measure_function_call_1s(VMKind::Wasmer0);
     measure_function_call_1s(VMKind::Wasmer2);
-    measure_function_call_1s(VMKind::Wasmtime);
+    // measure_function_call_1s(VMKind::Wasmtime);
 }
 
 #[test]
