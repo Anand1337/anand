@@ -284,14 +284,14 @@ fn test_compile_all_codes(metric: GasMetric, vm_kind: VMKind) {
                 GasMetric::Time => raw_result as f64 / (compile_repeats as f64 * 1_000_000 as f64), // ms
             };
             println!("final result = {}", result);
-        }
 
-        estimations.push(Estimation {
-            id: estimated_code.id.clone(),
-            fns,
-            len: estimated_code.code.len() as u64,
-            result,
-        })
+            estimations.push(Estimation {
+                id: estimated_code.id.clone(),
+                fns,
+                len: estimated_code.code.len() as u64,
+                result,
+            })
+        }
     }
 
     // show
