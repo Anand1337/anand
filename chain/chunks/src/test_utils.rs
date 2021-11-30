@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use chrono::Utc;
+use near_primitives::time::Clock;
 
 use near_chain::test_utils::KeyValueRuntime;
 use near_chain::types::RuntimeAdapter;
@@ -8,6 +8,7 @@ use near_chain::ChainStore;
 use near_crypto::KeyType;
 use near_network::test_utils::MockPeerManagerAdapter;
 use near_primitives::block::BlockHeader;
+use near_primitives::epoch_manager::RngSeed;
 use near_primitives::hash::{self, CryptoHash};
 use near_primitives::merkle;
 use near_primitives::sharding::{
@@ -67,7 +68,7 @@ impl Default for SealsManagerTestFixture {
             Default::default(),
             Default::default(),
             Default::default(),
-            Utc::now(),
+            Clock::utc(),
             Default::default(),
             Default::default(),
             Default::default(),
@@ -200,10 +201,12 @@ impl Default for ChunkForwardingTestFixture {
             .find(|v| v != &mock_chunk_producer && v != &mock_shard_tracker)
             .unwrap();
 
+        const TEST_SEED: RngSeed = [3; 32];
         let mut producer_shard_manager = ShardsManager::new(
             Some(mock_chunk_producer.clone()),
             mock_runtime.clone(),
             mock_network.clone(),
+            TEST_SEED,
         );
         let receipts = Vec::new();
         let shard_layout = mock_runtime.get_shard_layout(&EpochId::default()).unwrap();

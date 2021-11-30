@@ -1,8 +1,7 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use std::cmp::{max, min};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
-
-use borsh::{BorshDeserialize, BorshSerialize};
 use tracing::error;
 
 /// Ibf consists of multiple boxes, this constant specified the number of unique boxes
@@ -16,6 +15,7 @@ const NUM_HASHES: usize = 3;
 /// The box considered to be empty if both xor of elements inserted and their hashes is equal to 0.
 /// To check whenever only one element is inside the box, we can check whenever hash of `xor_element`
 /// is equal to `xor_hash`.
+#[cfg_attr(feature = "deepsize_feature", derive(deepsize::DeepSizeOf))]
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone, Debug, Default)]
 pub struct IbfBox {
     xor_elem: u64,
@@ -151,7 +151,7 @@ impl Ibf {
             }
             return Err("unable to recover result");
         }
-        return Ok(result);
+        Ok(result)
     }
 
     /// Try to recover elements inserted into IBF.
@@ -190,7 +190,7 @@ impl Ibf {
         let mask = (1 << self.k) - 1;
         let pos0 = elem_hash & mask;
         let mut pos1 = (elem_hash >> self.k) & mask;
-        let mut pos2 = (elem_hash >> 2 * self.k) & mask;
+        let mut pos2 = (elem_hash >> (2 * self.k)) & mask;
         if pos1 >= pos0 {
             pos1 = (pos1 + 1) & mask;
         }
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn create_blt_test() {
-        let set = 1000000_3_00000u64..1000000_301000u64;
+        let set = 1_000_000_300_000_u64..1_000_000_301_000_u64;
 
         assert_eq!(1000, create_blt(set, 2048).recover().unwrap().len())
     }

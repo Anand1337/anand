@@ -1,10 +1,12 @@
+#!/usr/bin/env python3
 # Spins up two nodes, and waits until they produce 20 blocks.
 # Kills the nodes, restarts them, makes sure they produce 20 more blocks
 # Sets epoch length to 10
 
 import sys, time
+import pathlib
 
-sys.path.append('lib')
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[2] / 'lib'))
 
 from cluster import start_cluster
 from configured_logger import logger
@@ -36,6 +38,7 @@ def heights_report():
         logger.info("Node %s: %s" % (i, sorted(list(sh))))
 
 
+first_round = True
 while max_height < BLOCKS1:
     assert time.time() - started < TIMEOUT
     for i, node in enumerate(nodes):
@@ -62,8 +65,12 @@ while max_height < BLOCKS1:
             if height in seen_heights[j]:
                 last_common[i][j] = height
                 last_common[j][i] = height
+        if not first_round:
+            # Don't check it in the first round - min_common will be 0, as we didn't
+            # read the status from all nodes.
+            assert min_common() + 2 >= height, heights_report()
 
-        assert min_common() + 2 >= height, heights_report()
+    first_round = False
 
 assert min_common() + 2 >= BLOCKS1, heights_report()
 
@@ -73,6 +80,7 @@ for node in nodes:
 nodes[0].start()
 nodes[1].start(boot_node=nodes[0])
 
+first_round = True
 while max_height < BLOCKS2:
     assert time.time() - started < TIMEOUT
     for i, node in enumerate(nodes):
@@ -100,6 +108,9 @@ while max_height < BLOCKS2:
                 last_common[i][j] = height
                 last_common[j][i] = height
 
-        assert min_common() + 2 >= height, heights_report()
+        if not first_round:
+            # Don't check it in the first round - min_common will be 0, as we didn't
+            # read the status from all nodes.
+            assert min_common() + 2 >= height, heights_report()
 
 assert min_common() + 2 >= BLOCKS2, heights_report()

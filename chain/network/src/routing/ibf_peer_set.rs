@@ -1,13 +1,34 @@
+use crate::routing::edge::{Edge, SimpleEdge};
+use crate::routing::ibf_set::IbfSet;
+use borsh::{BorshDeserialize, BorshSerialize};
+use near_primitives::network::PeerId;
+use rand::Rng;
 use std::collections::HashMap;
 
-use rand::Rng;
-
-use near_primitives::network::PeerId;
-
-use crate::routing::ibf_set::IbfSet;
-use crate::routing::routing::{Edge, SimpleEdge};
-
 pub type SlotMapId = u64;
+
+#[cfg_attr(feature = "deepsize_feature", derive(deepsize::DeepSizeOf))]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone, Debug, Copy)]
+pub struct ValidIBFLevel(pub u64);
+
+/// We create IbfSets of various sizes from 2^10+2 up to 2^17+2. Those constants specify valid ranges.
+pub const MIN_IBF_LEVEL: ValidIBFLevel = ValidIBFLevel(10);
+pub const MAX_IBF_LEVEL: ValidIBFLevel = ValidIBFLevel(17);
+
+/// Represents IbfLevel from 10 to 17.
+impl ValidIBFLevel {
+    pub fn inc(&self) -> Option<ValidIBFLevel> {
+        if self.0 + 1 >= MIN_IBF_LEVEL.0 && self.0 < MAX_IBF_LEVEL.0 {
+            Some(ValidIBFLevel(self.0 + 1))
+        } else {
+            None
+        }
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.0 >= MIN_IBF_LEVEL.0 && self.0 <= MAX_IBF_LEVEL.0
+    }
+}
 
 /// In order to reduce memory usage/bandwidth used we map each edge to u64.
 /// SlotMap contains mapping from SimpleToHash, and vice versa.
@@ -85,13 +106,13 @@ impl IbfPeerSet {
         let mut ibf_set = IbfSet::new(seed);
         // Initialize IbfSet with edges
         for (key, e) in edges_info.iter() {
-            let se = SimpleEdge::new(key.0.clone(), key.1.clone(), e.nonce);
+            let se = SimpleEdge::new(key.0.clone(), key.1.clone(), e.nonce());
             if let Some(id) = self.slot_map.get(&se) {
                 ibf_set.add_edge(&se, id);
             }
         }
         let seed = ibf_set.get_seed();
-        self.peers.insert(peer_id.clone(), ibf_set);
+        self.peers.insert(peer_id, ibf_set);
         seed
     }
 
@@ -117,7 +138,7 @@ impl IbfPeerSet {
         if let Some(_id) = self.slot_map.pop(edge) {
             self.edges -= 1;
             for (_, val) in self.peers.iter_mut() {
-                val.remove_edge(&edge);
+                val.remove_edge(edge);
             }
             return true;
         }
@@ -145,9 +166,10 @@ impl IbfPeerSet {
 
 #[cfg(test)]
 mod test {
-    use crate::routing::ibf_peer_set::{IbfPeerSet, SimpleEdge, SlotMap, SlotMapId};
+    use crate::routing::edge::{Edge, SimpleEdge};
+    use crate::routing::ibf_peer_set::ValidIBFLevel;
+    use crate::routing::ibf_peer_set::{IbfPeerSet, SlotMap};
     use crate::routing::ibf_set::IbfSet;
-    use crate::routing::routing::{Edge, ValidIBFLevel};
     use crate::test_utils::random_peer_id;
     use near_primitives::network::PeerId;
     use std::collections::HashMap;
@@ -158,37 +180,37 @@ mod test {
         let p1 = random_peer_id();
         let p2 = random_peer_id();
 
-        let e0 = SimpleEdge::new(p0.clone(), p1.clone(), 0);
+        let e0 = SimpleEdge::new(p0, p1.clone(), 0);
         let e1 = SimpleEdge::new(p1.clone(), p2.clone(), 0);
-        let e2 = SimpleEdge::new(p1.clone(), p2.clone(), 3);
+        let e2 = SimpleEdge::new(p1, p2, 3);
 
         let mut sm = SlotMap::default();
-        assert_eq!(0 as SlotMapId, sm.insert(&e0).unwrap());
+        assert_eq!(0_u64, sm.insert(&e0).unwrap());
 
         assert!(sm.insert(&e0).is_none());
 
-        assert_eq!(1 as SlotMapId, sm.insert(&e1).unwrap());
-        assert_eq!(2 as SlotMapId, sm.insert(&e2).unwrap());
+        assert_eq!(1_u64, sm.insert(&e1).unwrap());
+        assert_eq!(2_u64, sm.insert(&e2).unwrap());
 
-        assert_eq!(Some(2 as SlotMapId), sm.pop(&e2));
+        assert_eq!(Some(2_u64), sm.pop(&e2));
         assert_eq!(None, sm.pop(&e2));
-        assert_eq!(Some(0 as SlotMapId), sm.pop(&e0));
+        assert_eq!(Some(0_u64), sm.pop(&e0));
         assert_eq!(None, sm.pop(&e0));
 
-        assert_eq!(Some(1 as SlotMapId), sm.get(&e1));
+        assert_eq!(Some(1_u64), sm.get(&e1));
 
-        assert_eq!(Some(e1.clone()), sm.get_by_id(&(1 as SlotMapId)));
-        assert_eq!(None, sm.get_by_id(&(1000 as SlotMapId)));
+        assert_eq!(Some(e1.clone()), sm.get_by_id(&1_u64));
+        assert_eq!(None, sm.get_by_id(&1000_u64));
 
-        assert_eq!(Some(1 as SlotMapId), sm.pop(&e1));
+        assert_eq!(Some(1_u64), sm.pop(&e1));
         assert_eq!(None, sm.get(&e1));
         assert_eq!(None, sm.pop(&e1));
 
-        assert_eq!(3 as SlotMapId, sm.insert(&e2).unwrap());
-        assert_eq!(Some(3 as SlotMapId), sm.pop(&e2));
+        assert_eq!(3_u64, sm.insert(&e2).unwrap());
+        assert_eq!(Some(3_u64), sm.pop(&e2));
 
-        assert_eq!(None, sm.get_by_id(&(1 as SlotMapId)));
-        assert_eq!(None, sm.get_by_id(&(1000 as SlotMapId)));
+        assert_eq!(None, sm.get_by_id(&1_u64));
+        assert_eq!(None, sm.get_by_id(&1000_u64));
     }
 
     #[test]
@@ -216,7 +238,7 @@ mod test {
         ips.add_peer(peer_id.clone(), Some(1111), &mut edges_info);
 
         // Add edge
-        let e = SimpleEdge::new(peer_id.clone(), peer_id2.clone(), 111);
+        let e = SimpleEdge::new(peer_id.clone(), peer_id2, 111);
         let se = ips.add_edge(&e).unwrap();
         ibf_set.add_edge(&e, se);
         assert!(ips.add_edge(&e).is_none());

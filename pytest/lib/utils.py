@@ -197,39 +197,16 @@ def load_binary_file(filepath):
         return bytearray(binaryfile.read())
 
 
-def load_test_contract(filename='test_contract_rs.wasm'):
+def load_test_contract(filename: str = 'test_contract_rs.wasm') -> bytearray:
     """Loads a WASM file from near-test-contracts package.
 
     This is just a convenience function around load_binary_file which loads
     files from ../runtime/near-test-contracts/res directory.  By default
     test_contract_rs.wasm is loaded.
     """
-    return load_binary_file('../runtime/near-test-contracts/res/' + filename)
-
-
-def compile_rust_contract(content):
-    tempdir = get_near_tempdir()
-    with tempfile.TemporaryDirectory(dir=tempdir) as build_dir:
-        build_dir = pathlib.Path(build_dir) / 'empty-contract-rs'
-        shutil.copytree(pathlib.Path(__file__).parent.parent /
-                        'empty-contract-rs',
-                        build_dir,
-                        symlinks=True)
-        (build_dir / 'src').mkdir(parents=True, exist_ok=True)
-        with open(build_dir / 'src' / 'lib.rs', 'w') as wr:
-            wr.write(content)
-        subprocess.check_call(('cargo', 'build', '--release', '--target',
-                               'wasm32-unknown-unknown'),
-                              cwd=build_dir)
-        wasm_src = (build_dir / 'target' / 'wasm32-unknown-unknown' /
-                    'release' / 'empty_contract_rs.wasm')
-        wasm_fno, wasm_path = tempfile.mkstemp(suffix='.wasm')
-        atexit.register(pathlib.Path.unlink,
-                        pathlib.Path(wasm_path),
-                        missing_ok=True)
-        with open(wasm_src, mode='rb') as rd, open(wasm_fno, mode='wb') as wr:
-            shutil.copyfileobj(rd, wr)
-    return wasm_path
+    repo_dir = pathlib.Path(__file__).resolve().parents[2]
+    path = repo_dir / 'runtime/near-test-contracts/res' / filename
+    return load_binary_file(path)
 
 
 def user_name():

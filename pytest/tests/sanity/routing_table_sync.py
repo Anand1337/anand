@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Simulates routing table exchange with two nodes A, B. We are testing a few test cases depending on the number of
 # edges A, has but B doesn't and vise-versa. For each configuration, we simulate doing routing table exchange, and
 # we check whenever both have the same version of routing table at the end.
@@ -6,12 +7,15 @@
 # edge pruning in order to eliminate those factors for sake of testing. In addition uses JsonRPC to add/remove edges
 # check current state of routing table on both sites.
 
-import sys, time
+import os
+import sys
+import time
+import pathlib
 
 import base58
 import ed25519
 
-sys.path.append('lib')
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[2] / 'lib'))
 
 from cluster import start_cluster
 from peer import logger
@@ -59,10 +63,10 @@ def new_edge(peer_a, peer_b, nonce):
     return {
         'nonce':
             nonce,
-        'peer0':
+        'key': [
             'ed25519:' + min(s1, s2),
-        'peer1':
             'ed25519:' + max(s1, s2),
+        ],
         'removal_info':
             None,
         'signature0':
@@ -85,11 +89,11 @@ tests = [
     # Only second node has new edges
     [0, 3, 0, 5],
     # check edge case, where full sync is required
-    [50000, 50000, 0, 15],
+    [25000, 25000, 0, 15],
     # Both nodes have new edges
     [1, 11, 0, 5],
     # Both nodes have 1 each other doesn't know about, and there are bunch of common edges
-    [1, 1, 200000, 5],
+    [1, 1, 50000, 5],
     # medium test, both nodes have some edges
     [10000, 10000, 0, 15],
 ]
@@ -139,10 +143,7 @@ for (left, right, common, TIMEOUT) in tests:
     to_node1 = right_nodes + common_nodes
 
     def simplify(edges):
-        return [{
-            'key': (edge['peer0'], edge['peer1']),
-            'nonce': edge['nonce']
-        } for edge in edges]
+        return [{'key': edge['key'], 'nonce': edge['nonce']} for edge in edges]
 
     all_edges = simplify(left_nodes + to_node1)
 
@@ -188,7 +189,7 @@ for (left, right, common, TIMEOUT) in tests:
     started = time.time()
     while True:
         assert time.time() - started < TIMEOUT
-        status = nodes[0].get_status()
+        status = nodes[0].get_status(timeout=30)
         height = status['sync_info']['latest_block_height']
         if success.value == 1:
             break

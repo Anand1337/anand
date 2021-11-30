@@ -1,34 +1,23 @@
-use std::collections::{hash_map::Entry, HashMap, VecDeque};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
-
-use cached::{Cached, SizedCache};
-use conqueue::{QueueReceiver, QueueSender};
-#[cfg(feature = "test_features")]
-use serde::{Deserialize, Serialize};
-use tracing::warn;
-
-use near_primitives::hash::{hash, CryptoHash};
-use near_primitives::network::{AnnounceAccount, PeerId};
-use near_primitives::types::AccountId;
-use near_store::{ColAccountAnnouncements, Store};
-
+use crate::routing::edge::{Edge, SimpleEdge};
 use crate::routing::route_back_cache::RouteBackCache;
+use crate::routing::utils::cache_to_hashmap;
 use crate::PeerInfo;
-use crate::{
-    types::{PeerIdOrHash, Ping, Pong},
-    utils::cache_to_hashmap,
-};
 use actix::dev::{MessageResponse, ResponseChannel};
 use actix::{Actor, Message};
-use borsh::{BorshDeserialize, BorshSerialize};
-use byteorder::{LittleEndian, WriteBytesExt};
-use near_crypto::{KeyType, SecretKey, Signature};
+use cached::{Cached, SizedCache};
+use near_network_primitives::types::{PeerIdOrHash, Ping, Pong};
+use near_primitives::hash::CryptoHash;
+use near_primitives::network::{AnnounceAccount, PeerId};
+use near_primitives::time::Clock;
+use near_primitives::types::AccountId;
+use near_store::{ColAccountAnnouncements, Store};
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, VecDeque};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tracing::warn;
 
 const ANNOUNCE_ACCOUNT_CACHE_SIZE: usize = 10_000;
-const ROUTE_BACK_CACHE_SIZE: u64 = 100_000;
-const ROUTE_BACK_CACHE_EVICT_TIMEOUT: Duration = Duration::from_millis(120_000);
-const ROUTE_BACK_CACHE_REMOVE_BATCH: u64 = 100;
 const PING_PONG_CACHE_SIZE: usize = 1_000;
 const ROUND_ROBIN_MAX_NONCE_DIFFERENCE_ALLOWED: usize = 10;
 const ROUND_ROBIN_NONCE_CACHE_SIZE: usize = 10_000;
@@ -40,286 +29,8 @@ pub const DELETE_PEERS_AFTER_TIME: Duration = Duration::from_secs(3_600);
 /// Graph implementation supports up to 128 peers.
 pub const MAX_NUM_PEERS: usize = 128;
 
-/// Information that will be ultimately used to create a new edge.
-/// It contains nonce proposed for the edge with signature from peer.
-#[derive(Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, Debug, Default)]
-pub struct EdgeInfo {
-    pub nonce: u64,
-    pub signature: Signature,
-}
-
-impl EdgeInfo {
-    pub fn new(peer0: PeerId, peer1: PeerId, nonce: u64, secret_key: &SecretKey) -> Self {
-        let (peer0, peer1) = Edge::key(peer0, peer1);
-        let data = Edge::build_hash(&peer0, &peer1, nonce);
-        let signature = secret_key.sign(data.as_ref());
-        Self { nonce, signature }
-    }
-}
-
-/// Status of the edge
-#[derive(BorshSerialize, BorshDeserialize, Clone, PartialEq, Eq, Debug, Hash)]
-pub enum EdgeType {
-    Added,
-    Removed,
-}
-
-/// Edge object. Contains information relative to a new edge that is being added or removed
-/// from the network. This is the information that is required.
-#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "test_features", derive(Serialize, Deserialize))]
-pub struct Edge {
-    /// Since edges are not directed `peer0 < peer1` should hold.
-    pub peer0: PeerId,
-    pub peer1: PeerId,
-    /// Nonce to keep tracking of the last update on this edge.
-    /// It must be even
-    pub nonce: u64,
-    /// Signature from parties validating the edge. These are signature of the added edge.
-    signature0: Signature,
-    signature1: Signature,
-    /// Info necessary to declare an edge as removed.
-    /// The bool says which party is removing the edge: false for Peer0, true for Peer1
-    /// The signature from the party removing the edge.
-    removal_info: Option<(bool, Signature)>,
-}
-
-impl Edge {
-    /// Create an addition edge.
-    pub fn new(
-        peer0: PeerId,
-        peer1: PeerId,
-        nonce: u64,
-        signature0: Signature,
-        signature1: Signature,
-    ) -> Self {
-        let (peer0, signature0, peer1, signature1) = if peer0 < peer1 {
-            (peer0, signature0, peer1, signature1)
-        } else {
-            (peer1, signature1, peer0, signature0)
-        };
-
-        Self { peer0, peer1, nonce, signature0, signature1, removal_info: None }
-    }
-
-    pub fn to_simple_edge(&self) -> SimpleEdge {
-        SimpleEdge::new(self.peer0.clone(), self.peer1.clone(), self.nonce)
-    }
-
-    pub fn make_fake_edge(peer0: PeerId, peer1: PeerId, nonce: u64) -> Self {
-        Self {
-            peer0,
-            peer1,
-            nonce,
-            signature0: Signature::empty(KeyType::ED25519),
-            signature1: Signature::empty(KeyType::ED25519),
-            removal_info: None,
-        }
-    }
-
-    /// Build a new edge with given information from the other party.
-    pub fn build_with_secret_key(
-        peer0: PeerId,
-        peer1: PeerId,
-        nonce: u64,
-        secret_key: &SecretKey,
-        signature1: Signature,
-    ) -> Self {
-        let hash = if peer0 < peer1 {
-            Edge::build_hash(&peer0, &peer1, nonce)
-        } else {
-            Edge::build_hash(&peer1, &peer0, nonce)
-        };
-        let signature0 = secret_key.sign(hash.as_ref());
-        Edge::new(peer0, peer1, nonce, signature0, signature1)
-    }
-
-    /// Create the remove edge change from an added edge change.
-    pub fn remove_edge(&self, my_peer_id: PeerId, sk: &SecretKey) -> Self {
-        assert_eq!(self.edge_type(), EdgeType::Added);
-        let mut edge = self.clone();
-        edge.nonce += 1;
-        let me = edge.peer0 == my_peer_id;
-        let hash = edge.hash();
-        let signature = sk.sign(hash.as_ref());
-        edge.removal_info = Some((me, signature));
-        edge
-    }
-
-    /// Build the hash of the edge given its content.
-    /// It is important that peer0 < peer1 at this point.
-    fn build_hash(peer0: &PeerId, peer1: &PeerId, nonce: u64) -> CryptoHash {
-        let mut buffer = Vec::<u8>::new();
-        let peer0: Vec<u8> = peer0.clone().into();
-        buffer.extend_from_slice(peer0.as_slice());
-        let peer1: Vec<u8> = peer1.clone().into();
-        buffer.extend_from_slice(peer1.as_slice());
-        buffer.write_u64::<LittleEndian>(nonce).unwrap();
-        hash(buffer.as_slice())
-    }
-
-    fn hash(&self) -> CryptoHash {
-        Edge::build_hash(&self.peer0, &self.peer1, self.nonce)
-    }
-
-    fn prev_hash(&self) -> CryptoHash {
-        Edge::build_hash(&self.peer0, &self.peer1, self.nonce - 1)
-    }
-
-    pub fn verify(&self) -> bool {
-        if self.peer0 > self.peer1 {
-            return false;
-        }
-
-        match self.edge_type() {
-            EdgeType::Added => {
-                let data = self.hash();
-
-                self.removal_info.is_none()
-                    && self.signature0.verify(data.as_ref(), &self.peer0.public_key())
-                    && self.signature1.verify(data.as_ref(), &self.peer1.public_key())
-            }
-            EdgeType::Removed => {
-                // nonce should be an even positive number
-                if self.nonce == 0 {
-                    return false;
-                }
-
-                // Check referring added edge is valid.
-                let add_hash = self.prev_hash();
-                if !self.signature0.verify(add_hash.as_ref(), &self.peer0.public_key())
-                    || !self.signature1.verify(add_hash.as_ref(), &self.peer1.public_key())
-                {
-                    return false;
-                }
-
-                if let Some((party, signature)) = &self.removal_info {
-                    let peer = if *party { &self.peer0 } else { &self.peer1 };
-                    let del_hash = self.hash();
-                    signature.verify(del_hash.as_ref(), &peer.public_key())
-                } else {
-                    false
-                }
-            }
-        }
-    }
-
-    pub fn key(peer0: PeerId, peer1: PeerId) -> (PeerId, PeerId) {
-        if peer0 < peer1 {
-            (peer0, peer1)
-        } else {
-            (peer1, peer0)
-        }
-    }
-
-    /// Helper function when adding a new edge and we receive information from new potential peer
-    /// to verify the signature.
-    pub fn partial_verify(peer0: PeerId, peer1: PeerId, edge_info: &EdgeInfo) -> bool {
-        let pk = peer1.public_key();
-        let (peer0, peer1) = Edge::key(peer0, peer1);
-        let data = Edge::build_hash(&peer0, &peer1, edge_info.nonce);
-        edge_info.signature.verify(data.as_ref(), &pk)
-    }
-
-    pub fn get_pair(&self) -> (PeerId, PeerId) {
-        (self.peer0.clone(), self.peer1.clone())
-    }
-
-    /// It will be considered as a new edge if the nonce is odd, otherwise it is canceling the
-    /// previous edge.
-    pub fn edge_type(&self) -> EdgeType {
-        if self.nonce % 2 == 1 {
-            EdgeType::Added
-        } else {
-            EdgeType::Removed
-        }
-    }
-
-    /// Next nonce of valid addition edge.
-    pub fn next_nonce(nonce: u64) -> u64 {
-        if nonce % 2 == 1 {
-            nonce + 2
-        } else {
-            nonce + 1
-        }
-    }
-
-    /// Next nonce of valid addition edge.
-    pub fn next(&self) -> u64 {
-        Edge::next_nonce(self.nonce)
-    }
-
-    pub fn contains_peer(&self, peer_id: &PeerId) -> bool {
-        self.peer0 == *peer_id || self.peer1 == *peer_id
-    }
-
-    /// Find a peer id in this edge different from `me`.
-    pub fn other(&self, me: &PeerId) -> Option<PeerId> {
-        if self.peer0 == *me {
-            Some(self.peer1.clone())
-        } else if self.peer1 == *me {
-            Some(self.peer0.clone())
-        } else {
-            None
-        }
-    }
-}
-
-/// Represents edge between two nodes. Unlike `Edge` it doesn't contain signatures.
-#[derive(Hash, Clone, Eq, PartialEq, Debug)]
-#[cfg_attr(feature = "test_features", derive(Serialize, Deserialize))]
-pub struct SimpleEdge {
-    key: (PeerId, PeerId),
-    nonce: u64,
-}
-
-impl SimpleEdge {
-    pub fn new(peer0: PeerId, peer1: PeerId, nonce: u64) -> SimpleEdge {
-        let (peer0, peer1) = Edge::key(peer0, peer1);
-        SimpleEdge { key: (peer0, peer1), nonce }
-    }
-
-    pub fn key(&self) -> &(PeerId, PeerId) {
-        &self.key
-    }
-
-    pub fn nonce(&self) -> u64 {
-        self.nonce
-    }
-
-    pub fn edge_type(&self) -> EdgeType {
-        if self.nonce % 2 == 1 {
-            EdgeType::Added
-        } else {
-            EdgeType::Removed
-        }
-    }
-}
-
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone, Debug, Copy)]
-pub struct ValidIBFLevel(pub u64);
-
-/// We create IbfSets of various sizes from 2^10+2 up to 2^17+2. Those constants specify valid ranges.
-pub const MIN_IBF_LEVEL: ValidIBFLevel = ValidIBFLevel(10);
-pub const MAX_IBF_LEVEL: ValidIBFLevel = ValidIBFLevel(17);
-
-/// Represents IbfLevel from 10 to 17.
-impl ValidIBFLevel {
-    pub fn inc(&self) -> Option<ValidIBFLevel> {
-        if self.0 + 1 >= MIN_IBF_LEVEL.0 && self.0 + 1 <= MAX_IBF_LEVEL.0 {
-            Some(ValidIBFLevel(self.0 + 1))
-        } else {
-            None
-        }
-    }
-
-    pub fn is_valid(&self) -> bool {
-        return self.0 >= MIN_IBF_LEVEL.0 && self.0 <= MAX_IBF_LEVEL.0;
-    }
-}
-
 #[derive(Debug)]
-#[cfg_attr(feature = "test_features", derive(Serialize))]
+#[cfg_attr(feature = "test_features", derive(serde::Serialize))]
 pub struct PeerRequestResult {
     pub peers: Vec<PeerInfo>,
 }
@@ -337,28 +48,9 @@ where
 }
 
 #[derive(MessageResponse, Debug)]
-#[cfg_attr(feature = "test_features", derive(Serialize))]
+#[cfg_attr(feature = "test_features", derive(serde::Serialize))]
 pub struct GetRoutingTableResult {
     pub edges_info: Vec<SimpleEdge>,
-}
-
-pub struct EdgeVerifierHelper {
-    /// Shared version of edges_info used by multiple threads
-    pub edges_info_shared: Arc<Mutex<HashMap<(PeerId, PeerId), u64>>>,
-    /// Queue of edges verified, but not added yes
-    pub edges_to_add_receiver: QueueReceiver<Edge>,
-    pub edges_to_add_sender: QueueSender<Edge>,
-}
-
-impl Default for EdgeVerifierHelper {
-    fn default() -> Self {
-        let (tx, rx) = conqueue::Queue::unbounded::<Edge>();
-        Self {
-            edges_info_shared: Default::default(),
-            edges_to_add_sender: tx,
-            edges_to_add_receiver: rx,
-        }
-    }
 }
 
 pub struct RoutingTableView {
@@ -405,11 +97,7 @@ impl RoutingTableView {
             account_peers: SizedCache::with_size(ANNOUNCE_ACCOUNT_CACHE_SIZE),
             peer_forwarding: Default::default(),
             local_edges_info: Default::default(),
-            route_back: RouteBackCache::new(
-                ROUTE_BACK_CACHE_SIZE,
-                ROUTE_BACK_CACHE_EVICT_TIMEOUT,
-                ROUTE_BACK_CACHE_REMOVE_BATCH,
-            ),
+            route_back: RouteBackCache::default(),
             store,
             route_nonce: SizedCache::with_size(ROUND_ROBIN_NONCE_CACHE_SIZE),
             ping_info: SizedCache::with_size(PING_PONG_CACHE_SIZE),
@@ -423,7 +111,7 @@ impl RoutingTableView {
     /// Works only for local edges.
     pub fn is_local_edge_newer(&self, key: &(PeerId, PeerId), nonce: u64) -> bool {
         assert!(key.0 == self.my_peer_id || key.1 == self.my_peer_id);
-        self.local_edges_info.get(&key).map_or(0, |x| x.nonce) < nonce
+        self.local_edges_info.get(key).map_or(0, |x| x.nonce()) < nonce
     }
 
     pub fn reachable_peers(&self) -> impl Iterator<Item = &PeerId> {
@@ -433,7 +121,7 @@ impl RoutingTableView {
     /// Find peer that is connected to `source` and belong to the shortest path
     /// from `source` to `peer_id`.
     pub fn find_route_from_peer_id(&mut self, peer_id: &PeerId) -> Result<PeerId, FindRouteError> {
-        if let Some(routes) = self.peer_forwarding.get(&peer_id).cloned() {
+        if let Some(routes) = self.peer_forwarding.get(peer_id).cloned() {
             if routes.is_empty() {
                 return Err(FindRouteError::Disconnected);
             }
@@ -444,9 +132,7 @@ impl RoutingTableView {
             // max nonce - threshold.
             let nonce_peer = routes
                 .iter()
-                .map(|peer_id| {
-                    (self.route_nonce.cache_get(&peer_id).cloned().unwrap_or(0), peer_id)
-                })
+                .map(|peer_id| (self.route_nonce.cache_get(peer_id).cloned().unwrap_or(0), peer_id))
                 .collect::<Vec<_>>();
 
             // Neighbor with minimum and maximum nonce respectively.
@@ -459,7 +145,7 @@ impl RoutingTableView {
             }
 
             let next_hop = min_v.1;
-            let nonce = self.route_nonce.cache_get(&next_hop).cloned();
+            let nonce = self.route_nonce.cache_get(next_hop).cloned();
             self.route_nonce.cache_set(next_hop.clone(), nonce.map_or(1, |nonce| nonce + 1));
             Ok(next_hop.clone())
         } else {
@@ -469,9 +155,9 @@ impl RoutingTableView {
 
     pub fn find_route(&mut self, target: &PeerIdOrHash) -> Result<PeerId, FindRouteError> {
         match target {
-            PeerIdOrHash::PeerId(peer_id) => self.find_route_from_peer_id(&peer_id),
+            PeerIdOrHash::PeerId(peer_id) => self.find_route_from_peer_id(peer_id),
             PeerIdOrHash::Hash(hash) => {
-                self.fetch_route_back(hash.clone()).ok_or(FindRouteError::RouteBackNotFound)
+                self.fetch_route_back(*hash).ok_or(FindRouteError::RouteBackNotFound)
             }
         }
     }
@@ -480,7 +166,7 @@ impl RoutingTableView {
     pub fn account_owner(&mut self, account_id: &AccountId) -> Result<PeerId, FindRouteError> {
         self.get_announce(account_id)
             .map(|announce_account| announce_account.peer_id)
-            .ok_or_else(|| FindRouteError::AccountNotFound)
+            .ok_or(FindRouteError::AccountNotFound)
     }
 
     /// Add (account id, peer id) to routing table.
@@ -508,9 +194,8 @@ impl RoutingTableView {
 
     pub fn remove_edges(&mut self, edges: &Vec<Edge>) {
         for edge in edges.iter() {
-            assert!(edge.peer0 == self.my_peer_id || edge.peer1 == self.my_peer_id);
-            let key = (edge.peer0.clone(), edge.peer1.clone());
-            self.local_edges_info.remove(&key);
+            assert!(edge.key().0 == self.my_peer_id || edge.key().1 == self.my_peer_id);
+            self.local_edges_info.remove(edge.key());
         }
     }
 
@@ -538,9 +223,9 @@ impl RoutingTableView {
         let mut res = None;
 
         if let Some(nonces) = self.waiting_pong.cache_get_mut(&pong.source) {
-            res = nonces
-                .cache_remove(&(pong.nonce as usize))
-                .and_then(|sent| Some(Instant::now().duration_since(sent).as_secs_f64() * 1000f64));
+            res = nonces.cache_remove(&(pong.nonce as usize)).map(|sent| {
+                Clock::instant().saturating_duration_since(sent).as_secs_f64() * 1000f64
+            });
         }
 
         let cnt = self.pong_info.cache_get(&(pong.nonce as usize)).map(|v| v.1).unwrap_or(0);
@@ -559,7 +244,7 @@ impl RoutingTableView {
             self.waiting_pong.cache_get_mut(&target).unwrap()
         };
 
-        entry.cache_set(nonce, Instant::now());
+        entry.cache_set(nonce, Clock::instant());
     }
 
     pub fn get_ping(&mut self, peer_id: PeerId) -> usize {
@@ -607,17 +292,17 @@ impl RoutingTableView {
 
     /// Get account announce from
     pub fn get_announce(&mut self, account_id: &AccountId) -> Option<AnnounceAccount> {
-        if let Some(announce_account) = self.account_peers.cache_get(&account_id) {
+        if let Some(announce_account) = self.account_peers.cache_get(account_id) {
             Some(announce_account.clone())
         } else {
             self.store
                 .get_ser(ColAccountAnnouncements, account_id.as_ref().as_bytes())
-                .and_then(|res: Option<AnnounceAccount>| {
+                .map(|res: Option<AnnounceAccount>| {
                     if let Some(announce_account) = res {
                         self.add_account(announce_account.clone());
-                        Ok(Some(announce_account))
+                        Some(announce_account)
                     } else {
-                        Ok(None)
+                        None
                     }
                 })
                 .unwrap_or_else(|e| {
@@ -630,7 +315,7 @@ impl RoutingTableView {
     pub fn get_edge(&self, peer0: PeerId, peer1: PeerId) -> Option<&Edge> {
         assert!(peer0 == self.my_peer_id || peer1 == self.my_peer_id);
 
-        let key = Edge::key(peer0, peer1);
+        let key = Edge::make_key(peer0, peer1);
         self.local_edges_info.get(&key)
     }
 }
@@ -702,8 +387,8 @@ impl Graph {
     }
 
     fn contains_edge(&self, peer0: &PeerId, peer1: &PeerId) -> bool {
-        if let Some(&id0) = self.p2id.get(&peer0) {
-            if let Some(&id1) = self.p2id.get(&peer1) {
+        if let Some(&id0) = self.p2id.get(peer0) {
+            if let Some(&id1) = self.p2id.get(peer1) {
                 return self.adjacency[id0 as usize].contains(&id1);
             }
         }
@@ -744,11 +429,11 @@ impl Graph {
         }
     }
 
-    pub fn add_edge(&mut self, peer0: PeerId, peer1: PeerId) {
+    pub fn add_edge(&mut self, peer0: &PeerId, peer1: &PeerId) {
         assert_ne!(peer0, peer1);
-        if !self.contains_edge(&peer0, &peer1) {
-            let id0 = self.get_id(&peer0);
-            let id1 = self.get_id(&peer1);
+        if !self.contains_edge(peer0, peer1) {
+            let id0 = self.get_id(peer0);
+            let id1 = self.get_id(peer1);
 
             self.adjacency[id0 as usize].push(id1);
             self.adjacency[id1 as usize].push(id0);
@@ -759,9 +444,9 @@ impl Graph {
 
     pub fn remove_edge(&mut self, peer0: &PeerId, peer1: &PeerId) {
         assert_ne!(peer0, peer1);
-        if self.contains_edge(&peer0, &peer1) {
-            let id0 = self.get_id(&peer0);
-            let id1 = self.get_id(&peer1);
+        if self.contains_edge(peer0, peer1) {
+            let id0 = self.get_id(peer0);
+            let id1 = self.get_id(peer1);
 
             self.adjacency[id0 as usize].retain(|&x| x != id1);
             self.adjacency[id1 as usize].retain(|&x| x != id0);
@@ -867,7 +552,7 @@ mod test {
         assert_eq!(graph.contains_edge(&node0, &node1), false);
         assert_eq!(graph.contains_edge(&node1, &node0), false);
 
-        graph.add_edge(node0.clone(), node1.clone());
+        graph.add_edge(&node0, &node1);
 
         assert_eq!(graph.contains_edge(&source, &node0), false);
         assert_eq!(graph.contains_edge(&source, &node1), false);
@@ -889,9 +574,9 @@ mod test {
         let node0 = random_peer_id();
 
         let mut graph = Graph::new(source.clone());
-        graph.add_edge(source.clone(), node0.clone());
+        graph.add_edge(&source, &node0);
         graph.remove_edge(&source, &node0);
-        graph.add_edge(source.clone(), node0.clone());
+        graph.add_edge(&source, &node0);
 
         assert!(expected_routing_tables(
             graph.calculate_distance(),
@@ -907,11 +592,11 @@ mod test {
         let source = random_peer_id();
         let nodes: Vec<_> = (0..3).map(|_| random_peer_id()).collect();
 
-        let mut graph = Graph::new(source.clone());
+        let mut graph = Graph::new(source);
 
-        graph.add_edge(nodes[0].clone(), nodes[1].clone());
-        graph.add_edge(nodes[2].clone(), nodes[1].clone());
-        graph.add_edge(nodes[1].clone(), nodes[2].clone());
+        graph.add_edge(&nodes[0], &nodes[1]);
+        graph.add_edge(&nodes[2], &nodes[1]);
+        graph.add_edge(&nodes[1], &nodes[2]);
 
         assert!(expected_routing_tables(graph.calculate_distance(), vec![]));
 
@@ -926,10 +611,10 @@ mod test {
 
         let mut graph = Graph::new(source.clone());
 
-        graph.add_edge(nodes[0].clone(), nodes[1].clone());
-        graph.add_edge(nodes[2].clone(), nodes[1].clone());
-        graph.add_edge(nodes[1].clone(), nodes[2].clone());
-        graph.add_edge(source.clone(), nodes[0].clone());
+        graph.add_edge(&nodes[0], &nodes[1]);
+        graph.add_edge(&nodes[2], &nodes[1]);
+        graph.add_edge(&nodes[1], &nodes[2]);
+        graph.add_edge(&source, &nodes[0]);
 
         assert!(expected_routing_tables(
             graph.calculate_distance(),
@@ -951,11 +636,11 @@ mod test {
 
         let mut graph = Graph::new(source.clone());
 
-        graph.add_edge(nodes[0].clone(), nodes[1].clone());
-        graph.add_edge(nodes[2].clone(), nodes[1].clone());
-        graph.add_edge(nodes[0].clone(), nodes[2].clone());
-        graph.add_edge(source.clone(), nodes[0].clone());
-        graph.add_edge(source.clone(), nodes[1].clone());
+        graph.add_edge(&nodes[0], &nodes[1]);
+        graph.add_edge(&nodes[2], &nodes[1]);
+        graph.add_edge(&nodes[0], &nodes[2]);
+        graph.add_edge(&source, &nodes[0]);
+        graph.add_edge(&source, &nodes[1]);
 
         assert!(expected_routing_tables(
             graph.calculate_distance(),
@@ -988,19 +673,19 @@ mod test {
         let mut graph = Graph::new(source.clone());
 
         for i in 0..3 {
-            graph.add_edge(source.clone(), nodes[i].clone());
+            graph.add_edge(&source, &nodes[i]);
         }
 
         for level in 0..2 {
             for i in 0..3 {
                 for j in 0..3 {
-                    graph.add_edge(nodes[level * 3 + i].clone(), nodes[level * 3 + 3 + j].clone());
+                    graph.add_edge(&nodes[level * 3 + i], &nodes[level * 3 + 3 + j]);
                 }
             }
         }
 
         // Dummy edge.
-        graph.add_edge(nodes[9].clone(), nodes[10].clone());
+        graph.add_edge(&nodes[9], &nodes[10]);
 
         let mut next_hops: Vec<_> =
             (0..3).map(|i| (nodes[i].clone(), vec![nodes[i].clone()])).collect();
