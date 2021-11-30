@@ -27,11 +27,11 @@ memoffset = "0.6"
 # wasmer-compiler-singlepass = { package = "wasmer-compiler-singlepass-near", git = "https://github.com/near/wasmer", rev = "0a4fdc4", optional = true }
 # wasmer-engine-universal = { package = "wasmer-engine-universal-near", git = "https://github.com/near/wasmer", rev = "0a4fdc4", optional = true }
 # wasmer-vm = { package = "wasmer-vm-near", git = "https://github.com/near/wasmer", rev = "0a4fdc4" }
-wasmer = { package = "wasmer-near", rev = "2b104a8", optional = true, default-features = false, features = ["singlepass", "universal"]}
-wasmer-types = { package = "wasmer-types-near", rev = "2b104a8", optional = true }
-wasmer-compiler-singlepass = { package = "wasmer-compiler-singlepass-near", rev = "2b104a8", optional = true }
-wasmer-engine-universal = { package = "wasmer-engine-universal-near", rev = "2b104a8", optional = true }
-wasmer-vm = { package = "wasmer-vm-near", rev = "2b104a8" }
+wasmer = { package = "wasmer-near", git = "https://github.com/wasmerio/wasmer", rev = "2b104a8", optional = true, default-features = false, features = ["singlepass", "universal"]}
+wasmer-types = { package = "wasmer-types-near", git = "https://github.com/wasmerio/wasmer", rev = "2b104a8", optional = true }
+wasmer-compiler-singlepass = { package = "wasmer-compiler-singlepass-near", git = "https://github.com/wasmerio/wasmer", rev = "2b104a8", optional = true }
+wasmer-engine-universal = { package = "wasmer-engine-universal-near", git = "https://github.com/wasmerio/wasmer", rev = "2b104a8", optional = true }
+wasmer-vm = { package = "wasmer-vm-near", git = "https://github.com/wasmerio/wasmer", rev = "2b104a8" }
 
 pwasm-utils = "0.12"
 parity-wasm = "0.41"
