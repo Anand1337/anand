@@ -204,7 +204,12 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         let config = store.get_config(ProtocolVersion::MAX);
         let vm_config = &config.wasm_config;
         let fns = get_functions_number(&estimated_code.code, vm_config) as u64;
-        println!("running {}, fns = {}, len = {}", estimated_code.id, fns, estimated_code.len());
+        println!(
+            "running {}, fns = {}, len = {}",
+            estimated_code.id,
+            fns,
+            estimated_code.code.len()
+        );
 
         let raw_result = compute_function_call_cost(metric, vm_kind, REPEATS, &contract);
         let result = match metric {
