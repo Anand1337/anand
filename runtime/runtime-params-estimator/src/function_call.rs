@@ -119,7 +119,7 @@ fn blow_up_code(code: &[u8], body_repeat: u64) -> Vec<u8> {
     let config = store.get_config(ProtocolVersion::MAX);
     let vm_config = &config.wasm_config;
     let fns = get_functions_number(&code, vm_config) as u64;
-    let add_fns = max(1, 1900u64.saturating_sub(fns));
+    let add_fns = max(1, 9900u64.saturating_sub(fns));
 
     let m = &mut Module::from_buffer(code).unwrap();
     for i in 0..add_fns {
@@ -173,7 +173,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         }
         let code = blow_up_code(code, body_repeat);
         estimated_codes.push(EstimatedCode {
-            id: format!("from_mainnet_with_noop_small_exports_{}.{}", body_repeat, account_id),
+            id: format!("from_mainnet_with_noop_exports_{}.{}", body_repeat, account_id),
             code,
         });
     }
