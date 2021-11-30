@@ -168,9 +168,6 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         if code.is_empty() {
             continue;
         }
-        if i >= 5 && account_id != "cdao.near" {
-            continue;
-        }
         let code = blow_up_code(code, body_repeat);
         estimated_codes.push(EstimatedCode {
             id: format!("from_mainnet_with_noop_exports_{}.{}", body_repeat, account_id),
@@ -179,15 +176,15 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
     }
 
     // prepare params
-    // for (method_count, body_repeat) in
-    //     vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (9990, 1), (9990, 10), (9990, 110)]
-    //         .iter()
-    //         .cloned()
-    // {
-    //     let code = many_functions_contract_with_repeats(method_count, body_repeat);
-    //     estimated_codes
-    //         .push(EstimatedCode { id: format!("many_fns_{}_{}", method_count, body_repeat), code });
-    // }
+    for (method_count, body_repeat) in
+        vec![(2, 1), (5, 1), (10, 1), (100, 1), (1000, 1), (9990, 1), (9990, 10), (9990, 110)]
+            .iter()
+            .cloned()
+    {
+        let code = many_functions_contract_with_repeats(method_count, body_repeat);
+        estimated_codes
+            .push(EstimatedCode { id: format!("many_fns_{}_{}", method_count, body_repeat), code });
+    }
 
     // parse files
     // for fname in vec!["cdao_test.near.wasm"].iter().cloned() {
@@ -207,7 +204,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         let config = store.get_config(ProtocolVersion::MAX);
         let vm_config = &config.wasm_config;
         let fns = get_functions_number(&estimated_code.code, vm_config) as u64;
-        println!("running {}, fns = {}", estimated_code.id, fns);
+        println!("running {}, fns = {}, len = {}", estimated_code.id, fns, estimated_code.len());
 
         let raw_result = compute_function_call_cost(metric, vm_kind, REPEATS, &contract);
         let result = match metric {
