@@ -157,6 +157,7 @@ pub fn get_functions_number(original_code: &[u8], config: &VMConfig) -> usize {
 
 #[allow(dead_code)]
 fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
+    let body_repeat = 1;
     let mut estimated_codes: Vec<EstimatedCode> = Vec::new();
 
     // prepare mainnet contracts
@@ -167,9 +168,9 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
         if code.is_empty() {
             continue;
         }
-        let code = blow_up_code(code, 100);
+        let code = blow_up_code(code, body_repeat);
         estimated_codes.push(EstimatedCode {
-            id: format!("from_mainnet_with_noop_exports_{}.{}", 100, account_id),
+            id: format!("from_mainnet_with_noop_exports_{}.{}", body_repeat, account_id),
             code,
         });
     }
