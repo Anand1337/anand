@@ -262,7 +262,7 @@ fn test_compile_all_codes(metric: GasMetric, vm_kind: VMKind) {
         let fns = get_functions_number(&estimated_code.code, vm_config) as u64;
 
         let cache_store = Arc::new(MockCompiledContractCache::default());
-        let cache = Some(cache_store.as_ref());
+        let cache: Option<&dyn CompiledContractCache> = Some(cache_store.as_ref());
         let raw_result = measure_contract(vm_kind, metric, &contract, cache);
 
         println!(
