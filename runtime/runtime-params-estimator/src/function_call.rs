@@ -239,7 +239,7 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
 
 #[allow(dead_code)]
 fn test_compile_all_codes(metric: GasMetric, vm_kind: VMKind) {
-    let compile_repeats = 1;
+    let compile_repeats = 5;
     let mut estimated_codes: Vec<EstimatedCode> = Vec::new();
 
     // parse files
@@ -261,28 +261,30 @@ fn test_compile_all_codes(metric: GasMetric, vm_kind: VMKind) {
         let vm_config = &config.wasm_config;
         let fns = get_functions_number(&estimated_code.code, vm_config) as u64;
 
-        let cache_store = Arc::new(MockCompiledContractCache::default());
-        let cache: Option<&dyn CompiledContractCache> = Some(cache_store.as_ref());
-        let raw_result = measure_contract(vm_kind, metric, &contract, cache);
+        for _ in compile_repeats {
+            let cache_store = Arc::new(MockCompiledContractCache::default());
+            let cache: Option<&dyn CompiledContractCache> = Some(cache_store.as_ref());
+            let raw_result = measure_contract(vm_kind, metric, &contract, cache);
 
-        println!(
-            "compiling {}, fns = {}, len = {}",
-            estimated_code.id,
-            fns,
-            estimated_code.code.len()
-        );
+            println!(
+                "compiling {}, fns = {}, len = {}",
+                estimated_code.id,
+                fns,
+                estimated_code.code.len()
+            );
 
-        let result = match metric {
-            GasMetric::ICount => {
-                (ratio_to_gas_signed(
-                    metric,
-                    Ratio::new(raw_result as i128, compile_repeats as i128),
-                ) as f64)
-                    / 10f64.pow(12)
-            } // teragas
-            GasMetric::Time => raw_result as f64 / (compile_repeats as f64 * 1_000_000 as f64), // ms
-        };
-        println!("gas result = {}", result);
+            let result = match metric {
+                GasMetric::ICount => {
+                    (ratio_to_gas_signed(
+                        metric,
+                        Ratio::new(raw_result as i128, compile_repeats as i128),
+                    ) as f64)
+                        / 10f64.pow(12)
+                } // teragas
+                GasMetric::Time => raw_result as f64 / (compile_repeats as f64 * 1_000_000 as f64), // ms
+            };
+            println!("final result = {}", result);
+        }
 
         estimations.push(Estimation {
             id: estimated_code.id.clone(),
@@ -312,6 +314,11 @@ fn test_function_call_all_codes_time() {
 #[test]
 fn test_compile_all_codes_icount() {
     test_compile_all_codes(GasMetric::ICount, VMKind::Wasmer2);
+}
+
+#[test]
+fn test_compile_all_codes_time() {
+    test_compile_all_codes(GasMetric::Time, VMKind::Wasmer2);
 }
 
 #[test]
