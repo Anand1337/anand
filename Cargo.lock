@@ -5595,6 +5595,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasmer-near"
+version = "2.1.0"
+source = "git+https://github.com/near/wasmer#03c3f7e00832277f880fd4db05a7546fa028d777"
+dependencies = [
+ "cfg-if 1.0.0",
+ "indexmap",
+ "js-sys",
+ "loupe",
+ "more-asserts",
+ "target-lexicon 0.12.2",
+ "thiserror",
+ "wasm-bindgen",
+ "wasmer-compiler-near",
+ "wasmer-compiler-singlepass-near",
+ "wasmer-derive-near",
+ "wasmer-engine-dylib",
+ "wasmer-engine-near",
+ "wasmer-engine-universal-near",
+ "wasmer-types-near",
+ "wasmer-vm-near",
+ "winapi",
+]
+
+[[package]]
 name = "wasmer-object"
 version = "2.0.0"
 source = "git+https://github.com/near/wasmer#03c3f7e00832277f880fd4db05a7546fa028d777"
