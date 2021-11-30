@@ -164,26 +164,26 @@ impl TrieCachingStorage {
 impl TrieStorage for TrieCachingStorage {
     fn retrieve_raw_bytes(&self, hash: &CryptoHash) -> Result<Vec<u8>, StorageError> {
         let mut guard = self.cache.0.lock().expect(POISONED_LOCK_ERR);
-        if let Some(val) = guard.cache_get(hash) {
-            Ok(val.clone())
-        } else {
-            let key = Self::get_key_from_shard_uid_and_hash(self.shard_uid, hash);
-            let val = self
-                .store
-                .get(ColState, key.as_ref())
-                .map_err(|_| StorageError::StorageInternalError)?;
-            if let Some(val) = val {
-                let _span = tracing::debug_span!(target: "vm", "cache_set").entered();
-                eprintln!("key hash = {}, val len = {}", hash, val.len());
-                if val.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
-                    guard.cache_set(*hash, val.clone());
-                }
-                Ok(val)
-            } else {
-                // not StorageError::TrieNodeMissing because it's only for TrieMemoryPartialStorage
-                Err(StorageError::StorageInconsistentState("Trie node missing".to_string()))
+        // if let Some(val) = guard.cache_get(hash) {
+        //     Ok(val.clone())
+        // } else {
+        let key = Self::get_key_from_shard_uid_and_hash(self.shard_uid, hash);
+        let val = self
+            .store
+            .get(ColState, key.as_ref())
+            .map_err(|_| StorageError::StorageInternalError)?;
+        if let Some(val) = val {
+            let _span = tracing::debug_span!(target: "vm", "cache_set").entered();
+            eprintln!("key hash = {}, val len = {}", hash, val.len());
+            if val.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
+                guard.cache_set(*hash, val.clone());
             }
+            Ok(val)
+        } else {
+            // not StorageError::TrieNodeMissing because it's only for TrieMemoryPartialStorage
+            Err(StorageError::StorageInconsistentState("Trie node missing".to_string()))
         }
+        // }
     }
 
     fn as_caching_storage(&self) -> Option<&TrieCachingStorage> {
