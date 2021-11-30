@@ -11,6 +11,7 @@ use near_test_contracts::{many_functions_contract, many_functions_contract_with_
 use near_vm_logic::mocks::mock_external::MockedExternal;
 use near_vm_runner::internal::VMKind;
 use near_vm_runner::prepare::{prepare_contract, ContractModule};
+use near_vm_runner::wasmer2_runner::compile_w2;
 use near_vm_runner::{precompile_contract_vm, MockCompiledContractCache};
 use nearcore::get_store_path;
 use num_rational::Ratio;
@@ -236,6 +237,67 @@ fn test_function_call_all_codes(metric: GasMetric, vm_kind: VMKind) {
     }
 }
 
+#[allow(dead_code)]
+fn test_compile_all_codes(metric: GasMetric, vm_kind: VMKind) {
+    let compile_repeats = 1;
+    let mut estimated_codes: Vec<EstimatedCode> = Vec::new();
+
+    // parse files
+    for fname in vec!["many_fns_9990_110"].iter().cloned() {
+        let fpath = format!("/host/nearcore/contracts/{}.wasm", fname);
+        let code = std::fs::read(fpath).expect("Could not open codes file.");
+        estimated_codes.push(EstimatedCode { id: format!("{}", fname), code });
+    }
+
+    // estimate
+    let mut estimations: Vec<Estimation> = Vec::new();
+    for estimated_code in estimated_codes.iter() {
+        // let fname = format!("/host/nearcore/contracts/{}.wasm", estimated_code.id);
+        // std::fs::write(fname, &estimated_code.code).unwrap();
+
+        let contract = ContractCode::new(estimated_code.code.clone(), None);
+        let store = RuntimeConfigStore::new(None);
+        let config = store.get_config(ProtocolVersion::MAX);
+        let vm_config = &config.wasm_config;
+        let fns = get_functions_number(&estimated_code.code, vm_config) as u64;
+
+        let cache_store = Arc::new(MockCompiledContractCache::default());
+        let cache = Some(cache_store.as_ref());
+        let raw_result = measure_contract(vm_kind, metric, &contract, cache);
+
+        println!(
+            "compiling {}, fns = {}, len = {}",
+            estimated_code.id,
+            fns,
+            estimated_code.code.len()
+        );
+
+        let result = match metric {
+            GasMetric::ICount => {
+                (ratio_to_gas_signed(
+                    metric,
+                    Ratio::new(raw_result as i128, compile_repeats as i128),
+                ) as f64)
+                    / 10f64.pow(12)
+            } // teragas
+            GasMetric::Time => raw_result as f64 / (compile_repeats as f64 * 1_000_000 as f64), // ms
+        };
+        println!("gas result = {}", result);
+
+        estimations.push(Estimation {
+            id: estimated_code.id.clone(),
+            fns,
+            len: estimated_code.code.len() as u64,
+            result,
+        })
+    }
+
+    // show
+    for estimation in estimations.iter() {
+        println!("{}", serde_json::to_string(estimation).unwrap());
+    }
+}
+
 #[test]
 fn test_function_call_all_codes_icount() {
     test_function_call_all_codes(GasMetric::ICount, VMKind::Wasmer2);
@@ -245,6 +307,11 @@ fn test_function_call_all_codes_icount() {
 fn test_function_call_all_codes_time() {
     // test_function_call_all_codes(GasMetric::Time, VMKind::Wasmer2);
     test_function_call_all_codes(GasMetric::Time, VMKind::Wasmer2);
+}
+
+#[test]
+fn test_compile_all_codes_icount() {
+    test_compile_all_codes(GasMetric::ICount, VMKind::Wasmer2);
 }
 
 #[test]

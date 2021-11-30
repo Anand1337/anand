@@ -12,7 +12,7 @@ mod runner;
 mod tests;
 mod vm_kind;
 #[cfg(feature = "wasmer2_vm")]
-mod wasmer2_runner;
+pub mod wasmer2_runner;
 #[cfg(feature = "wasmer0_vm")]
 mod wasmer_runner;
 #[cfg(feature = "wasmtime_vm")]

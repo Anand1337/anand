@@ -1,7 +1,7 @@
 use crate::cache::into_vm_result;
 use crate::errors::IntoVMError;
 use crate::prepare::WASM_FEATURES;
-use crate::{cache, imports};
+use crate::{cache, imports, MockCompiledContractCache};
 use memoffset::offset_of;
 use near_primitives::contract::ContractCode;
 use near_primitives::runtime::fees::RuntimeFeesConfig;
@@ -464,4 +464,18 @@ impl crate::runner::VM for Wasmer2VM {
         let store = default_wasmer2_store();
         Module::new(&store, code).is_ok()
     }
+}
+
+pub fn compile_w2(code: &ContractCode, vm_config: &VMConfig) -> Result<wasmer::Module, VMError> {
+    let wasm_code = code.code();
+    let code_hash = code.hash();
+    let store = default_wasmer2_store();
+    let result = crate::cache::wasmer2_cache::compile_and_serialize_wasmer2(
+        wasm_code,
+        code_hash,
+        &vm_config,
+        &MockCompiledContractCache::default(),
+        &store,
+    );
+    into_vm_result(result)
 }
