@@ -22,6 +22,7 @@ use near_primitives::hash::CryptoHash;
 use near_primitives::serialize::to_base;
 use near_primitives::shard_layout::ShardUId;
 use near_primitives::state_record::StateRecord;
+use near_primitives::transaction::SignedTransaction;
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{BlockHeight, ShardId, StateRoot};
@@ -522,6 +523,29 @@ fn main() {
                 .help("apply block at some height for shard"),
         )
         .subcommand(
+            SubCommand::with_name("apply_tx")
+                .arg(
+                    Arg::with_name("tx")
+                        .long("file with encoded tx")
+                        .help("File with encoded tx")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("height")
+                        .long("height")
+                        .required(true)
+                        .help("Height of the block on top of which tx will be applied")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("shard_id")
+                        .long("shard_id")
+                        .help("Id of the shard to apply")
+                        .takes_value(true),
+                )
+                .help("apply tx at some height for shard"),
+        )
+        .subcommand(
             SubCommand::with_name("view_chain")
                 .arg(
                     Arg::with_name("height")
@@ -665,6 +689,16 @@ fn main() {
             let shard_id =
                 args.value_of("shard_id").map(|s| s.parse::<u64>().unwrap()).unwrap_or_default();
             apply_block_at_height(store, home_dir, &near_config, height, shard_id);
+        }
+        ("apply_tx", Some(args)) => {
+            // let height = args.value_of("height").map(|s| s.parse::<u64>().unwrap()).unwrap();
+            // let shard_id =
+            //     args.value_of("shard_id").map(|s| s.parse::<u64>().unwrap()).unwrap_or_default();
+            let tx_file = args.value_of("tx").unwrap();
+            let tx_bytes = std::fs::read(tx_file).unwrap();
+            let tx: SignedTransaction = serde_json::from_slice(&tx_bytes).unwrap();
+            println!("{:?}", tx);
+            // apply_block_at_height(store, home_dir, &near_config, height, shard_id);
         }
         ("apply_range", Some(args)) => {
             let start_index = args.value_of("start_index").map(|s| s.parse::<u64>().unwrap());
