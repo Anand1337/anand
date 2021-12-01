@@ -19,17 +19,19 @@ use near_network::peer_store::PeerStore;
 use near_primitives::block::BlockHeader;
 use near_primitives::contract::ContractCode;
 use near_primitives::hash::CryptoHash;
-use near_primitives::serialize::to_base;
+use near_primitives::serialize::{from_base64, to_base, to_base64};
 use near_primitives::shard_layout::ShardUId;
 use near_primitives::state_record::StateRecord;
-use near_primitives::transaction::SignedTransaction;
+use near_primitives::transaction::{Action, FunctionCallAction, SignedTransaction};
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{BlockHeight, ShardId, StateRoot};
+use near_primitives::views::{ActionView, SignedTransactionView};
 use near_store::test_utils::create_test_store;
 use near_store::{create_store, Store, TrieIterator};
 use nearcore::{get_default_home, get_store_path, load_config, NearConfig, NightshadeRuntime};
 use node_runtime::adapter::ViewRuntimeAdapter;
+use node_runtime::near_primitives::transaction::Transaction;
 use state_dump::state_dump;
 
 mod apply_chain_range;
@@ -696,8 +698,33 @@ fn main() {
             //     args.value_of("shard_id").map(|s| s.parse::<u64>().unwrap()).unwrap_or_default();
             let tx_file = args.value_of("tx").unwrap();
             let tx_bytes = std::fs::read(tx_file).unwrap();
-            // let tx: SignedTransaction = serde_json::from_slice(&tx_bytes).unwrap();
-            let tx = SignedTransaction::try_from_slice(&tx_bytes).unwrap();
+            let tx_view: SignedTransactionView = serde_json::from_slice(&tx_bytes).unwrap();
+            let actions_view = tx_view.actions;
+            let mut actions: Vec<Action> = vec![];
+            for action_view in actions_view.iter().cloned() {
+                actions.push(match action_view {
+                    ActionView::FunctionCall { method_name, args, gas, deposit } => {
+                        Action::FunctionCall(FunctionCallAction {
+                            method_name,
+                            args: from_base64(&args).unwrap(),
+                            gas,
+                            deposit,
+                        })
+                    }
+                    _ => unreachable!(),
+                });
+            }
+            let tx = Transaction {
+                signer_id: tx_view.signer_id,
+                public_key: tx_view.public_key,
+                nonce: tx_view.nonce,
+                receiver_id: tx_view.receiver_id,
+                block_hash: tx_view.block_hash,
+                actions: actions,
+            };
+            let mut tx = SignedTransaction::new(tx_view.signature, tx);
+            tx.init();
+            // let tx = SignedTransaction::try_from_slice(&tx_bytes).unwrap();
             println!("{:?}", tx);
             // apply_block_at_height(store, home_dir, &near_config, height, shard_id);
         }
