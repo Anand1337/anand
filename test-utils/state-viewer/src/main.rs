@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::convert::TryFrom;
 use std::fs::{self, File};
 use std::io::Write;
@@ -19,8 +19,9 @@ use near_network::peer_store::PeerStore;
 use near_primitives::block::BlockHeader;
 use near_primitives::contract::ContractCode;
 use near_primitives::hash::CryptoHash;
+use near_primitives::receipt::Receipt;
 use near_primitives::serialize::{from_base64, to_base, to_base64};
-use near_primitives::shard_layout::ShardUId;
+use near_primitives::shard_layout::{account_id_to_shard_id, ShardUId};
 use near_primitives::state_record::StateRecord;
 use near_primitives::transaction::{Action, FunctionCallAction, SignedTransaction};
 use near_primitives::trie_key::TrieKey;
@@ -366,39 +367,71 @@ fn apply_tx_at_height(
     ));
     let block_hash = chain_store.get_block_hash_by_height(height).unwrap();
     let block = chain_store.get_block(&block_hash).unwrap().clone();
-    let chunk =
-        chain_store.get_chunk(&block.chunks()[shard_id as usize].chunk_hash()).unwrap().clone();
     let prev_block = chain_store.get_block(&block.header().prev_hash()).unwrap().clone();
+    let prev_block_hash = prev_block.hash();
 
-    let chunk_inner = chunk.cloned_header().take_inner();
-    let is_first_block_with_chunk_of_version = check_if_block_is_first_with_chunk_of_version(
+    let mut shard_id = shard_id;
+    let mut chunk =
+        chain_store.get_chunk(&block.chunks()[shard_id as usize].chunk_hash()).unwrap().clone();
+    let mut chunk_inner = chunk.cloned_header().take_inner();
+    let mut is_first_block_with_chunk_of_version = check_if_block_is_first_with_chunk_of_version(
         &mut chain_store,
         runtime_adapter.as_ref(),
         block.header().prev_hash(),
         shard_id,
     )
     .unwrap();
-    let result = runtime_adapter
-        .apply_transactions(
-            shard_id,
-            chunk_inner.prev_state_root(),
-            height,
-            block.header().raw_timestamp(),
-            block.header().prev_hash(),
-            block.hash(),
-            &[],
-            &[tx],
-            chunk_inner.validator_proposals(),
-            prev_block.header().gas_price(),
-            chunk_inner.gas_limit(),
-            &block.header().challenges_result(),
-            *block.header().random_value(),
-            true,
-            is_first_block_with_chunk_of_version,
-            None,
-        )
+
+    let mut txs = vec![tx];
+    let mut remaining_receipts: VecDeque<Receipt> = VecDeque::new();
+    let mut receipts = vec![];
+    while txs.len() > 0 || remaining_receipts.len() > 0 {
+        if remaining_receipts.len() > 0 {
+            let receipt = remaining_receipts.pop_front().unwrap();
+            let shard_layout = runtime_adapter.get_shard_layout_from_prev_block(prev_block_hash)?;
+
+            shard_id = account_id_to_shard_id(&receipt.receiver_id, &shard_layout);
+            chunk = chain_store
+                .get_chunk(&block.chunks()[shard_id as usize].chunk_hash())
+                .unwrap()
+                .clone();
+            chunk_inner = chunk.cloned_header().take_inner();
+            is_first_block_with_chunk_of_version = check_if_block_is_first_with_chunk_of_version(
+                &mut chain_store,
+                runtime_adapter.as_ref(),
+                block.header().prev_hash(),
+                shard_id,
+            )
+            .unwrap();
+
+            receipts = vec![receipt];
+        }
         .unwrap();
-    println!("{:?}", result.outgoing_receipts);
+        let result = runtime_adapter
+            .apply_transactions(
+                shard_id,
+                chunk_inner.prev_state_root(),
+                height,
+                block.header().raw_timestamp(),
+                block.header().prev_hash(),
+                block.hash(),
+                &receipts,
+                &txs,
+                chunk_inner.validator_proposals(),
+                prev_block.header().gas_price(),
+                chunk_inner.gas_limit(),
+                &block.header().challenges_result(),
+                *block.header().random_value(),
+                true,
+                is_first_block_with_chunk_of_version.clone(),
+                None,
+            )
+            .unwrap();
+
+        println!("{:?}", result.outgoing_receipts);
+        remaining_receipts.extend(result.outgoing_receipts);
+        txs = vec![];
+    }
 }
 
 fn view_chain(
