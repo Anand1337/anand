@@ -321,6 +321,85 @@ fn apply_block_at_height(
     }
 }
 
+fn apply_tx_at_height(
+    store: Arc<Store>,
+    home_dir: &Path,
+    near_config: &NearConfig,
+    height: BlockHeight,
+    shard_id: ShardId,
+    tx_view: SignedTransactionView,
+) {
+    let mut chain_store = ChainStore::new(store.clone(), near_config.genesis.config.genesis_height);
+    let block_hash = chain_store.get_block_hash_by_height(height).unwrap();
+    let actions_view = tx_view.actions;
+    let mut actions: Vec<Action> = vec![];
+    for action_view in actions_view.iter().cloned() {
+        actions.push(match action_view {
+            ActionView::FunctionCall { method_name, args, gas, deposit } => {
+                Action::FunctionCall(FunctionCallAction {
+                    method_name,
+                    args: from_base64(&args).unwrap(),
+                    gas,
+                    deposit,
+                })
+            }
+            _ => unreachable!(),
+        });
+    }
+    let tx = Transaction {
+        signer_id: tx_view.signer_id,
+        public_key: tx_view.public_key,
+        nonce: tx_view.nonce,
+        receiver_id: tx_view.receiver_id,
+        block_hash,
+        actions,
+    };
+    let mut tx = SignedTransaction::new(tx_view.signature, tx);
+    tx.init();
+
+    let runtime_adapter: Arc<dyn RuntimeAdapter> = Arc::new(NightshadeRuntime::with_config(
+        &home_dir,
+        store,
+        near_config,
+        None,
+        near_config.client_config.max_gas_burnt_view,
+    ));
+    let block_hash = chain_store.get_block_hash_by_height(height).unwrap();
+    let block = chain_store.get_block(&block_hash).unwrap().clone();
+    let chunk =
+        chain_store.get_chunk(&block.chunks()[shard_id as usize].chunk_hash()).unwrap().clone();
+    let prev_block = chain_store.get_block(&block.header().prev_hash()).unwrap().clone();
+
+    let chunk_inner = chunk.cloned_header().take_inner();
+    let is_first_block_with_chunk_of_version = check_if_block_is_first_with_chunk_of_version(
+        &mut chain_store,
+        runtime_adapter.as_ref(),
+        block.header().prev_hash(),
+        shard_id,
+    )
+    .unwrap();
+    runtime_adapter
+        .apply_transactions(
+            shard_id,
+            chunk_inner.prev_state_root(),
+            height,
+            block.header().raw_timestamp(),
+            block.header().prev_hash(),
+            block.hash(),
+            &[],
+            &[tx],
+            chunk_inner.validator_proposals(),
+            prev_block.header().gas_price(),
+            chunk_inner.gas_limit(),
+            &block.header().challenges_result(),
+            *block.header().random_value(),
+            true,
+            is_first_block_with_chunk_of_version,
+            None,
+        )
+        .unwrap();
+}
+
 fn view_chain(
     store: Arc<Store>,
     near_config: &NearConfig,
@@ -689,41 +768,13 @@ fn main() {
         }
         ("apply_tx", Some(args)) => {
             let height = args.value_of("height").map(|s| s.parse::<u64>().unwrap()).unwrap();
-            // let shard_id =
-            //     args.value_of("shard_id").map(|s| s.parse::<u64>().unwrap()).unwrap_or_default();
-            let mut chain_store =
-                ChainStore::new(store.clone(), near_config.genesis.config.genesis_height);
-            let block_hash = chain_store.get_block_hash_by_height(height).unwrap();
+            let shard_id =
+                args.value_of("shard_id").map(|s| s.parse::<u64>().unwrap()).unwrap_or_default();
             let tx_file = args.value_of("tx").unwrap();
             let tx_bytes = std::fs::read(tx_file).unwrap();
             let tx_view: SignedTransactionView = serde_json::from_slice(&tx_bytes).unwrap();
-            let actions_view = tx_view.actions;
-            let mut actions: Vec<Action> = vec![];
-            for action_view in actions_view.iter().cloned() {
-                actions.push(match action_view {
-                    ActionView::FunctionCall { method_name, args, gas, deposit } => {
-                        Action::FunctionCall(FunctionCallAction {
-                            method_name,
-                            args: from_base64(&args).unwrap(),
-                            gas,
-                            deposit,
-                        })
-                    }
-                    _ => unreachable!(),
-                });
-            }
-            let tx = Transaction {
-                signer_id: tx_view.signer_id,
-                public_key: tx_view.public_key,
-                nonce: tx_view.nonce,
-                receiver_id: tx_view.receiver_id,
-                block_hash,
-                actions,
-            };
-            let mut tx = SignedTransaction::new(tx_view.signature, tx);
-            tx.init();
-            // let tx = SignedTransaction::try_from_slice(&tx_bytes).unwrap();
-            println!("{:?}", tx);
+            apply_tx_at_height(store, home_dir, &near_config, height, shard_id, tx_view);
+
             // apply_block_at_height(store, home_dir, &near_config, height, shard_id);
         }
         ("apply_range", Some(args)) => {
