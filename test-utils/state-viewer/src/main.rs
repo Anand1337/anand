@@ -398,7 +398,7 @@ fn apply_tx_at_height(
             None,
         )
         .unwrap();
-    println!("{:?}", result);
+    println!("{:?}", result.outgoing_receipts);
 }
 
 fn view_chain(
