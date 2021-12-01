@@ -8,7 +8,7 @@ use std::sync::Arc;
 use ansi_term::Color::Red;
 use clap::{App, AppSettings, Arg, SubCommand};
 
-use borsh::BorshSerialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 use near_chain::chain::collect_receipts_from_response;
 use near_chain::migrations::check_if_block_is_first_with_chunk_of_version;
 use near_chain::types::{ApplyTransactionResult, BlockHeaderInfo};
@@ -696,7 +696,8 @@ fn main() {
             //     args.value_of("shard_id").map(|s| s.parse::<u64>().unwrap()).unwrap_or_default();
             let tx_file = args.value_of("tx").unwrap();
             let tx_bytes = std::fs::read(tx_file).unwrap();
-            let tx: SignedTransaction = serde_json::from_slice(&tx_bytes).unwrap();
+            // let tx: SignedTransaction = serde_json::from_slice(&tx_bytes).unwrap();
+            let tx = SignedTransaction::try_from_slice(&tx_bytes).unwrap();
             println!("{:?}", tx);
             // apply_block_at_height(store, home_dir, &near_config, height, shard_id);
         }
