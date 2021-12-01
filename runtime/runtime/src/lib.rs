@@ -279,6 +279,7 @@ impl Runtime {
                 Ok((receipt, outcome))
             }
             Err(e) => {
+                println!("{:?}", e);
                 near_metrics::inc_counter(&metrics::TRANSACTION_PROCESSED_FAILED_TOTAL);
                 state_update.rollback();
                 return Err(e);
