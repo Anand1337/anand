@@ -14,6 +14,7 @@ log = "0.4"
 borsh = "0.9"
 serde = { version = "1", features = [ "derive" ] }
 cached = "0.23"
+deepsize = "0.2.0"
 reed-solomon-erasure = "4"
 
 near-crypto = { path = "../../core/crypto" }

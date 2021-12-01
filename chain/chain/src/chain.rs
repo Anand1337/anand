@@ -1559,7 +1559,7 @@ impl Chain {
                 if let Some(orphan_missing_chunks) =
                     self.should_request_chunks_for_orphan(me, &orphan)
                 {
-                    debug!(target:"chain", "request missing chunks for orphan {:?}", orphan_hash);
+                    debug!(target:"chain", "request missing chunks for orphan {:?} {:?}", orphan_hash, orphan_missing_chunks.missing_chunks);
                     orphan_misses_chunks(orphan_missing_chunks);
                     self.orphans.mark_missing_chunks_requested_for_orphan(orphan_hash);
                 }
