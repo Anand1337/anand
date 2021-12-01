@@ -378,7 +378,7 @@ fn apply_tx_at_height(
         shard_id,
     )
     .unwrap();
-    runtime_adapter
+    let result = runtime_adapter
         .apply_transactions(
             shard_id,
             chunk_inner.prev_state_root(),
@@ -398,6 +398,7 @@ fn apply_tx_at_height(
             None,
         )
         .unwrap();
+    println!("{:?}", result);
 }
 
 fn view_chain(
