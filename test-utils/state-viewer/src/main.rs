@@ -526,12 +526,7 @@ fn main() {
         )
         .subcommand(
             SubCommand::with_name("apply_tx")
-                .arg(
-                    Arg::with_name("tx")
-                        .long("file with encoded tx")
-                        .help("File with encoded tx")
-                        .takes_value(true),
-                )
+                .arg(Arg::with_name("tx").long("tx").help("File with encoded tx").takes_value(true))
                 .arg(
                     Arg::with_name("height")
                         .long("height")
