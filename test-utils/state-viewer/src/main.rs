@@ -388,7 +388,8 @@ fn apply_tx_at_height(
     while txs.len() > 0 || remaining_receipts.len() > 0 {
         if remaining_receipts.len() > 0 {
             let receipt = remaining_receipts.pop_front().unwrap();
-            let shard_layout = runtime_adapter.get_shard_layout_from_prev_block(prev_block_hash)?;
+            let shard_layout =
+                runtime_adapter.get_shard_layout_from_prev_block(prev_block_hash).unwrap();
 
             shard_id = account_id_to_shard_id(&receipt.receiver_id, &shard_layout);
             chunk = chain_store
