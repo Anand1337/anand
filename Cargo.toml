@@ -52,6 +52,7 @@ members = [
 
 [profile.release]
 overflow-checks = true
+debug = true
 
 [profile.bench]
 overflow-checks = true

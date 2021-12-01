@@ -2284,7 +2284,10 @@ impl<'a> VMLogic<'a> {
         }
         self.gas_counter.pay_per(storage_read_key_byte, key.len() as u64)?;
         let nodes_before = self.ext.get_touched_nodes_count();
-        let read = self.ext.storage_get(&key);
+        let read = {
+            let _span = tracing::debug_span!(target: "vm", "storage_get").entered();
+            self.ext.storage_get(&key)
+        };
         self.gas_counter
             .pay_per(touching_trie_node, self.ext.get_touched_nodes_count() - nodes_before)?;
         let read = Self::deref_value(&mut self.gas_counter, storage_read_value_byte, read?)?;
