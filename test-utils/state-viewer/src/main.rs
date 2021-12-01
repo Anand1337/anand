@@ -693,9 +693,12 @@ fn main() {
             apply_block_at_height(store, home_dir, &near_config, height, shard_id);
         }
         ("apply_tx", Some(args)) => {
-            // let height = args.value_of("height").map(|s| s.parse::<u64>().unwrap()).unwrap();
+            let height = args.value_of("height").map(|s| s.parse::<u64>().unwrap()).unwrap();
             // let shard_id =
             //     args.value_of("shard_id").map(|s| s.parse::<u64>().unwrap()).unwrap_or_default();
+            let mut chain_store =
+                ChainStore::new(store.clone(), near_config.genesis.config.genesis_height);
+            let block_hash = chain_store.get_block_hash_by_height(height).unwrap();
             let tx_file = args.value_of("tx").unwrap();
             let tx_bytes = std::fs::read(tx_file).unwrap();
             let tx_view: SignedTransactionView = serde_json::from_slice(&tx_bytes).unwrap();
@@ -719,8 +722,8 @@ fn main() {
                 public_key: tx_view.public_key,
                 nonce: tx_view.nonce,
                 receiver_id: tx_view.receiver_id,
-                block_hash: tx_view.block_hash,
-                actions: actions,
+                block_hash,
+                actions,
             };
             let mut tx = SignedTransaction::new(tx_view.signature, tx);
             tx.init();
