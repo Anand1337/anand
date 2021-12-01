@@ -854,6 +854,9 @@ impl Client {
         &mut self,
         partial_encoded_chunk: MaybeValidated<PartialEncodedChunk>,
     ) -> Result<Vec<AcceptedBlock>, Error> {
+        debug!(target:"client", "process partial encoded chunk {:?} prev_block:{:?} parts: {:?}",
+               partial_encoded_chunk.chunk_hash(), partial_encoded_chunk.prev_block(),
+               partial_encoded_chunk.parts().iter().map(|x|x.part_ord).collect::<Vec<_>>());
         fn missing_block_handler(
             client: &mut Client,
             pec: PartialEncodedChunkV2,

@@ -37,6 +37,7 @@ use near_primitives::version::ProtocolVersion;
 use near_primitives::{checked_feature, unwrap_or_return};
 
 use crate::chunk_cache::{EncodedChunksCache, EncodedChunksCacheEntry};
+use deepsize::DeepSizeOf;
 pub use near_chunks_primitives::Error;
 use near_network_primitives::types::{
     AccountIdOrPeerTrackingShard, PartialEncodedChunkForwardMsg, PartialEncodedChunkRequestMsg,
@@ -825,6 +826,7 @@ impl ShardsManager {
         let header = partial_encoded_chunk.header.clone();
         let height = header.height_created();
         let shard_id = header.shard_id();
+        let orig_stored_size = self.stored_partial_encoded_chunks.deep_size_of();
         if self.encoded_chunks.height_within_front_horizon(height) {
             let runtime_adapter = &self.runtime_adapter;
             let heights =
@@ -839,6 +841,8 @@ impl ShardsManager {
                         // We prove that this one is valid for `epoch_id`.
                         // We won't store it by design if epoch is changed.
                         if stored_chunk.len() < MAX_STORED_PARTIAL_CHUNK_SIZE {
+                            debug!(target:"client", "store partial encoded chunk {:?} chunk size {:?} total stored chunks size {:?}", 
+                                   partial_encoded_chunk.header.chunk_hash(), partial_encoded_chunk.deep_size_of(), orig_stored_size);
                             stored_chunk.push(partial_encoded_chunk.clone());
                         } else {
                             warn!(target:"shards_manager", "Drop partial encoded chunk because stored partial encoded chunks already exceed limit, height: {} shard: {}", 
