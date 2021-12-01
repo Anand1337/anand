@@ -407,7 +407,6 @@ fn apply_tx_at_height(
 
             receipts = vec![receipt];
         }
-        .unwrap();
         let result = runtime_adapter
             .apply_transactions(
                 shard_id,
