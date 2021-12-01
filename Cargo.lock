@@ -3010,6 +3010,7 @@ dependencies = [
 name = "near-logger-utils"
 version = "0.1.0"
 dependencies = [
+ "tracing",
  "tracing-subscriber",
 ]
 
@@ -3293,6 +3294,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sha3",
+ "tracing",
  "zeropool-bn",
 ]
 

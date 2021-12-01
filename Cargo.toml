@@ -55,6 +55,7 @@ wasmer-compiler-singlepass = { git = "https://github.com/near/wasmer", branch = 
 
 [profile.release]
 overflow-checks = true
+debug = true
 
 [profile.bench]
 lto = true
