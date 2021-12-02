@@ -847,7 +847,7 @@ impl Runtime {
         epoch_info_provider: &dyn EpochInfoProvider,
     ) -> Result<Option<ExecutionOutcomeWithId>, RuntimeError> {
         println!("processing receipt {:?}", receipt);
-        let _span = tracing::debug_span!(target: "runtime", format!("Runtime::process_receipt::{}", receipt.receipt_id)).entered();
+        let _span = tracing::debug_span!(target: "runtime", "Runtime::process_receipt", receipt_id = receipt.receipt_id).entered();
 
         let account_id = &receipt.receiver_id;
         match receipt.receipt {
@@ -991,6 +991,7 @@ impl Runtime {
         // We didn't trigger execution, so we need to commit the state.
         state_update
             .commit(StateChangeCause::PostponedReceipt { receipt_hash: receipt.get_hash() });
+        println!("finish processing receipt {:?}", receipt);
         Ok(None)
     }
 
