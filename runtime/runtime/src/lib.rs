@@ -991,7 +991,6 @@ impl Runtime {
         // We didn't trigger execution, so we need to commit the state.
         state_update
             .commit(StateChangeCause::PostponedReceipt { receipt_hash: receipt.get_hash() });
-        println!("finish processing receipt {:?}", receipt);
         Ok(None)
     }
 
@@ -1277,7 +1276,7 @@ impl Runtime {
                                    state_update: &mut TrieUpdate,
                                    total_gas_burnt: &mut Gas|
          -> Result<_, RuntimeError> {
-            self.process_receipt(
+            let result = self.process_receipt(
                 state_update,
                 apply_state,
                 receipt,
@@ -1285,9 +1284,9 @@ impl Runtime {
                 &mut validator_proposals,
                 &mut stats,
                 epoch_info_provider,
-            )?
-            .into_iter()
-            .try_for_each(
+            );
+            println!("finish processing receipt {:?}", receipt.receipt_id);
+            result?.into_iter().try_for_each(
                 |outcome_with_id: ExecutionOutcomeWithId| -> Result<(), RuntimeError> {
                     *total_gas_burnt =
                         safe_add_gas(*total_gas_burnt, outcome_with_id.outcome.gas_burnt)?;
