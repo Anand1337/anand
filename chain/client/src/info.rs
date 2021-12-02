@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use actix::Addr;
 use ansi_term::Color::{Blue, Cyan, Green, White, Yellow};
-use log::info;
 use sysinfo::{get_current_pid, set_open_files_limit, Pid, ProcessExt, System, SystemExt};
+use tracing::info;
 
 use near_chain_configs::{ClientConfig, LogSummaryStyle};
 use near_network::types::NetworkInfo;

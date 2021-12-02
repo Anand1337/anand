@@ -6,5 +6,5 @@ publish = false
 edition = "2021"
 
 [dependencies]
-log = "0.4"
+tracing = "0.1.13"
 cpu-time = "1.0"

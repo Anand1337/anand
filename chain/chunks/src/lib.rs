@@ -6,9 +6,9 @@ use std::time::{Duration, Instant};
 use borsh::BorshSerialize;
 use cached::{Cached, SizedCache};
 use chrono::DateTime;
-use log::{debug, error, warn};
 use near_primitives::time::Utc;
 use rand::seq::SliceRandom;
+use tracing::{debug, error, warn};
 
 use near_chain::validate::validate_chunk_proofs;
 use near_chain::{
