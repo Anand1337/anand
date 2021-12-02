@@ -116,7 +116,7 @@ impl Debug for PeerActor {
 }
 
 impl PeerActor {
-    pub fn new(
+    pub(crate) fn new(
         my_node_info: PeerInfo,
         peer_addr: SocketAddr,
         peer_info: Option<PeerInfo>,

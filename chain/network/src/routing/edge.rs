@@ -11,12 +11,12 @@ use near_primitives::network::PeerId;
 #[cfg_attr(feature = "deepsize_feature", derive(DeepSizeOf))]
 #[derive(Clone, BorshSerialize, BorshDeserialize, PartialEq, Eq, Debug, Default)]
 pub struct PartialEdgeInfo {
-    pub nonce: u64,
-    pub signature: Signature,
+    pub(crate) nonce: u64,
+    pub(crate) signature: Signature,
 }
 
 impl PartialEdgeInfo {
-    pub fn new(peer0: &PeerId, peer1: &PeerId, nonce: u64, secret_key: &SecretKey) -> Self {
+    pub(crate) fn new(peer0: &PeerId, peer1: &PeerId, nonce: u64, secret_key: &SecretKey) -> Self {
         let data = if peer0 < peer1 {
             Edge::build_hash(peer0, peer1, nonce)
         } else {
@@ -76,7 +76,7 @@ impl Edge {
     }
 
     /// Build a new edge with given information from the other party.
-    pub fn build_with_secret_key(
+    pub(crate) fn build_with_secret_key(
         peer0: PeerId,
         peer1: PeerId,
         nonce: u64,
@@ -98,7 +98,7 @@ impl Edge {
         CryptoHash::hash_borsh(&(peer0, peer1, nonce))
     }
 
-    pub fn make_key(peer0: PeerId, peer1: PeerId) -> (PeerId, PeerId) {
+    pub(crate) fn make_key(peer0: PeerId, peer1: PeerId) -> (PeerId, PeerId) {
         if peer0 < peer1 {
             (peer0, peer1)
         } else {
@@ -108,7 +108,11 @@ impl Edge {
 
     /// Helper function when adding a new edge and we receive information from new potential peer
     /// to verify the signature.
-    pub fn partial_verify(peer0: PeerId, peer1: PeerId, edge_info: &PartialEdgeInfo) -> bool {
+    pub(crate) fn partial_verify(
+        peer0: PeerId,
+        peer1: PeerId,
+        edge_info: &PartialEdgeInfo,
+    ) -> bool {
         let pk = peer1.public_key();
         let data = if peer0 < peer1 {
             Edge::build_hash(&peer0, &peer1, edge_info.nonce)
@@ -119,7 +123,7 @@ impl Edge {
     }
 
     /// Next nonce of valid addition edge.
-    pub fn next_nonce(nonce: u64) -> u64 {
+    pub(crate) fn next_nonce(nonce: u64) -> u64 {
         if nonce % 2 == 1 {
             nonce + 2
         } else {
@@ -131,7 +135,7 @@ impl Edge {
     }
 
     /// Create the remove edge change from an added edge change.
-    pub fn remove_edge(&self, my_peer_id: PeerId, sk: &SecretKey) -> Edge {
+    pub(crate) fn remove_edge(&self, my_peer_id: PeerId, sk: &SecretKey) -> Edge {
         assert_eq!(self.edge_type(), EdgeType::Added);
         let mut edge = self.0.as_ref().clone();
         edge.nonce += 1;
@@ -150,7 +154,7 @@ impl Edge {
         Edge::build_hash(&self.key().0, &self.key().1, self.nonce() - 1)
     }
 
-    pub fn verify(&self) -> bool {
+    pub(crate) fn verify(&self) -> bool {
         if self.key().0 > self.key().1 {
             return false;
         }
@@ -190,7 +194,7 @@ impl Edge {
 
     /// It will be considered as a new edge if the nonce is odd, otherwise it is canceling the
     /// previous edge.
-    pub fn edge_type(&self) -> EdgeType {
+    pub(crate) fn edge_type(&self) -> EdgeType {
         if self.nonce() % 2 == 1 {
             EdgeType::Added
         } else {
@@ -198,16 +202,16 @@ impl Edge {
         }
     }
     /// Next nonce of valid addition edge.
-    pub fn next(&self) -> u64 {
+    pub(crate) fn next(&self) -> u64 {
         Edge::next_nonce(self.nonce())
     }
 
-    pub fn contains_peer(&self, peer_id: &PeerId) -> bool {
+    pub(crate) fn contains_peer(&self, peer_id: &PeerId) -> bool {
         self.key().0 == *peer_id || self.key().1 == *peer_id
     }
 
     /// Find a peer id in this edge different from `me`.
-    pub fn other(&self, me: &PeerId) -> Option<&PeerId> {
+    pub(crate) fn other(&self, me: &PeerId) -> Option<&PeerId> {
         if self.key().0 == *me {
             Some(&self.key().1)
         } else if self.key().1 == *me {
@@ -287,25 +291,17 @@ pub struct SimpleEdge {
 }
 
 impl SimpleEdge {
-    pub fn new(peer0: PeerId, peer1: PeerId, nonce: u64) -> SimpleEdge {
+    pub(crate) fn new(peer0: PeerId, peer1: PeerId, nonce: u64) -> SimpleEdge {
         let (peer0, peer1) = Edge::make_key(peer0, peer1);
         SimpleEdge { key: (peer0, peer1), nonce }
     }
 
-    pub fn key(&self) -> &(PeerId, PeerId) {
+    pub(crate) fn key(&self) -> &(PeerId, PeerId) {
         &self.key
     }
 
-    pub fn nonce(&self) -> u64 {
+    pub(crate) fn nonce(&self) -> u64 {
         self.nonce
-    }
-
-    pub fn edge_type(&self) -> EdgeType {
-        if self.nonce % 2 == 1 {
-            EdgeType::Added
-        } else {
-            EdgeType::Removed
-        }
     }
 }
 
