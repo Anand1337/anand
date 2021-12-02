@@ -2111,7 +2111,6 @@ dependencies = [
  "hex",
  "hyper",
  "lazy_static",
- "log",
  "near-actix-test-utils",
  "near-chain",
  "near-chain-configs",
@@ -2919,13 +2918,13 @@ dependencies = [
  "bytesize",
  "futures",
  "libc",
- "log",
  "near-rust-allocator-proxy",
  "nix",
  "once_cell",
  "strum",
  "tokio",
  "tokio-util",
+ "tracing",
 ]
 
 [[package]]
@@ -2997,10 +2996,10 @@ version = "0.0.0"
 dependencies = [
  "bytes",
  "futures-core",
- "log",
  "pin-project-lite",
  "tokio",
  "tokio-util",
+ "tracing",
 ]
 
 [[package]]
