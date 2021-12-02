@@ -847,7 +847,7 @@ impl Runtime {
         epoch_info_provider: &dyn EpochInfoProvider,
     ) -> Result<Option<ExecutionOutcomeWithId>, RuntimeError> {
         println!("processing receipt {:?}", receipt);
-        let _span = tracing::debug_span!(target: "runtime", "Runtime::process_receipt").entered();
+        let _span = tracing::debug_span!(target: "runtime", "Runtime::process_receipt", receipt_id = tracing::field::display(receipt.receipt_id)).entered();
 
         let account_id = &receipt.receiver_id;
         match receipt.receipt {
