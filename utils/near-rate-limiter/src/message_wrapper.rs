@@ -1,8 +1,8 @@
-use actix::dev::MessageResponse;
-use actix::Message;
-
 // Wrapper around Actix messages, used to track size of all messages sent to PeerManager.
 // TODO(#5155) Finish implementation of this.
+
+use crate::{ThrottleController, ThrottleToken};
+use actix::{Message, MessageResponse};
 
 #[allow(unused)]
 /// TODO - Once we start using this `ActixMessageWrapper` we will need to make following changes

@@ -1,4 +1,3 @@
-use crate::common::message_wrapper::{ActixMessageResponse, ActixMessageWrapper};
 use crate::metrics;
 use crate::routing::edge::{Edge, EdgeType};
 use crate::routing::edge_validator_actor::EdgeValidatorActor;
@@ -13,6 +12,7 @@ use near_performance_metrics_macros::perf;
 use near_primitives::borsh::BorshSerialize;
 use near_primitives::network::PeerId;
 use near_primitives::utils::index_to_bytes;
+use near_rate_limiter::message_wrapper::{ActixMessageResponse, ActixMessageWrapper};
 use near_rate_limiter::ThrottleToken;
 use near_store::db::DBCol::{ColComponentEdges, ColLastComponentNonce, ColPeerComponent};
 use near_store::{Store, StoreUpdate};

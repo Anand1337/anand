@@ -1,4 +1,3 @@
-use crate::common::message_wrapper::ActixMessageWrapper;
 use crate::peer::codec::{self, Codec};
 use crate::peer::tracker::Tracker;
 use crate::routing::edge::{Edge, PartialEdgeInfo};
@@ -36,6 +35,7 @@ use near_primitives::version::{
     ProtocolVersion, OLDEST_BACKWARD_COMPATIBLE_PROTOCOL_VERSION, PROTOCOL_VERSION,
 };
 use near_primitives::{logging, unwrap_option_or_return};
+use near_rate_limiter::message_wrapper::ActixMessageWrapper;
 use near_rate_limiter::ThrottleController;
 use near_rust_allocator_proxy::allocator::get_tid;
 use std::cmp::max;
