@@ -1288,6 +1288,10 @@ impl Runtime {
             println!("finish processing receipt {:?}", receipt.receipt_id);
             result?.into_iter().try_for_each(
                 |outcome_with_id: ExecutionOutcomeWithId| -> Result<(), RuntimeError> {
+                    println!(
+                        "for tx/receipt {:?} gas_burnt = {}",
+                        outcome_with_id.id, outcome_with_id.outcome.gas_burnt
+                    );
                     *total_gas_burnt =
                         safe_add_gas(*total_gas_burnt, outcome_with_id.outcome.gas_burnt)?;
                     outcomes.push(outcome_with_id);
