@@ -2731,7 +2731,7 @@ mod test {
                 let mut em = env.runtime.epoch_manager.0.write().unwrap();
                 em.get_block_producer_info(&epoch_id, height).unwrap()
             };
-            if bp.account_id().as_ref() == "test1" {
+            if bp.account_id().as_str() == "test1" {
                 expected_blocks[0] += 1;
             } else {
                 expected_blocks[1] += 1;

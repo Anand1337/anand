@@ -106,7 +106,7 @@ fn one_iter(
                 let me = (approval.0.target_height % 8) as usize;
 
                 // Make test1 and test2 be offline and never send approvals
-                if matches!(approval.0.account_id.as_ref(), "test1" | "test2") {
+                if matches!(approval.0.account_id.as_str(), "test1" | "test2") {
                     continue;
                 }
 

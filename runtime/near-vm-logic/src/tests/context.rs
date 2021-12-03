@@ -66,17 +66,17 @@ macro_rules! decl_test_u128 {
 decl_test_bytes!(
     test_current_account_id,
     current_account_id,
-    create_context().current_account_id.as_ref().as_bytes()
+    create_context().current_account_id.as_bytes()
 );
 decl_test_bytes!(
     test_signer_account_id,
     signer_account_id,
-    create_context().signer_account_id.as_ref().as_bytes()
+    create_context().signer_account_id.as_bytes()
 );
 decl_test_bytes!(
     test_predecessor_account_id,
     predecessor_account_id,
-    create_context().predecessor_account_id.as_ref().as_bytes()
+    create_context().predecessor_account_id.as_bytes()
 );
 decl_test_bytes!(
     test_signer_account_pk,

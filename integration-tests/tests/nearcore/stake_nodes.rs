@@ -84,7 +84,7 @@ fn init_test_staking(
             let signer = Arc::new(InMemorySigner::from_seed(
                 account_id.clone(),
                 KeyType::ED25519,
-                account_id.as_ref(),
+                &account_id,
             ));
             TestNode { account_id, signer, config, client, view_client, genesis_hash, arbiters }
         })
@@ -196,7 +196,7 @@ fn test_validator_kickout() {
                 let signer = Arc::new(InMemorySigner::from_seed(
                     test_node.account_id.clone(),
                     KeyType::ED25519,
-                    test_node.account_id.as_ref(),
+                    &test_node.account_id,
                 ));
                 SignedTransaction::stake(
                     1,
@@ -339,7 +339,7 @@ fn test_validator_join() {
             let signer = Arc::new(InMemorySigner::from_seed(
                 test_nodes[1].account_id.clone(),
                 KeyType::ED25519,
-                test_nodes[1].account_id.as_ref(),
+                &test_nodes[1].account_id,
             ));
             let unstake_transaction = SignedTransaction::stake(
                 1,
@@ -353,7 +353,7 @@ fn test_validator_join() {
             let signer = Arc::new(InMemorySigner::from_seed(
                 test_nodes[2].account_id.clone(),
                 KeyType::ED25519,
-                test_nodes[2].account_id.as_ref(),
+                &test_nodes[2].account_id,
             ));
             let stake_transaction = SignedTransaction::stake(
                 1,

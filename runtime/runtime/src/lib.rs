@@ -1575,7 +1575,7 @@ mod tests {
         let signer = Arc::new(InMemorySigner::from_seed(
             account_id.clone(),
             KeyType::ED25519,
-            account_id.as_ref(),
+            &account_id,
         ));
 
         let mut initial_state = tries.new_trie_update(ShardUId::default(), root);

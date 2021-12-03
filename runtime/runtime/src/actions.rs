@@ -416,7 +416,7 @@ pub(crate) fn action_implicit_account_creation_transfer(
     let mut public_key_data = Vec::with_capacity(33);
     public_key_data.push(0u8);
     public_key_data.extend(
-        hex::decode(account_id.as_ref().as_bytes())
+        hex::decode(account_id.as_bytes())
             .expect("account id was a valid hex of length 64 resulting in 32 bytes"),
     );
     debug_assert_eq!(public_key_data.len(), 33);

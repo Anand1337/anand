@@ -414,7 +414,7 @@ fn test_shard_layout_upgrade_simple() {
                     let signer = InMemorySigner::from_seed(
                         account_id.clone(),
                         KeyType::ED25519,
-                        account_id.as_ref(),
+                        &account_id,
                     );
                     let tx = SignedTransaction::create_account(
                         nonce,

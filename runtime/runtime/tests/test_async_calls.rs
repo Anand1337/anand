@@ -765,7 +765,7 @@ fn test_account_factory() {
                      ReceiptEnum::Action(ActionReceipt{actions, output_data_receivers, ..}), {
                         assert_eq!(output_data_receivers.len(), 1);
                         data_id = output_data_receivers[0].data_id.clone();
-                        assert_eq!(output_data_receivers[0].receiver_id.as_ref(), "near_2");
+                        assert_eq!(output_data_receivers[0].receiver_id.as_str(), "near_2");
                      },
                      actions,
                      a0, Action::CreateAccount(CreateAccountAction{}), {},
@@ -928,7 +928,7 @@ fn test_create_account_add_key_call_delete_key_delete_account() {
                         assert_eq!(public_key, &signer_new_account.public_key);
                      },
                      a6, Action::DeleteAccount(DeleteAccountAction{beneficiary_id}), {
-                        assert_eq!(beneficiary_id.as_ref(), "near_2");
+                        assert_eq!(beneficiary_id.as_str(), "near_2");
                      }
                      => [r2, r3, ref1] );
 
@@ -999,7 +999,7 @@ fn test_transfer_64len_hex() {
                         assert_eq!(*deposit, 0);
                      }
                      => [r1, ref0] );
-    assert_receipts!(group, "near_1" => r1 @ account_id.as_ref(),
+    assert_receipts!(group, "near_1" => r1 @ account_id.as_str(),
                      ReceiptEnum::Action(ActionReceipt{actions, ..}), {},
                      actions,
                      a0, Action::Transfer(TransferAction{deposit}), {
@@ -1065,7 +1065,7 @@ fn test_create_transfer_64len_hex_fail() {
                         assert_eq!(*deposit, 0);
                      }
                      => [r1, ref0] );
-    assert_receipts!(group, "near_1" => r1 @ account_id.as_ref(),
+    assert_receipts!(group, "near_1" => r1 @ account_id.as_str(),
                      ReceiptEnum::Action(ActionReceipt{actions, ..}), {},
                      actions,
                      a0, Action::CreateAccount(CreateAccountAction{}), {},

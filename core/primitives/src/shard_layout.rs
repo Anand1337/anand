@@ -172,7 +172,7 @@ impl ShardLayout {
 pub fn account_id_to_shard_id(account_id: &AccountId, shard_layout: &ShardLayout) -> ShardId {
     match shard_layout {
         ShardLayout::V0(ShardLayoutV0 { num_shards, .. }) => {
-            let mut cursor = Cursor::new(hash(account_id.as_ref().as_bytes()).0);
+            let mut cursor = Cursor::new(hash(account_id.as_bytes()).0);
             cursor.read_u64::<LittleEndian>().expect("Must not happened") % (num_shards)
         }
         ShardLayout::V1(ShardLayoutV1 { fixed_shards, boundary_accounts, .. }) => {
@@ -201,7 +201,7 @@ pub fn account_id_to_shard_uid(account_id: &AccountId, shard_layout: &ShardLayou
 }
 
 fn is_top_level_account(top_account: &AccountId, account: &AccountId) -> bool {
-    match account.as_ref().strip_suffix(top_account.as_ref()) {
+    match account.strip_suffix(top_account.as_str()) {
         None => false,
         Some(rest) => rest.is_empty() || rest.ends_with("."),
     }

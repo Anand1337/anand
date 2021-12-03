@@ -185,7 +185,7 @@ pub fn verify_and_charge_transaction(
                 )
                 .into());
             }
-            if transaction.receiver_id.as_ref() != &function_call_permission.receiver_id {
+            if transaction.receiver_id.as_str() != &function_call_permission.receiver_id {
                 return Err(InvalidTxError::InvalidAccessKeyError(
                     InvalidAccessKeyError::ReceiverMismatch {
                         tx_receiver: transaction.receiver_id.clone(),
@@ -229,12 +229,12 @@ pub(crate) fn validate_receipt(
     // We retain these checks here as to maintain backwards compatibility
     // with AccountId validation since we illegally parse an AccountId
     // in near-vm-logic/logic.rs#fn(VMLogic::read_and_parse_account_id)
-    AccountId::validate(receipt.predecessor_id.as_ref()).map_err(|_| {
+    AccountId::validate(&receipt.predecessor_id).map_err(|_| {
         ReceiptValidationError::InvalidPredecessorId {
             account_id: receipt.predecessor_id.to_string(),
         }
     })?;
-    AccountId::validate(receipt.receiver_id.as_ref()).map_err(|_| {
+    AccountId::validate(&receipt.receiver_id).map_err(|_| {
         ReceiptValidationError::InvalidReceiverId { account_id: receipt.receiver_id.to_string() }
     })?;
 
@@ -462,7 +462,7 @@ mod tests {
         let signer = Arc::new(InMemorySigner::from_seed(
             account_id.clone(),
             KeyType::ED25519,
-            account_id.as_ref(),
+            &account_id,
         ));
 
         let mut initial_state = tries.new_trie_update(ShardUId::default(), root);

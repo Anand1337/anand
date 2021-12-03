@@ -96,7 +96,7 @@ pub fn epoch_info_with_num_seats(
             .map(|(account_id, stake)| {
                 ValidatorStake::new(
                     account_id.clone(),
-                    SecretKey::from_seed(KeyType::ED25519, account_id.as_ref()).public_key(),
+                    SecretKey::from_seed(KeyType::ED25519, &account_id).public_key(),
                     stake,
                     #[cfg(feature = "protocol_feature_chunk_only_producers")]
                     false,
@@ -158,7 +158,7 @@ pub fn epoch_config(
 }
 
 pub fn stake(account_id: AccountId, amount: Balance) -> ValidatorStake {
-    let public_key = SecretKey::from_seed(KeyType::ED25519, account_id.as_ref()).public_key();
+    let public_key = SecretKey::from_seed(KeyType::ED25519, &account_id).public_key();
     ValidatorStake::new(
         account_id,
         public_key,

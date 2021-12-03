@@ -412,7 +412,7 @@ mod test {
     fn test_account_id_bytes() {
         use near_primitives::types::AccountId;
         let account_id = "near0".parse::<AccountId>().unwrap();
-        let enc = account_id.as_ref().as_bytes();
+        let enc = account_id.as_bytes();
         let dec_account_id = String::from_utf8_lossy(enc).parse().unwrap();
         assert_eq!(account_id, dec_account_id);
     }

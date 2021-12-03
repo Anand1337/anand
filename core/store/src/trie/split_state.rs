@@ -621,8 +621,8 @@ mod tests {
                     &all_receipts[new_start_index..],
                     state_roots,
                     &|account_id| ShardUId {
-                        shard_id: (hash(account_id.as_ref().as_bytes()).0[0] as NumShards
-                            % num_shards) as u32,
+                        shard_id: (hash(account_id.as_bytes()).0[0] as NumShards % num_shards)
+                            as u32,
                         version: 1,
                     },
                 );
@@ -667,7 +667,7 @@ mod tests {
 
         let num_shards = 4;
         let account_id_to_shard_id = &|account_id: &AccountId| ShardUId {
-            shard_id: (hash(account_id.as_ref().as_bytes()).0[0] as NumShards % num_shards) as u32,
+            shard_id: (hash(account_id.as_bytes()).0[0] as NumShards % num_shards) as u32,
             version: 1,
         };
 

@@ -492,7 +492,7 @@ impl<'a> VMLogic<'a> {
 
         self.internal_write_register(
             register_id,
-            self.context.current_account_id.as_ref().as_bytes().to_vec(),
+            self.context.current_account_id.as_bytes().to_vec(),
         )
     }
 
@@ -520,7 +520,7 @@ impl<'a> VMLogic<'a> {
         }
         self.internal_write_register(
             register_id,
-            self.context.signer_account_id.as_ref().as_bytes().to_vec(),
+            self.context.signer_account_id.as_bytes().to_vec(),
         )
     }
 
@@ -571,7 +571,7 @@ impl<'a> VMLogic<'a> {
         }
         self.internal_write_register(
             register_id,
-            self.context.predecessor_account_id.as_ref().as_bytes().to_vec(),
+            self.context.predecessor_account_id.as_bytes().to_vec(),
         )
     }
 

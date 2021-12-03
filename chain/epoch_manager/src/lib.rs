@@ -1686,7 +1686,7 @@ mod tests2 {
                 let block_producer_id = EpochManager::block_producer_from_info(&epoch_info, height);
                 let block_producer = epoch_info.get_validator(block_producer_id);
                 let account_id = block_producer.account_id();
-                if validator_accounts.iter().any(|v| *v == account_id.as_ref()) {
+                if validator_accounts.iter().any(|v| *v == account_id.as_str()) {
                     record_block(epoch_manager, prev_block, *curr_block, height, vec![]);
                     prev_block = *curr_block;
                     branch_blocks.push(*curr_block);
@@ -1814,10 +1814,10 @@ mod tests2 {
             let height = i as u64;
             let epoch_id = epoch_manager.get_epoch_id_from_prev_block(&prev_block).unwrap();
             let block_producer = epoch_manager.get_block_producer_info(&epoch_id, height).unwrap();
-            if block_producer.account_id().as_ref() == "test2" && epoch_id == init_epoch_id {
+            if block_producer.account_id().as_str() == "test2" && epoch_id == init_epoch_id {
                 // test2 skips its blocks in the first epoch
                 test2_expected_blocks += 1;
-            } else if block_producer.account_id().as_ref() == "test1" && epoch_id != init_epoch_id {
+            } else if block_producer.account_id().as_str() == "test1" && epoch_id != init_epoch_id {
                 // test1 skips its blocks in subsequent epochs
                 ()
             } else {
@@ -2424,7 +2424,7 @@ mod tests2 {
                     let expected_chunk_producer = epoch_manager
                         .get_chunk_producer_info(&epoch_id, height, shard_index as u64)
                         .unwrap();
-                    if expected_chunk_producer.account_id().as_ref() == "test1"
+                    if expected_chunk_producer.account_id().as_str() == "test1"
                         && epoch_id == init_epoch_id
                     {
                         expected_chunks += 1;
@@ -2924,7 +2924,7 @@ mod tests2 {
         let mut result = ValidatorStats { produced: 0, expected: 0 };
         for h in height_range {
             let block_producer = epoch_manager.get_block_producer_info(epoch_id, h).unwrap();
-            if validator == block_producer.account_id().as_ref() {
+            if validator == block_producer.account_id().as_str() {
                 if produced_heights.contains(&h) {
                     result.produced += 1;
                 }
@@ -3544,7 +3544,7 @@ mod tests2 {
             let block_producer = epoch_info.validator_account_id(block_producer);
             if height < EPOCH_LENGTH {
                 // kickout test2 during first epoch
-                if block_producer.as_ref() == "test1" || block_producer.as_ref() == "test3" {
+                if block_producer.as_str() == "test1" || block_producer.as_str() == "test3" {
                     record_block(&mut epoch_manager, prev_block, *curr_block, height, Vec::new());
                     prev_block = *curr_block;
                 }
@@ -3584,7 +3584,7 @@ mod tests2 {
     fn check_validators(epoch_info: &EpochInfo, expected_validators: &[(&str, u128)]) {
         epoch_info.validators_iter().zip(expected_validators.into_iter()).for_each(
             |(ref v, (account_id, stake))| {
-                assert_eq!(v.account_id().as_ref(), *account_id);
+                assert_eq!(v.account_id().as_str(), *account_id);
                 assert_eq!(v.stake(), *stake);
             },
         )
@@ -3593,7 +3593,7 @@ mod tests2 {
     fn check_fishermen(epoch_info: &EpochInfo, expected_fishermen: &[(&str, u128)]) {
         epoch_info.fishermen_iter().zip(expected_fishermen.into_iter()).for_each(
             |(ref v, (account_id, stake))| {
-                assert_eq!(v.account_id().as_ref(), *account_id);
+                assert_eq!(v.account_id().as_str(), *account_id);
                 assert_eq!(v.stake(), *stake);
             },
         )

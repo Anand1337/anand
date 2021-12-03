@@ -116,7 +116,7 @@ pub fn setup(
     let signer = Arc::new(InMemoryValidatorSigner::from_seed(
         account_id.clone(),
         KeyType::ED25519,
-        account_id.as_ref(),
+        &account_id,
     ));
     let telemetry = TelemetryActor::default().start();
     let config = ClientConfig::test(
@@ -208,7 +208,7 @@ pub fn setup_only_view(
     let signer = Arc::new(InMemoryValidatorSigner::from_seed(
         account_id.clone(),
         KeyType::ED25519,
-        account_id.as_ref(),
+        &account_id,
     ));
     TelemetryActor::default().start();
     let config = ClientConfig::test(
@@ -1379,8 +1379,7 @@ impl TestEnv {
 
     pub fn send_money(&mut self, id: usize) -> NetworkClientResponses {
         let account_id = self.get_client_id(0);
-        let signer =
-            InMemorySigner::from_seed(account_id.clone(), KeyType::ED25519, account_id.as_ref());
+        let signer = InMemorySigner::from_seed(account_id.clone(), KeyType::ED25519, account_id);
         let tx = SignedTransaction::send_money(
             1,
             account_id.clone(),

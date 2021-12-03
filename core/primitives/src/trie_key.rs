@@ -134,39 +134,39 @@ impl TrieKey {
         match self {
             TrieKey::Account { account_id } => {
                 res.extend(col::ACCOUNT);
-                res.extend(account_id.as_ref().as_bytes());
+                res.extend(account_id.as_bytes());
             }
             TrieKey::ContractCode { account_id } => {
                 res.extend(col::CONTRACT_CODE);
-                res.extend(account_id.as_ref().as_bytes());
+                res.extend(account_id.as_bytes());
             }
             TrieKey::AccessKey { account_id, public_key } => {
                 res.extend(col::ACCESS_KEY);
-                res.extend(account_id.as_ref().as_bytes());
+                res.extend(account_id.as_bytes());
                 res.extend(col::ACCESS_KEY);
                 res.extend(public_key.try_to_vec().unwrap());
             }
             TrieKey::ReceivedData { receiver_id, data_id } => {
                 res.extend(col::RECEIVED_DATA);
-                res.extend(receiver_id.as_ref().as_bytes());
+                res.extend(receiver_id.as_bytes());
                 res.extend(ACCOUNT_DATA_SEPARATOR);
                 res.extend(data_id.as_ref());
             }
             TrieKey::PostponedReceiptId { receiver_id, data_id } => {
                 res.extend(col::POSTPONED_RECEIPT_ID);
-                res.extend(receiver_id.as_ref().as_bytes());
+                res.extend(receiver_id.as_bytes());
                 res.extend(ACCOUNT_DATA_SEPARATOR);
                 res.extend(data_id.as_ref());
             }
             TrieKey::PendingDataCount { receiver_id, receipt_id } => {
                 res.extend(col::PENDING_DATA_COUNT);
-                res.extend(receiver_id.as_ref().as_bytes());
+                res.extend(receiver_id.as_bytes());
                 res.extend(ACCOUNT_DATA_SEPARATOR);
                 res.extend(receipt_id.as_ref());
             }
             TrieKey::PostponedReceipt { receiver_id, receipt_id } => {
                 res.extend(col::POSTPONED_RECEIPT);
-                res.extend(receiver_id.as_ref().as_bytes());
+                res.extend(receiver_id.as_bytes());
                 res.extend(ACCOUNT_DATA_SEPARATOR);
                 res.extend(receipt_id.as_ref());
             }
@@ -179,7 +179,7 @@ impl TrieKey {
             }
             TrieKey::ContractData { account_id, key } => {
                 res.extend(col::CONTRACT_DATA);
-                res.extend(account_id.as_ref().as_bytes());
+                res.extend(account_id.as_bytes());
                 res.extend(ACCOUNT_DATA_SEPARATOR);
                 res.extend(key);
             }
@@ -394,7 +394,7 @@ pub mod trie_key_parsers {
     pub fn get_raw_prefix_for_access_keys(account_id: &AccountId) -> Vec<u8> {
         let mut res = Vec::with_capacity(col::ACCESS_KEY.len() * 2 + account_id.len());
         res.extend(col::ACCESS_KEY);
-        res.extend(account_id.as_ref().as_bytes());
+        res.extend(account_id.as_bytes());
         res.extend(col::ACCESS_KEY);
         res
     }
@@ -407,7 +407,7 @@ pub mod trie_key_parsers {
                 + prefix.len(),
         );
         res.extend(col::CONTRACT_DATA);
-        res.extend(account_id.as_ref().as_bytes());
+        res.extend(account_id.as_bytes());
         res.extend(ACCOUNT_DATA_SEPARATOR);
         res.extend(prefix);
         res

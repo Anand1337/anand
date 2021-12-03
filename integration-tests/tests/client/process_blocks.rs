@@ -77,7 +77,7 @@ pub fn set_block_protocol_version(
     let validator_signer = InMemoryValidatorSigner::from_seed(
         block_producer.clone(),
         KeyType::ED25519,
-        block_producer.as_ref(),
+        &block_producer,
     );
     block.mut_header().set_lastest_protocol_version(protocol_version);
     block.mut_header().resign(&validator_signer);
@@ -137,8 +137,7 @@ fn deploy_test_contract(
     height: BlockHeight,
 ) -> BlockHeight {
     let block = env.clients[0].chain.get_block_by_height(height - 1).unwrap();
-    let signer =
-        InMemorySigner::from_seed(account_id.clone(), KeyType::ED25519, account_id.as_ref());
+    let signer = InMemorySigner::from_seed(account_id.clone(), KeyType::ED25519, &account_id);
 
     let tx = SignedTransaction::from_actions(
         height,
@@ -550,7 +549,7 @@ fn produce_block_with_approvals_arrived_early() {
                         (NetworkResponses::NoResponse.into(), true)
                     }
                     NetworkRequests::Approval { approval_message } => {
-                        if approval_message.target.as_ref() == "test1"
+                        if approval_message.target.as_str() == "test1"
                             && approval_message.approval.target_height == 4
                         {
                             approval_counter += 1;
@@ -771,7 +770,7 @@ fn ban_peer_for_invalid_block_common(mode: InvalidBlockMode) {
                             let validator_signer1 = InMemoryValidatorSigner::from_seed(
                                 block_producer.clone(),
                                 KeyType::ED25519,
-                                block_producer.as_ref(),
+                                block_producer,
                             );
                             sent_bad_blocks = true;
                             let mut block_mut = block.clone();
@@ -1110,7 +1109,7 @@ fn test_invalid_approvals() {
                 InMemoryValidatorSigner::from_seed(
                     account_id.clone(),
                     KeyType::ED25519,
-                    account_id.as_ref(),
+                    &account_id,
                 )
                 .sign_approval(&ApprovalInner::Endorsement(*genesis.hash()), 1),
             )
@@ -2675,7 +2674,7 @@ fn test_epoch_protocol_version_change() {
             .unwrap();
         let chunk_producer =
             env.clients[0].runtime_adapter.get_chunk_producer(&epoch_id, i, 0).unwrap();
-        let index = if chunk_producer.as_ref() == "test0" { 0 } else { 1 };
+        let index = if chunk_producer.as_str() == "test0" { 0 } else { 1 };
         let (encoded_chunk, merkle_paths, receipts) =
             create_chunk_on_height(&mut env.clients[index], i);
 
@@ -2699,7 +2698,7 @@ fn test_epoch_protocol_version_change() {
             .unwrap();
         let block_producer =
             env.clients[0].runtime_adapter.get_block_producer(&epoch_id, i).unwrap();
-        let index = if block_producer.as_ref() == "test0" { 0 } else { 1 };
+        let index = if block_producer.as_str() == "test0" { 0 } else { 1 };
         let mut block = env.clients[index].produce_block(i).unwrap().unwrap();
         // upgrade to new protocol version but in the second epoch one node vote for the old version.
         if i != 10 {
@@ -3743,7 +3742,7 @@ mod storage_usage_fix_tests {
         process_blocks_with_storage_usage_fix(
             "mainnet".to_string(),
             |account_id: AccountId, block_height: u64, storage_usage: u64| {
-                if account_id.as_ref() == "test0" || account_id.as_ref() == "test1" {
+                if account_id.as_str() == "test0" || account_id.as_str() == "test1" {
                     assert_eq!(storage_usage, 182);
                 } else if block_height >= 11 {
                     assert_eq!(storage_usage, 4560);
@@ -3755,7 +3754,7 @@ mod storage_usage_fix_tests {
         process_blocks_with_storage_usage_fix(
             "testnet".to_string(),
             |account_id: AccountId, _: u64, storage_usage: u64| {
-                if account_id.as_ref() == "test0" || account_id.as_ref() == "test1" {
+                if account_id.as_str() == "test0" || account_id.as_str() == "test1" {
                     assert_eq!(storage_usage, 182);
                 } else {
                     assert_eq!(storage_usage, 364);

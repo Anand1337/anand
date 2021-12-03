@@ -352,7 +352,7 @@ mod tests {
         final_state.commit(StateChangeCause::NotWritableToDisk);
 
         let signer =
-            InMemorySigner::from_seed(account_id.clone(), KeyType::ED25519, account_id.as_ref());
+            InMemorySigner::from_seed(account_id.clone(), KeyType::ED25519, &account_id);
         let tx = SignedTransaction::send_money(
             1,
             account_id,

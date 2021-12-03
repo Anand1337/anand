@@ -65,7 +65,7 @@ pub fn setup_network_node(
     let signer = Arc::new(InMemoryValidatorSigner::from_seed(
         account_id.clone(),
         KeyType::ED25519,
-        account_id.as_ref(),
+        &account_id,
     ));
     let telemetry_actor = TelemetryActor::new(TelemetryConfig::default()).start();
     let mut chain_genesis = ChainGenesis::test();
@@ -773,7 +773,7 @@ impl Handler<RunnerMessage> for Runner {
                 let info = self.info.as_ref().cloned().unwrap();
                 let mut write_info = info.write().unwrap();
 
-                write_info.peers_info[node_id].id = peer_id_from_seed(account_id.as_ref());
+                write_info.peers_info[node_id].id = peer_id_from_seed(&account_id);
                 if write_info.peers_info[node_id].account_id.is_some() {
                     write_info.peers_info[node_id].account_id = Some(account_id);
                 }

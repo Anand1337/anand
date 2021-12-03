@@ -114,7 +114,7 @@ fn repro_1183() {
                                             &InMemorySigner::from_seed(
                                                 from.clone(),
                                                 KeyType::ED25519,
-                                                from.as_ref(),
+                                                &from,
                                             ),
                                             1,
                                             *block.header().prev_hash(),
@@ -320,7 +320,7 @@ fn test_long_gap_between_blocks() {
                         if approval_message.approval.target_height < target_height {
                             (NetworkResponses::NoResponse.into(), false)
                         } else {
-                            if approval_message.target.as_ref() == "test1" {
+                            if approval_message.target.as_str() == "test1" {
                                 (NetworkResponses::NoResponse.into(), true)
                             } else {
                                 (NetworkResponses::NoResponse.into(), false)

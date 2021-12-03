@@ -203,11 +203,8 @@ impl RuntimeGroup {
         let mut signers = vec![];
         let mut validators = vec![];
         for (i, account_id) in account_ids.into_iter().enumerate() {
-            let signer = InMemorySigner::from_seed(
-                account_id.clone(),
-                KeyType::ED25519,
-                account_id.as_ref(),
-            );
+            let signer =
+                InMemorySigner::from_seed(account_id.clone(), KeyType::ED25519, &account_id);
             if (i as u64) < num_existing_accounts {
                 state_records.push(StateRecord::Account {
                     account_id: account_id.clone(),
@@ -388,8 +385,8 @@ macro_rules! assert_receipts {
     $($action_name:ident, $action_pat:pat, $action_assert:block ),+
      => [ $($produced_receipt:ident),*] ) => {
         let r = $group.get_receipt($to, $receipt);
-        assert_eq!(r.predecessor_id.as_ref(), $from);
-        assert_eq!(r.receiver_id.as_ref(), $to);
+        assert_eq!(r.predecessor_id.as_str(), $from);
+        assert_eq!(r.receiver_id.as_str(), $to);
         match &r.receipt {
             $receipt_pat => {
                 $receipt_assert

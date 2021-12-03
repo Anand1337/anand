@@ -259,7 +259,7 @@ impl GenesisBuilder {
             self.state_updates.remove(&shard_id).expect("State update should have been added");
 
         let signer =
-            InMemorySigner::from_seed(account_id.clone(), KeyType::ED25519, account_id.as_ref());
+            InMemorySigner::from_seed(account_id.clone(), KeyType::ED25519, &account_id);
         let account = Account::new(
             testing_init_balance,
             testing_init_stake,

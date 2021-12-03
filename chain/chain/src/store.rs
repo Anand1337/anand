@@ -2833,7 +2833,7 @@ impl<'a> ChainStoreUpdate<'a> {
         for (account_id, approval) in last_approvals_per_account {
             self.chain_store
                 .last_approvals_per_account
-                .cache_set(account_id.as_ref().into(), approval);
+                .cache_set(account_id.as_str().into(), approval);
         }
         for (block_hash, next_hash) in next_block_hashes {
             self.chain_store.next_block_hashes.cache_set(block_hash.into(), next_hash);
