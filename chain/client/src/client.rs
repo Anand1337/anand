@@ -884,6 +884,7 @@ impl Client {
                     protocol_version,
                 )?;
 
+                debug!(target:"client", "process partial encoded chunk {:?} result {:?}", pec_v2.header.chunk_hash(), process_result);
                 match process_result {
                     ProcessPartialEncodedChunkResult::Known => Ok(vec![]),
                     ProcessPartialEncodedChunkResult::HaveAllPartsAndReceipts(_) => {
