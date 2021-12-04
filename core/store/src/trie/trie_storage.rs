@@ -120,7 +120,7 @@ impl TrieStorage for TrieMemoryPartialStorage {
 
 /// Maximum number of cache entries.
 #[cfg(not(feature = "no_cache"))]
-const TRIE_MAX_CACHE_SIZE: usize = 10000;
+const TRIE_MAX_CACHE_SIZE: usize = 50000;
 
 #[cfg(feature = "no_cache")]
 const TRIE_MAX_CACHE_SIZE: usize = 1;
