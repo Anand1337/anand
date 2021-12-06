@@ -9,36 +9,42 @@ use near_primitives::hash::CryptoHash;
 use crate::db::refcount::decode_value_with_rc;
 use crate::trie::POISONED_LOCK_ERR;
 use crate::{ColState, StorageError, Store};
+use near_cache::SyncLruCache;
 use near_primitives::shard_layout::ShardUId;
 use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::io::ErrorKind;
 
 #[derive(Clone)]
-pub struct TrieCache(Arc<Mutex<SizedCache<CryptoHash, Vec<u8>>>>);
+pub struct TrieCache(Arc<SyncLruCache<CryptoHash, Vec<u8>>>);
+// pub struct TrieCache(Arc<Mutex<SizedCache<CryptoHash, Vec<u8>>>>);
 
 impl TrieCache {
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(SizedCache::with_size(TRIE_MAX_CACHE_SIZE))))
+        Self(Arc::new(SyncLruCache::new(TRIE_MAX_CACHE_SIZE)))
+        // Self(Arc::new(Mutex::new(SizedCache::with_size(TRIE_MAX_CACHE_SIZE))))
     }
 
     pub fn clear(&self) {
-        self.0.lock().expect(POISONED_LOCK_ERR).cache_clear()
+        self.0.clear();
+        // self.0.lock().expect(POISONED_LOCK_ERR).cache_clear()
     }
 
     pub fn update_cache(&self, ops: Vec<(CryptoHash, Option<Vec<u8>>)>) {
-        let mut guard = self.0.lock().expect(POISONED_LOCK_ERR);
+        // let mut guard = self.0.lock().expect(POISONED_LOCK_ERR);
         for (hash, opt_value_rc) in ops {
             if let Some(value_rc) = opt_value_rc {
                 if let (Some(value), _rc) = decode_value_with_rc(&value_rc) {
                     if value.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
-                        guard.cache_set(hash, value.to_vec());
+                        self.0.insert(hash, value.to_vec());
+                        // self.0.guard.cache_set(hash, value.to_vec());
                     }
                 } else {
-                    guard.cache_remove(&hash);
+                    self.0.remove(&hash);
+                    // guard.cache_remove(&hash);
                 }
             } else {
-                guard.cache_remove(&hash);
+                self.0.remove(&hash);
             }
         }
     }
