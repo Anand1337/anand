@@ -170,8 +170,8 @@ impl TrieCachingStorage {
 
 impl TrieStorage for TrieCachingStorage {
     fn retrieve_raw_bytes(&self, hash: &CryptoHash) -> Result<Vec<u8>, StorageError> {
-        let mut guard = self.cache.0.lock().expect(POISONED_LOCK_ERR);
-        if let Some(val) = guard.cache_get(hash) {
+        // let mut guard = self.cache.0.lock().expect(POISONED_LOCK_ERR);
+        if let Some(val) = self.cache.0.get(hash) {
             Ok(val.clone())
         } else {
             let key = Self::get_key_from_shard_uid_and_hash(self.shard_uid, hash);
@@ -181,7 +181,8 @@ impl TrieStorage for TrieCachingStorage {
                 .map_err(|_| StorageError::StorageInternalError)?;
             if let Some(val) = val {
                 if val.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
-                    guard.cache_set(*hash, val.clone());
+                    self.cache.0.insert(*hash, val.clone());
+                    // guard.cache_set(*hash, val.clone());
                 }
                 Ok(val)
             } else {
