@@ -185,12 +185,12 @@ mod test {
         let e2 = SimpleEdge::new(p1, p2, 3);
 
         let mut sm = SlotMap::default();
-        assert_eq!(0_u64, sm.insert(&e0).unwrap());
+        assert_eq!(Some(0_u64), sm.insert(&e0));
 
         assert!(sm.insert(&e0).is_none());
 
-        assert_eq!(1_u64, sm.insert(&e1).unwrap());
-        assert_eq!(2_u64, sm.insert(&e2).unwrap());
+        assert_eq!(Some(1_u64), sm.insert(&e1));
+        assert_eq!(Some(2_u64), sm.insert(&e2));
 
         assert_eq!(Some(2_u64), sm.pop(&e2));
         assert_eq!(None, sm.pop(&e2));
@@ -206,7 +206,7 @@ mod test {
         assert_eq!(None, sm.get(&e1));
         assert_eq!(None, sm.pop(&e1));
 
-        assert_eq!(3_u64, sm.insert(&e2).unwrap());
+        assert_eq!(Some(3_u64), sm.insert(&e2));
         assert_eq!(Some(3_u64), sm.pop(&e2));
 
         assert_eq!(None, sm.get_by_id(&1_u64));
@@ -239,7 +239,7 @@ mod test {
 
         // Add edge
         let e = SimpleEdge::new(peer_id.clone(), peer_id2, 111);
-        let se = ips.add_edge(&e).unwrap();
+        let se = ips.add_edge(&e).expect("failed to insert");
         ibf_set.add_edge(&e, se);
         assert!(ips.add_edge(&e).is_none());
 
