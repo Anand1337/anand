@@ -15,6 +15,8 @@ use std::sync::Arc;
 static DEFAULT_HOME: Lazy<PathBuf> = Lazy::new(|| get_default_home());
 
 #[derive(Clap)]
+//#[derive(Parser)]
+//#[clap(setting = AppSettings::SubcommandRequiredElseHelp)]
 pub struct StateViewerCmd {
     #[clap(flatten)]
     opts: StateViewerOpts,
@@ -33,7 +35,7 @@ impl StateViewerCmd {
     }
 }
 
-#[derive(Clap, Debug)]
+#[derive(Parser, Debug)]
 struct StateViewerOpts {
     /// Directory for config and data.
     #[clap(long, parse(from_os_str), default_value_os = DEFAULT_HOME.as_os_str())]
@@ -46,8 +48,12 @@ impl StateViewerOpts {
     }
 }
 
+<<<<<<< HEAD
 #[derive(Clap)]
 #[clap(setting = AppSettings::SubcommandRequiredElseHelp)]
+=======
+#[derive(Parser)]
+>>>>>>> Upgrade clap to `3.0.0-beta5`
 pub enum StateViewerSubCommand {
     #[clap(name = "peers")]
     Peers,
@@ -106,7 +112,7 @@ impl StateViewerSubCommand {
     }
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct DumpStateCmd {
     /// Optionally, can specify at which height to dump state.
     #[clap(long)]
@@ -130,7 +136,7 @@ impl DumpStateCmd {
     }
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct ChainCmd {
     #[clap(long)]
     start_index: BlockHeight,
@@ -144,7 +150,7 @@ impl ChainCmd {
     }
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct ReplayCmd {
     #[clap(long)]
     start_index: BlockHeight,
@@ -158,7 +164,7 @@ impl ReplayCmd {
     }
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct ApplyRangeCmd {
     #[clap(long)]
     start_index: Option<BlockHeight>,
@@ -190,7 +196,7 @@ impl ApplyRangeCmd {
     }
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct ApplyCmd {
     #[clap(long)]
     height: BlockHeight,
@@ -204,7 +210,7 @@ impl ApplyCmd {
     }
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct ViewChainCmd {
     #[clap(long)]
     height: Option<BlockHeight>,
@@ -220,7 +226,7 @@ impl ViewChainCmd {
     }
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct DumpCodeCmd {
     #[clap(long)]
     account_id: String,
@@ -234,7 +240,7 @@ impl DumpCodeCmd {
     }
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct DumpAccountStorageCmd {
     #[clap(long)]
     account_id: String,
