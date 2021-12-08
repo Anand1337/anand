@@ -846,9 +846,6 @@ impl Runtime {
         stats: &mut ApplyStats,
         epoch_info_provider: &dyn EpochInfoProvider,
     ) -> Result<Option<ExecutionOutcomeWithId>, RuntimeError> {
-        let _span = tracing::debug_span!(target: "runtime", "Runtime::process_receipt", receipt_id = tracing::field::display(receipt.receipt_id)).entered();
-        tracing::debug!(target: "runtime", node_counter = state_update.trie.counter.get());
-
         let account_id = &receipt.receiver_id;
         match receipt.receipt {
             ReceiptEnum::Data(ref data_receipt) => {
@@ -991,7 +988,6 @@ impl Runtime {
         // We didn't trigger execution, so we need to commit the state.
         state_update
             .commit(StateChangeCause::PostponedReceipt { receipt_hash: receipt.get_hash() });
-        tracing::debug!(target: "runtime", node_counter = state_update.trie.counter.get());
         Ok(None)
     }
 
@@ -1277,6 +1273,8 @@ impl Runtime {
                                    state_update: &mut TrieUpdate,
                                    total_gas_burnt: &mut Gas|
          -> Result<_, RuntimeError> {
+            let _span = tracing::debug_span!(target: "runtime", "Runtime::process_receipt", receipt_id = tracing::field::display(receipt.receipt_id)).entered();
+            tracing::debug!(target: "runtime", node_counter = state_update.trie.counter.get());
             let result = self.process_receipt(
                 state_update,
                 apply_state,
@@ -1286,6 +1284,8 @@ impl Runtime {
                 &mut stats,
                 epoch_info_provider,
             );
+            tracing::debug!(target: "runtime", node_counter = state_update.trie.counter.get());
+
             println!("finish processing receipt {:?}", receipt.receipt_id);
             result?.into_iter().try_for_each(
                 |outcome_with_id: ExecutionOutcomeWithId| -> Result<(), RuntimeError> {
