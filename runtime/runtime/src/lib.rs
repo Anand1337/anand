@@ -846,9 +846,8 @@ impl Runtime {
         stats: &mut ApplyStats,
         epoch_info_provider: &dyn EpochInfoProvider,
     ) -> Result<Option<ExecutionOutcomeWithId>, RuntimeError> {
-        let span = tracing::debug_span!(target: "runtime", "Runtime::process_receipt", receipt_id = tracing::field::display(receipt.receipt_id));
-        let _entered = span.enter();
-        let _event = tracing::event!(parent: &span, node_counter = state_update.trie.counter.get());
+        let _span = tracing::debug_span!(target: "runtime", "Runtime::process_receipt", receipt_id = tracing::field::display(receipt.receipt_id)).entered();
+        tracing::debug!(target: "runtime", node_counter = state_update.trie.counter.get());
 
         let account_id = &receipt.receiver_id;
         match receipt.receipt {
@@ -992,8 +991,7 @@ impl Runtime {
         // We didn't trigger execution, so we need to commit the state.
         state_update
             .commit(StateChangeCause::PostponedReceipt { receipt_hash: receipt.get_hash() });
-        let _event = tracing::event!(parent: &span, node_counter = state_update.trie.counter.get());
-
+        tracing::debug!(target: "runtime", node_counter = state_update.trie.counter.get());
         Ok(None)
     }
 
