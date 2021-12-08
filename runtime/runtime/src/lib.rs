@@ -992,6 +992,8 @@ impl Runtime {
         // We didn't trigger execution, so we need to commit the state.
         state_update
             .commit(StateChangeCause::PostponedReceipt { receipt_hash: receipt.get_hash() });
+        tracing::debug!(parent: &span, node_counter = state_update.trie.counter.get());
+
         Ok(None)
     }
 
@@ -1163,7 +1165,6 @@ impl Runtime {
             vec![]
         };
 
-        tracing::debug!(parent: &span, node_counter = state_update.trie.counter.get());
         Ok((gas_used, receipts_to_restore))
     }
 
