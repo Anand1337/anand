@@ -846,8 +846,9 @@ impl Runtime {
         stats: &mut ApplyStats,
         epoch_info_provider: &dyn EpochInfoProvider,
     ) -> Result<Option<ExecutionOutcomeWithId>, RuntimeError> {
-        let _span = tracing::debug_span!(target: "runtime", "Runtime::process_receipt", receipt_id = tracing::field::display(receipt.receipt_id), 
-            node_counter = state_update.trie.counter.get()).entered();
+        let span = tracing::debug_span!(target: "runtime", "Runtime::process_receipt", receipt_id = tracing::field::display(receipt.receipt_id),
+            node_counter_before = state_update.trie.counter.get(), node_counter_after);
+        let _entered = span.enter();
 
         let account_id = &receipt.receiver_id;
         match receipt.receipt {
@@ -1162,6 +1163,10 @@ impl Runtime {
             vec![]
         };
 
+        tracing::debug!(
+            parent: &span,
+            node_counter_after = state_update.trie.counter.get() - node_counter_before
+        );
         Ok((gas_used, receipts_to_restore))
     }
 
