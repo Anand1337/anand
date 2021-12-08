@@ -992,7 +992,11 @@ impl Runtime {
         // We didn't trigger execution, so we need to commit the state.
         state_update
             .commit(StateChangeCause::PostponedReceipt { receipt_hash: receipt.get_hash() });
-        tracing::debug!(parent: &span, node_counter = state_update.trie.counter.get());
+        tracing::debug!(
+            parent: &span,
+            receipt_id = tracing::field::display(receipt.receipt_id),
+            node_counter = state_update.trie.counter.get()
+        );
 
         Ok(None)
     }
