@@ -2296,6 +2296,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "konst"
+version = "0.2.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eaf39e1fb26bc66fe74331504ed87b533d48c00da9bd04aafd58bbb12dc063a0"
+dependencies = [
+ "konst_macro_rules",
+ "konst_proc_macros",
+]
+
+[[package]]
+name = "konst_macro_rules"
+version = "0.2.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66e329ff8b9745c0bc70fdb0a3721d8ac954e8bbc905e8e63a9450ab0acf08f3"
+
+[[package]]
+name = "konst_proc_macros"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "984e109462d46ad18314f10e392c286c3d47bce203088a09012de1015b45b737"
+
+[[package]]
 name = "language-tags"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3182,6 +3204,7 @@ dependencies = [
  "derive_more",
  "elastic-array",
  "fs2",
+ "konst",
  "lazy_static",
  "near-crypto",
  "near-primitives",
