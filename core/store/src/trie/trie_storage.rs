@@ -11,6 +11,7 @@ use crate::trie::POISONED_LOCK_ERR;
 use crate::{ColState, StorageError, Store};
 use near_primitives::shard_layout::ShardUId;
 use std::cell::RefCell;
+use std::env;
 use std::io::ErrorKind;
 
 #[derive(Clone)]
@@ -130,7 +131,7 @@ const TRIE_MAX_CACHE_SIZE: usize = 1;
 
 /// Values above this size (in bytes) are never cached.
 /// Note that Trie inner nodes are always smaller than this.
-const TRIE_LIMIT_CACHED_VALUE_SIZE: usize = 4000;
+const TRIE_LIMIT_CACHED_VALUE_SIZE: usize = env::var("TEST_VAR").unwrap().parse::<usize>().unwrap();
 
 pub struct TrieCachingStorage {
     pub(crate) store: Arc<Store>,
