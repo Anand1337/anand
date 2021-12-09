@@ -134,7 +134,7 @@ const TRIE_MAX_CACHE_SIZE: usize = 1;
 /// Values above this size (in bytes) are never cached.
 /// Note that Trie inner nodes are always smaller than this.
 const TRIE_LIMIT_CACHED_VALUE_SIZE: usize =
-    unwrap_ctx!(parse_usize(unwrap_or!(option_env!("TRIE_MAX_CACHE_SIZE"), "4000")));
+    unwrap_ctx!(parse_usize(unwrap_or!(option_env!("TRIE_LIMIT_CACHED_VALUE_SIZE"), "4000")));
 
 pub struct TrieCachingStorage {
     pub(crate) store: Arc<Store>,
@@ -176,7 +176,7 @@ impl TrieStorage for TrieCachingStorage {
         if let Some(val) = guard.cache_get(hash) {
             Ok(val.clone())
         } else {
-            println!("miss key {}", hash);
+            tracing::debug!(target: "runtime", "trie cache miss for hash {}", hash);
             let key = Self::get_key_from_shard_uid_and_hash(self.shard_uid, hash);
             let val = self
                 .store
