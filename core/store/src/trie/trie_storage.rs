@@ -9,13 +9,15 @@ use near_primitives::hash::CryptoHash;
 use crate::db::refcount::decode_value_with_rc;
 use crate::trie::POISONED_LOCK_ERR;
 use crate::{ColState, StorageError, Store};
+use konst::option::unwrap_or;
 use konst::primitive::parse_usize;
-use konst::result::unwrap_ctx;
+use konst::unwrap_ctx;
 use near_primitives::shard_layout::ShardUId;
 use std::cell::RefCell;
 use std::convert::TryFrom;
 use std::env;
 use std::io::ErrorKind;
+use std::option_env;
 
 #[derive(Clone)]
 pub struct TrieCache(Arc<Mutex<SizedCache<CryptoHash, Vec<u8>>>>);
@@ -123,7 +125,8 @@ impl TrieStorage for TrieMemoryPartialStorage {
 
 /// Maximum number of cache entries.
 #[cfg(not(feature = "no_cache"))]
-const TRIE_MAX_CACHE_SIZE: usize = unwrap_ctx!(parse_usize(std::env!("TRIE_MAX_CACHE_SIZE"))); // 50000;
+const TRIE_MAX_CACHE_SIZE: usize =
+    unwrap_ctx!(parse_usize(unwrap_or!(option_env!("TRIE_MAX_CACHE_SIZE"), "50000")));
 
 #[cfg(feature = "no_cache")]
 const TRIE_MAX_CACHE_SIZE: usize = 1;
@@ -131,7 +134,7 @@ const TRIE_MAX_CACHE_SIZE: usize = 1;
 /// Values above this size (in bytes) are never cached.
 /// Note that Trie inner nodes are always smaller than this.
 const TRIE_LIMIT_CACHED_VALUE_SIZE: usize =
-    unwrap_ctx!(parse_usize(std::env!("TRIE_LIMIT_CACHED_VALUE_SIZE"))); // 4000
+    unwrap_ctx!(parse_usize(unwrap_or!(option_env!("TRIE_MAX_CACHE_SIZE"), "4000")));
 
 pub struct TrieCachingStorage {
     pub(crate) store: Arc<Store>,
