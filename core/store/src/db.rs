@@ -6,10 +6,13 @@ use std::marker::PhantomPinned;
 use std::sync::RwLock;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use konst::primitive::parse_bool;
+use konst::unwrap_ctx;
 use rocksdb::{
     BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, Direction, Env, IteratorMode,
     Options, ReadOptions, WriteBatch, DB,
 };
+use std::env;
 use strum::EnumIter;
 use tracing::warn;
 
@@ -665,6 +668,7 @@ fn rocksdb_block_based_options(cache_size: usize) -> BlockBasedOptions {
     // let cache_size = 1024 * 1024 * 32;
     block_opts.set_block_cache(&Cache::new_lru_cache(cache_size).unwrap());
     block_opts.set_pin_l0_filter_and_index_blocks_in_cache(true);
+    let SET_CACHE_INDEX: bool = unwrap_ctx!(parse_bool(&env::var("SET_CACHE_INDEX").unwrap()));
     block_opts.set_cache_index_and_filter_blocks(true);
     block_opts.set_bloom_filter(10, true);
     block_opts
