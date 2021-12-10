@@ -23,7 +23,9 @@ pub struct TrieCache(Arc<Mutex<SizedCache<CryptoHash, Vec<u8>>>>);
 
 impl TrieCache {
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(SizedCache::with_size(TRIE_MAX_CACHE_SIZE))))
+        const TRIE_MAX_CACHE_SIZE_OVERRIDE: usize =
+            unwrap_ctx!(parse_usize(&env::var("TRIE_MAX_CACHE_SIZE_OVERRIDE").unwrap()));
+        Self(Arc::new(Mutex::new(SizedCache::with_size(TRIE_MAX_CACHE_SIZE_OVERRIDE))))
     }
 
     pub fn clear(&self) {
@@ -31,11 +33,14 @@ impl TrieCache {
     }
 
     pub fn update_cache(&self, ops: Vec<(CryptoHash, Option<Vec<u8>>)>) {
+        const TRIE_LIMIT_CACHED_VALUE_SIZE_OVERRIDE: usize =
+            unwrap_ctx!(parse_usize(&env::var("TRIE_LIMIT_CACHED_VALUE_SIZE_OVERRIDE").unwrap()));
+
         let mut guard = self.0.lock().expect(POISONED_LOCK_ERR);
         for (hash, opt_value_rc) in ops {
             if let Some(value_rc) = opt_value_rc {
                 if let (Some(value), _rc) = decode_value_with_rc(&value_rc) {
-                    if value.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
+                    if value.len() < TRIE_LIMIT_CACHED_VALUE_SIZE_OVERRIDE {
                         guard.cache_set(hash, value.to_vec());
                     }
                 } else {
@@ -124,16 +129,14 @@ impl TrieStorage for TrieMemoryPartialStorage {
 
 /// Maximum number of cache entries.
 #[cfg(not(feature = "no_cache"))]
-const TRIE_MAX_CACHE_SIZE: usize =
-    unwrap_ctx!(parse_usize(unwrap_or!(option_env!("TRIE_MAX_CACHE_SIZE"), "50000")));
+const TRIE_MAX_CACHE_SIZE: usize = 50000;
 
 #[cfg(feature = "no_cache")]
 const TRIE_MAX_CACHE_SIZE: usize = 1;
 
 /// Values above this size (in bytes) are never cached.
 /// Note that Trie inner nodes are always smaller than this.
-const TRIE_LIMIT_CACHED_VALUE_SIZE: usize =
-    unwrap_ctx!(parse_usize(unwrap_or!(option_env!("TRIE_LIMIT_CACHED_VALUE_SIZE"), "4000")));
+const TRIE_LIMIT_CACHED_VALUE_SIZE: usize = 4000;
 
 pub struct TrieCachingStorage {
     pub(crate) store: Arc<Store>,
@@ -170,6 +173,9 @@ impl TrieCachingStorage {
 
 impl TrieStorage for TrieCachingStorage {
     fn retrieve_raw_bytes(&self, hash: &CryptoHash) -> Result<Vec<u8>, StorageError> {
+        const TRIE_LIMIT_CACHED_VALUE_SIZE_OVERRIDE: usize =
+            unwrap_ctx!(parse_usize(&env::var("TRIE_LIMIT_CACHED_VALUE_SIZE_OVERRIDE").unwrap()));
+
         let mut guard = self.cache.0.lock().expect(POISONED_LOCK_ERR);
         // println!("cache size = {}", guard.cache_size());
         if let Some(val) = guard.cache_get(hash) {
@@ -182,7 +188,7 @@ impl TrieStorage for TrieCachingStorage {
                 .get(ColState, key.as_ref())
                 .map_err(|_| StorageError::StorageInternalError)?;
             if let Some(val) = val {
-                if val.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
+                if val.len() < TRIE_LIMIT_CACHED_VALUE_SIZE_OVERRIDE {
                     guard.cache_set(*hash, val.clone());
                 }
                 Ok(val)

@@ -2,9 +2,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-use konst::option::unwrap_or;
 use konst::primitive::parse_bool;
-use konst::unwrap_ctx;
 use near_chain::chain::collect_receipts_from_response;
 use near_chain::migrations::check_if_block_is_first_with_chunk_of_version;
 use near_chain::types::ApplyTransactionResult;
@@ -16,10 +14,7 @@ use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{BlockHeight, ShardId};
 use near_store::Store;
 use nearcore::NightshadeRuntime;
-use std::option_env;
-
-const APPLY_RANGE_PARALLEL: bool =
-    unwrap_ctx!(parse_bool(unwrap_or!(option_env!("APPLY_RANGE_PARALLEL"), "true")));
+use std::env;
 
 fn inc_and_report_progress(cnt: &AtomicU64) {
     let prev = cnt.fetch_add(1, Ordering::Relaxed);
@@ -185,6 +180,8 @@ pub fn apply_chain_range(
         inc_and_report_progress(&processed_blocks_cnt);
     };
 
+    const APPLY_RANGE_PARALLEL: bool =
+        unwrap_ctx!(parse_bool(&env::var("APPLY_RANGE_PARALLEL").unwrap()));
     if APPLY_RANGE_PARALLEL {
         println!("apply parallel");
         (start_height..=end_height).into_par_iter().for_each(process_height)
