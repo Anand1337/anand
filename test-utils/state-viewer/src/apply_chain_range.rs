@@ -49,13 +49,7 @@ pub fn apply_chain_range(
     println!("Printing results including outcomes of applying receipts");
 
     let processed_blocks_cnt = AtomicU64::new(0);
-    let iterator: dyn Iterator = if APPLY_PARALLEL {
-        (start_height..=end_height).into_par_iter()
-    } else {
-        (start_height..=end_height).into_iter()
-    };
-
-    iterator.for_each(|height| {
+    let mut process_height = |height| {
         let mut chain_store = ChainStore::new(store.clone(), genesis.config.genesis_height);
         let block_hash = match chain_store.get_block_hash_by_height(height) {
             Ok(block_hash) => block_hash,
@@ -63,12 +57,12 @@ pub fn apply_chain_range(
                 // Skipping block because it's not available in ChainStore.
                 inc_and_report_progress(&processed_blocks_cnt);
                 return;
-            },
+            }
         };
         let block = chain_store.get_block(&block_hash).unwrap().clone();
         let shard_uid =
             runtime_adapter.shard_id_to_uid(shard_id, block.header().epoch_id()).unwrap();
-        assert!(block.chunks().len()>0);
+        assert!(block.chunks().len() > 0);
         let mut existing_chunk_extra = None;
         let mut prev_chunk_extra = None;
         let apply_result = if *block.header().prev_hash() == CryptoHash::default() {
@@ -77,7 +71,11 @@ pub fn apply_chain_range(
             return;
         } else if block.chunks()[shard_id as usize].height_included() == height {
             let res_existing_chunk_extra = chain_store.get_chunk_extra(&block_hash, &shard_uid);
-            assert!(res_existing_chunk_extra.is_ok(), "Can't get existing chunk extra for block #{}", height);
+            assert!(
+                res_existing_chunk_extra.is_ok(),
+                "Can't get existing chunk extra for block #{}",
+                height
+            );
             existing_chunk_extra = Some(res_existing_chunk_extra.unwrap().clone());
             let chunk = chain_store
                 .get_chunk(&block.chunks()[shard_id as usize].chunk_hash())
@@ -90,7 +88,7 @@ pub fn apply_chain_range(
                     println!("Skipping applying block #{} because the previous block is unavailable and I can't determine the gas_price to use.", height);
                     inc_and_report_progress(&processed_blocks_cnt);
                     return;
-                },
+                }
             };
 
             let mut chain_store_update = ChainStoreUpdate::new(&mut chain_store);
@@ -111,7 +109,7 @@ pub fn apply_chain_range(
                     block.header().prev_hash(),
                     shard_id,
                 )
-                    .unwrap();
+                .unwrap();
 
             runtime_adapter
                 .apply_transactions(
@@ -134,7 +132,10 @@ pub fn apply_chain_range(
                 )
                 .unwrap()
         } else {
-            let chunk_extra = chain_store.get_chunk_extra(block.header().prev_hash(), &shard_uid).unwrap().clone();
+            let chunk_extra = chain_store
+                .get_chunk_extra(block.header().prev_hash(), &shard_uid)
+                .unwrap()
+                .clone();
             prev_chunk_extra = Some(chunk_extra.clone());
 
             runtime_adapter
@@ -174,15 +175,21 @@ pub fn apply_chain_range(
             Some(existing_chunk_extra) => {
                 println!("block_height: {}, block_hash: {}\nchunk_extra: {:#?}\nexisting_chunk_extra: {:#?}\noutcomes: {:#?}", height, block_hash, chunk_extra, existing_chunk_extra, apply_result.outcomes);
                 assert_eq!(existing_chunk_extra, chunk_extra, "Got a different ChunkExtra:\nblock_height: {}, block_hash: {}\nchunk_extra: {:#?}\nexisting_chunk_extra: {:#?}\noutcomes: {:#?}\n", height, block_hash, chunk_extra, existing_chunk_extra, apply_result.outcomes);
-            },
+            }
             None => {
                 assert!(prev_chunk_extra.is_some());
                 assert!(apply_result.outcomes.is_empty());
                 println!("block_height: {}, block_hash: {}\nchunk_extra: {:#?}\nprev_chunk_extra: {:#?}\noutcomes: {:#?}", height, block_hash, chunk_extra, prev_chunk_extra, apply_result.outcomes);
-            },
+            }
         };
         inc_and_report_progress(&processed_blocks_cnt);
-    });
+    };
+
+    if APPLY_PARALLEL {
+        (start_height..=end_height).into_par_iter(process_height)
+    } else {
+        (start_height..=end_height).into_iter(process_height)
+    };
 
     println!(
         "No differences found after applying chunks in the range {}..={} for shard_id {}",
