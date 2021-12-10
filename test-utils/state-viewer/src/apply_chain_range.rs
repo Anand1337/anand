@@ -186,8 +186,10 @@ pub fn apply_chain_range(
     };
 
     if APPLY_PARALLEL {
+        println!("apply parallel");
         (start_height..=end_height).into_par_iter().for_each(process_height)
     } else {
+        println!("apply sequential");
         (start_height..=end_height).into_iter().for_each(process_height)
     };
 
