@@ -9,14 +9,13 @@ use near_primitives::hash::CryptoHash;
 use crate::db::refcount::decode_value_with_rc;
 use crate::trie::POISONED_LOCK_ERR;
 use crate::{ColState, StorageError, Store};
-use konst::option::unwrap_or;
 use konst::primitive::parse_usize;
 use konst::unwrap_ctx;
 use near_primitives::shard_layout::ShardUId;
 use std::cell::RefCell;
 use std::convert::TryFrom;
+use std::env;
 use std::io::ErrorKind;
-use std::option_env;
 
 #[derive(Clone)]
 pub struct TrieCache(Arc<Mutex<SizedCache<CryptoHash, Vec<u8>>>>);
