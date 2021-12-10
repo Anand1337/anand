@@ -180,7 +180,7 @@ pub fn apply_chain_range(
         inc_and_report_progress(&processed_blocks_cnt);
     };
 
-    const APPLY_RANGE_PARALLEL: bool =
+    let APPLY_RANGE_PARALLEL: bool =
         unwrap_ctx!(parse_bool(&env::var("APPLY_RANGE_PARALLEL").unwrap()));
     if APPLY_RANGE_PARALLEL {
         println!("apply parallel");
