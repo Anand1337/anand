@@ -176,7 +176,9 @@ impl TrieStorage for TrieCachingStorage {
             unwrap_ctx!(parse_usize(&env::var("TRIE_LIMIT_CACHED_VALUE_SIZE_OVERRIDE").unwrap()));
 
         let mut guard = self.cache.0.lock().expect(POISONED_LOCK_ERR);
-        // println!("cache size = {}", guard.cache_size());
+        if guard.cache_size() % 100 == 0 {
+            println!("cache size = {}", guard.cache_size());
+        }
         if let Some(val) = guard.cache_get(hash) {
             Ok(val.clone())
         } else {
