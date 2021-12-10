@@ -49,7 +49,7 @@ pub fn apply_chain_range(
     println!("Printing results including outcomes of applying receipts");
 
     let processed_blocks_cnt = AtomicU64::new(0);
-    let iterator = if APPLY_PARALLEL {
+    let iterator: dyn Iterator = if APPLY_PARALLEL {
         (start_height..=end_height).into_par_iter()
     } else {
         (start_height..=end_height).into_iter()

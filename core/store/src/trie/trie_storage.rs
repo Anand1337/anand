@@ -15,7 +15,6 @@ use konst::unwrap_ctx;
 use near_primitives::shard_layout::ShardUId;
 use std::cell::RefCell;
 use std::convert::TryFrom;
-use std::env;
 use std::io::ErrorKind;
 use std::option_env;
 
