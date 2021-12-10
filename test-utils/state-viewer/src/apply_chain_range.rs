@@ -2,6 +2,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
+use konst::option::unwrap_or;
+use konst::primitive::parse_bool;
+use konst::unwrap_ctx;
 use near_chain::chain::collect_receipts_from_response;
 use near_chain::migrations::check_if_block_is_first_with_chunk_of_version;
 use near_chain::types::ApplyTransactionResult;
@@ -13,6 +16,10 @@ use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{BlockHeight, ShardId};
 use near_store::Store;
 use nearcore::NightshadeRuntime;
+use std::option_env;
+
+const APPLY_PARALLEL: bool =
+    unwrap_ctx!(parse_bool(unwrap_or!(option_env!("APPLY_PARALLEL"), "true")));
 
 fn inc_and_report_progress(cnt: &AtomicU64) {
     let prev = cnt.fetch_add(1, Ordering::Relaxed);
@@ -42,7 +49,13 @@ pub fn apply_chain_range(
     println!("Printing results including outcomes of applying receipts");
 
     let processed_blocks_cnt = AtomicU64::new(0);
-    (start_height..=end_height).into_par_iter().for_each(|height| {
+    let iterator = if APPLY_PARALLEL {
+        (start_height..=end_height).into_par_iter()
+    } else {
+        (start_height..=end_height).into_iter()
+    };
+
+    iterator.for_each(|height| {
         let mut chain_store = ChainStore::new(store.clone(), genesis.config.genesis_height);
         let block_hash = match chain_store.get_block_hash_by_height(height) {
             Ok(block_hash) => block_hash,
