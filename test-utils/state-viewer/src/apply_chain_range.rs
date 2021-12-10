@@ -186,9 +186,9 @@ pub fn apply_chain_range(
     };
 
     if APPLY_PARALLEL {
-        (start_height..=end_height).into_par_iter.for_each(process_height)
+        (start_height..=end_height).into_par_iter().for_each(process_height)
     } else {
-        (start_height..=end_height).into_iter.for_each(process_height)
+        (start_height..=end_height).into_iter().for_each(process_height)
     };
 
     println!(
