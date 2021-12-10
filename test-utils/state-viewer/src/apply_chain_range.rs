@@ -18,8 +18,8 @@ use near_store::Store;
 use nearcore::NightshadeRuntime;
 use std::option_env;
 
-const APPLY_PARALLEL: bool =
-    unwrap_ctx!(parse_bool(unwrap_or!(option_env!("APPLY_PARALLEL"), "true")));
+const APPLY_RANGE_PARALLEL: bool =
+    unwrap_ctx!(parse_bool(unwrap_or!(option_env!("APPLY_RANGE_PARALLEL"), "true")));
 
 fn inc_and_report_progress(cnt: &AtomicU64) {
     let prev = cnt.fetch_add(1, Ordering::Relaxed);
@@ -185,7 +185,7 @@ pub fn apply_chain_range(
         inc_and_report_progress(&processed_blocks_cnt);
     };
 
-    if APPLY_PARALLEL {
+    if APPLY_RANGE_PARALLEL {
         println!("apply parallel");
         (start_height..=end_height).into_par_iter().for_each(process_height)
     } else {
