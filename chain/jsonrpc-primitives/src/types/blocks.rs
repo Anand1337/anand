@@ -32,7 +32,6 @@ pub struct RpcBlockResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RpcBlockOrdinalResponse {
-    #[serde(flatten)]
     pub block_ordinal: near_primitives::types::NumBlocks,
 }
 
