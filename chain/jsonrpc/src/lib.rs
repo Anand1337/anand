@@ -15,10 +15,10 @@ use tracing::info;
 
 use near_chain_configs::GenesisConfig;
 use near_client::{
-    ClientActor, GetBlock, GetBlockProof, GetChunk, GetExecutionOutcome, GetGasPrice,
-    GetNetworkInfo, GetNextLightClientBlock, GetProtocolConfig, GetReceipt, GetStateChanges,
-    GetStateChangesInBlock, GetValidatorInfo, GetValidatorOrdered, Query, Status, TxStatus,
-    TxStatusError, ViewClientActor,
+    ClientActor, GetBlock, GetBlockOrdinal, GetBlockProof, GetChunk, GetExecutionOutcome,
+    GetGasPrice, GetNetworkInfo, GetNextLightClientBlock, GetProtocolConfig, GetReceipt,
+    GetStateChanges, GetStateChangesInBlock, GetValidatorInfo, GetValidatorOrdered, Query, Status,
+    TxStatus, TxStatusError, ViewClientActor,
 };
 #[cfg(feature = "test_features")]
 use near_jsonrpc_adversarial_primitives::SetAdvOptionsRequest;
@@ -541,6 +541,13 @@ impl JsonRpcHandler {
                 serde_json::to_value(validators)
                     .map_err(|err| RpcError::serialization_error(err.to_string()))
             }
+            "EXPERIMENTAL_block_ordinal" => {
+                let rpc_block_request =
+                    near_jsonrpc_primitives::types::blocks::RpcBlockRequest::parse(request.params)?;
+                let block_ordinal = self.block_ordinal(rpc_block_request).await?;
+                serde_json::to_value(block_ordinal)
+                    .map_err(|err| RpcError::serialization_error(err.to_string()))
+            }
             #[cfg(feature = "sandbox")]
             "sandbox_patch_state" => {
                 let sandbox_patch_state_request =
@@ -918,6 +925,20 @@ impl JsonRpcHandler {
         let block_view =
             self.view_client_addr.send(GetBlock(request_data.block_reference.into())).await??;
         Ok(near_jsonrpc_primitives::types::blocks::RpcBlockResponse { block_view })
+    }
+
+    async fn block_ordinal(
+        &self,
+        request_data: near_jsonrpc_primitives::types::blocks::RpcBlockRequest,
+    ) -> Result<
+        near_jsonrpc_primitives::types::blocks::RpcBlockOrdinalResponse,
+        near_jsonrpc_primitives::types::blocks::RpcBlockError,
+    > {
+        let block_ordinal = self
+            .view_client_addr
+            .send(GetBlockOrdinal(request_data.block_reference.into()))
+            .await??;
+        Ok(near_jsonrpc_primitives::types::blocks::RpcBlockOrdinalResponse { block_ordinal })
     }
 
     async fn chunk(

@@ -13,7 +13,7 @@ use near_primitives::hash::CryptoHash;
 use near_primitives::merkle::{MerklePath, PartialMerkleTree};
 use near_primitives::sharding::ChunkHash;
 use near_primitives::types::{
-    AccountId, BlockHeight, BlockReference, EpochReference, MaybeBlockId, ShardId,
+    AccountId, BlockHeight, BlockReference, EpochReference, MaybeBlockId, NumBlocks, ShardId,
     TransactionOrReceiptId,
 };
 use near_primitives::utils::generate_random_string;
@@ -157,6 +157,13 @@ impl SyncStatus {
 
 /// Actor message requesting block by id or hash.
 pub struct GetBlock(pub BlockReference);
+
+/// Actor message requesting block ordinal by id or hash.
+pub struct GetBlockOrdinal(pub BlockReference);
+
+impl Message for GetBlockOrdinal {
+    type Result = Result<NumBlocks, GetBlockError>;
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum GetBlockError {

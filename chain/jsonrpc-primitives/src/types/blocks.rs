@@ -30,6 +30,12 @@ pub struct RpcBlockResponse {
     pub block_view: near_primitives::views::BlockView,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RpcBlockOrdinalResponse {
+    #[serde(flatten)]
+    pub block_ordinal: near_primitives::types::NumBlocks,
+}
+
 impl From<near_client_primitives::types::GetBlockError> for RpcBlockError {
     fn from(error: near_client_primitives::types::GetBlockError) -> Self {
         match error {

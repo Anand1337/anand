@@ -19,12 +19,12 @@ use near_chain::{
 };
 use near_chain_configs::{ClientConfig, ProtocolConfigView};
 use near_client_primitives::types::{
-    Error, GetBlock, GetBlockError, GetBlockProof, GetBlockProofError, GetBlockProofResponse,
-    GetBlockWithMerkleTree, GetChunkError, GetExecutionOutcome, GetExecutionOutcomeError,
-    GetExecutionOutcomesForBlock, GetGasPrice, GetGasPriceError, GetNextLightClientBlockError,
-    GetProtocolConfig, GetProtocolConfigError, GetReceipt, GetReceiptError, GetStateChangesError,
-    GetStateChangesWithCauseInBlock, GetValidatorInfoError, Query, QueryError, TxStatus,
-    TxStatusError,
+    Error, GetBlock, GetBlockError, GetBlockOrdinal, GetBlockProof, GetBlockProofError,
+    GetBlockProofResponse, GetBlockWithMerkleTree, GetChunkError, GetExecutionOutcome,
+    GetExecutionOutcomeError, GetExecutionOutcomesForBlock, GetGasPrice, GetGasPriceError,
+    GetNextLightClientBlockError, GetProtocolConfig, GetProtocolConfigError, GetReceipt,
+    GetReceiptError, GetStateChangesError, GetStateChangesWithCauseInBlock, GetValidatorInfoError,
+    Query, QueryError, TxStatus, TxStatusError,
 };
 #[cfg(feature = "test_features")]
 use near_network::types::NetworkAdversarialMessage;
@@ -46,7 +46,7 @@ use near_primitives::syncing::{
 };
 use near_primitives::types::{
     AccountId, BlockHeight, BlockId, BlockReference, EpochId, EpochReference, Finality,
-    MaybeBlockId, ShardId, TransactionOrReceiptId,
+    MaybeBlockId, NumBlocks, ShardId, TransactionOrReceiptId,
 };
 use near_primitives::views::validator_stake_view::ValidatorStakeView;
 use near_primitives::views::{
@@ -572,6 +572,36 @@ impl Handler<GetBlock> for ViewClientActor {
             .get_block_producer(&block.header().epoch_id(), block.header().height())?;
 
         Ok(BlockView::from_author_block(block_author, block))
+    }
+}
+
+impl Handler<GetBlockOrdinal> for ViewClientActor {
+    type Result = Result<NumBlocks, GetBlockError>;
+
+    fn handle(&mut self, msg: GetBlockOrdinal, _: &mut Self::Context) -> Self::Result {
+        let block = match msg.0 {
+            BlockReference::Finality(finality) => {
+                let block_hash = self.get_block_hash_by_finality(&finality)?;
+                self.chain.get_block(&block_hash).map(Clone::clone)
+            }
+            BlockReference::BlockId(BlockId::Height(height)) => {
+                self.chain.get_block_by_height(height).map(Clone::clone)
+            }
+            BlockReference::BlockId(BlockId::Hash(hash)) => {
+                self.chain.get_block(&hash).map(Clone::clone)
+            }
+            BlockReference::SyncCheckpoint(sync_checkpoint) => {
+                if let Some(block_hash) =
+                    self.get_block_hash_by_sync_checkpoint(&sync_checkpoint)?
+                {
+                    self.chain.get_block(&block_hash).map(Clone::clone)
+                } else {
+                    return Err(GetBlockError::NotSyncedYet);
+                }
+            }
+        }?;
+
+        Ok(self.chain.mut_store().get_block_merkle_tree(block.hash())?.size())
     }
 }
 
