@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
 use konst::primitive::parse_bool;
+use konst::unwrap_ctx;
 use near_chain::chain::collect_receipts_from_response;
 use near_chain::migrations::check_if_block_is_first_with_chunk_of_version;
 use near_chain::types::ApplyTransactionResult;
