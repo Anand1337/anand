@@ -22,11 +22,12 @@ use near_primitives::hash::CryptoHash;
 use near_primitives::receipt::Receipt;
 use near_primitives::serialize::{from_base64, to_base, to_base64};
 use near_primitives::shard_layout::{account_id_to_shard_id, ShardUId};
-use near_primitives::state_record::StateRecord;
+use near_primitives::state_record::{is_contract_code_key, StateRecord};
 use near_primitives::transaction::{Action, FunctionCallAction, SignedTransaction};
+use near_primitives::trie_key::trie_key_parsers::parse_account_id_from_contract_code_key;
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::chunk_extra::ChunkExtra;
-use near_primitives::types::{BlockHeight, ShardId, StateRoot};
+use near_primitives::types::{AccountId, BlockHeight, ShardId, StateRoot};
 use near_primitives::views::{ActionView, SignedTransactionView};
 use near_store::test_utils::create_test_store;
 use near_store::{create_store, Store, TrieIterator};
@@ -747,17 +748,23 @@ fn main() {
         ("state", Some(_args)) => {
             let (runtime, state_roots, header) = load_trie(store, &home_dir, &near_config);
             println!("Storage roots are {:?}, block height is {}", state_roots, header.height());
+            let mut codes: HashMap<Vec<u8>, AccountId> = HashMap::default();
             for (shard_id, state_root) in state_roots.iter().enumerate() {
                 let trie =
                     runtime.get_trie_for_shard(shard_id as u64, &header.prev_hash()).unwrap();
                 let trie = TrieIterator::new(&trie, &state_root).unwrap();
                 for item in trie {
                     let (key, value) = item.unwrap();
-                    if let Some(state_record) = StateRecord::from_raw_key_value(key, value) {
-                        println!("{}", state_record);
+                    if is_contract_code_key(&key) {
+                        let account_id = parse_account_id_from_contract_code_key(&key).unwrap(),
+                        codes.insert(value.clone(), account_id);
                     }
+                    // if let Some(state_record) = StateRecord::from_raw_key_value(key, value) {
+                    //     println!("{}", state_record);
+                    // }
                 }
             }
+            println!("{}", codes.len());
         }
         ("dump_state", Some(args)) => {
             let height = args.value_of("height").map(|s| s.parse::<u64>().unwrap());
