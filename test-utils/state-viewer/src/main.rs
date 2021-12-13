@@ -763,7 +763,7 @@ fn main() {
                         status = 1;
                         let account_id = parse_account_id_from_contract_code_key(&key).unwrap();
                         let prev_len = codes.len();
-                        codes.insert(value.clone(), account_id);
+                        codes.insert(value.clone(), account_id.clone());
                         if prev_len != codes.len() {
                             eprintln!("new {}", account_id);
                         }
