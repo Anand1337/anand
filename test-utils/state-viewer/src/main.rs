@@ -785,7 +785,7 @@ fn main() {
                 codes.iter().map(|(code, account_id)| (account_id, to_base64(code))).collect();
             std::fs::write(
                 args.value_of("to_file").unwrap(),
-                serde_json::to_string(&codes2).unwrap(),
+                serde_json::to_string_pretty(&codes2).unwrap(),
             );
             eprintln!("{}", codes2.len());
             // println!("{}",);
