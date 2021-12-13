@@ -770,11 +770,10 @@ fn main() {
                 }
             }
             println!("{}", codes.len());
-            for (code, account_id) in codes.iter() {
-                let path = PathBuf::from(output_dir).join(format!("{}.wasm", account_id));
-                let mut f = File::create(path).unwrap();
-                f.write(code);
-            }
+            // for (code, account_id) in codes.iter() {
+            //     let mut f = File::create(path).unwrap();
+            //     f.write(code);
+            // }
         }
         ("dump_state", Some(args)) => {
             let height = args.value_of("height").map(|s| s.parse::<u64>().unwrap());
