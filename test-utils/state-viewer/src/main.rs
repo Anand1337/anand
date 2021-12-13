@@ -756,7 +756,7 @@ fn main() {
                 for item in trie {
                     let (key, value) = item.unwrap();
                     if is_contract_code_key(&key) {
-                        let account_id = parse_account_id_from_contract_code_key(&key).unwrap(),
+                        let account_id = parse_account_id_from_contract_code_key(&key).unwrap();
                         codes.insert(value.clone(), account_id);
                     }
                     // if let Some(state_record) = StateRecord::from_raw_key_value(key, value) {
