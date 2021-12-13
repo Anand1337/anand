@@ -757,9 +757,17 @@ fn main() {
                 for item in trie {
                     let (key, value) = item.unwrap();
                     if is_contract_code_key(&key) {
+                        if status == 0 {
+                            eprintln!("started");
+                        }
                         status = 1;
                         let account_id = parse_account_id_from_contract_code_key(&key).unwrap();
+                        let prev_len = codes.len();
                         codes.insert(value.clone(), account_id);
+                        if prev_len != codes.len() {
+                            eprintln!("new {}", account_id);
+                        }
+                        break;
                     } else if status == 1 {
                         status = 2;
                         break;
@@ -768,12 +776,12 @@ fn main() {
                     //     println!("{}", state_record);
                     // }
                 }
+                break;
             }
-            println!("{}", codes.len());
-            // for (code, account_id) in codes.iter() {
-            //     let mut f = File::create(path).unwrap();
-            //     f.write(code);
-            // }
+            let mut codes2: HashMap<AccountId, String> =
+                codes.iter().map(|(code, account_id)| (account_id, to_base64(code))).collect();
+            eprintln!("{}", codes2.len());
+            println!("{}", serde_json::to_string(&codes2).unwrap());
         }
         ("dump_state", Some(args)) => {
             let height = args.value_of("height").map(|s| s.parse::<u64>().unwrap());
