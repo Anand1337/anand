@@ -767,7 +767,7 @@ fn main() {
                         if prev_len != codes.len() {
                             eprintln!("new {}", account_id);
                         }
-                        break;
+                        // break;
                     } else if status == 1 {
                         status = 2;
                         break;
@@ -776,7 +776,7 @@ fn main() {
                     //     println!("{}", state_record);
                     // }
                 }
-                break;
+                // break;
             }
             let mut codes2: HashMap<_, _> =
                 codes.iter().map(|(code, account_id)| (account_id, to_base64(code))).collect();
