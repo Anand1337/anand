@@ -753,11 +753,16 @@ fn main() {
                 let trie =
                     runtime.get_trie_for_shard(shard_id as u64, &header.prev_hash()).unwrap();
                 let trie = TrieIterator::new(&trie, &state_root).unwrap();
+                let mut status = 0;
                 for item in trie {
                     let (key, value) = item.unwrap();
                     if is_contract_code_key(&key) {
+                        status = 1;
                         let account_id = parse_account_id_from_contract_code_key(&key).unwrap();
                         codes.insert(value.clone(), account_id);
+                    } else if status == 1 {
+                        status = 2;
+                        break;
                     }
                     // if let Some(state_record) = StateRecord::from_raw_key_value(key, value) {
                     //     println!("{}", state_record);
@@ -765,6 +770,11 @@ fn main() {
                 }
             }
             println!("{}", codes.len());
+            for (code, account_id) in codes.iter() {
+                let path = PathBuf::from(output_dir).join(format!("{}.wasm", account_id));
+                let mut f = File::create(path).unwrap();
+                f.write(code);
+            }
         }
         ("dump_state", Some(args)) => {
             let height = args.value_of("height").map(|s| s.parse::<u64>().unwrap());
