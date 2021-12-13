@@ -778,7 +778,7 @@ fn main() {
                 }
                 break;
             }
-            let mut codes2: HashMap<AccountId, String> =
+            let mut codes2: HashMap<_, _> =
                 codes.iter().map(|(code, account_id)| (account_id, to_base64(code))).collect();
             eprintln!("{}", codes2.len());
             println!("{}", serde_json::to_string(&codes2).unwrap());
