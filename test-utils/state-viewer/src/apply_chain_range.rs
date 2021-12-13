@@ -181,15 +181,15 @@ pub fn apply_chain_range(
         inc_and_report_progress(&processed_blocks_cnt);
     };
 
-    let APPLY_RANGE_PARALLEL: bool =
-        unwrap_ctx!(parse_bool(&env::var("APPLY_RANGE_PARALLEL").unwrap()));
-    if APPLY_RANGE_PARALLEL {
-        println!("apply parallel");
-        (start_height..=end_height).into_par_iter().for_each(process_height)
-    } else {
+    let range = (start_height..=end_height);
+
+    if cfg!(feature = "single_threaded") {
         println!("apply sequential");
-        (start_height..=end_height).into_iter().for_each(process_height)
-    };
+        range.into_iter().for_each(process_height);
+    } else {
+        println!("apply parallel");
+        range.into_par_iter().for_each(process_height);
+    }
 
     println!(
         "No differences found after applying chunks in the range {}..={} for shard_id {}",
