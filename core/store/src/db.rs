@@ -675,7 +675,6 @@ fn rocksdb_block_based_options(cache_size: usize) -> BlockBasedOptions {
 }
 
 use konst::primitive::parse_usize;
-use konst::unwrap_ctx;
 
 // TODO(#5213) Use ByteSize package to represent sizes.
 fn choose_cache_size(col: DBCol) -> usize {
