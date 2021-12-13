@@ -551,7 +551,10 @@ fn main() {
                 .takes_value(true),
         )
         .subcommand(SubCommand::with_name("peers"))
-        .subcommand(SubCommand::with_name("state"))
+        .subcommand(
+            SubCommand::with_name("state")
+                .arg(Arg::with_name("to_file").long("to_file").help("to_file").takes_value(true)),
+        )
         .subcommand(
             SubCommand::with_name("dump_state").arg(
                 Arg::with_name("height")
@@ -745,7 +748,7 @@ fn main() {
                 println!("{} {:?}", peer_id, peer_info);
             }
         }
-        ("state", Some(_args)) => {
+        ("state", Some(args)) => {
             let (runtime, state_roots, header) = load_trie(store, &home_dir, &near_config);
             println!("Storage roots are {:?}, block height is {}", state_roots, header.height());
             let mut codes: HashMap<Vec<u8>, AccountId> = HashMap::default();
@@ -780,8 +783,12 @@ fn main() {
             }
             let mut codes2: HashMap<_, _> =
                 codes.iter().map(|(code, account_id)| (account_id, to_base64(code))).collect();
+            std::fs::write(
+                args.value_of("to_file").unwrap(),
+                serde_json::to_string(&codes2).unwrap(),
+            );
             eprintln!("{}", codes2.len());
-            println!("{}", serde_json::to_string(&codes2).unwrap());
+            // println!("{}",);
         }
         ("dump_state", Some(args)) => {
             let height = args.value_of("height").map(|s| s.parse::<u64>().unwrap());
