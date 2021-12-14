@@ -701,7 +701,7 @@ impl Trie {
 
     pub fn get(&self, root: &CryptoHash, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
         // record with empty value. only key matters
-        tracing::debug!(target: "runtime", key = %StateRecord::from_raw_key_value(key.to_vec(), vec![]));
+        tracing::debug!(target: "runtime", key = ?StateRecord::from_raw_key_value(key.to_vec(), vec![]));
         match self.get_ref(root, key)? {
             Some((_length, hash)) => self.retrieve_raw_bytes(&hash).map(Some),
             None => Ok(None),
