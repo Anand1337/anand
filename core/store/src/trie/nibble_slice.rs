@@ -76,7 +76,7 @@ impl<'a> NibbleSlice<'a> {
     pub(crate) fn until_offset(&self, full: bool) -> (Vec<u8>, Option<u8>) {
         let offset = if full { self.data.len() * 2 } else { self.offset };
         let result = self.data[..offset / 2].to_vec();
-        let rest = if offset % 2 == 1 { None } else { Some(self.data[offset / 2] >> 4) };
+        let rest = if offset % 2 == 1 { Some(self.data[offset / 2] >> 4) } else { None };
         (result, rest)
     }
     /// Create a new nibble slice with the given byte-slice with a nibble offset.
