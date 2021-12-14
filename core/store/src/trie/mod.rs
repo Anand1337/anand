@@ -703,7 +703,7 @@ impl Trie {
         match self.get_ref(root, key)? {
             Some((_length, hash)) => {
                 let value = self.retrieve_raw_bytes(&hash).map(Some);
-                tracing::debug!(target: "runtime", key = ?StateRecord::from_raw_key_value(key.to_vec(), value.unwrap().unwrap()));
+                tracing::debug!(target: "runtime", key = ?StateRecord::from_raw_key_value(key.to_vec(), value.clone().unwrap().unwrap()));
                 value
             }
             None => Ok(None),
