@@ -642,7 +642,7 @@ impl Trie {
     ) -> Result<Option<(u32, CryptoHash)>, StorageError> {
         let mut hash = *root;
         let result = key.until_offset(true);
-        tracing::debug!(target: "runtime", "key in lookup: {:?}", key = result);
+        tracing::debug!(target: "trie", "key in lookup: {:?}", key = result);
 
         loop {
             if hash == Trie::empty_root() {
@@ -651,7 +651,7 @@ impl Trie {
             let bytes = self.retrieve_raw_bytes(&hash)?;
 
             let result = key.until_offset(false);
-            tracing::debug!(target: "runtime", "key in lookup: {:?}", key = result);
+            tracing::debug!(target: "trie", "key in lookup: {:?}", key = result);
 
             let node = RawTrieNodeWithSize::decode(&bytes).map_err(|_| {
                 StorageError::StorageInconsistentState("RawTrieNode decode failed".to_string())
@@ -705,7 +705,7 @@ impl Trie {
         let result = self.lookup(root, key_nibbles);
         // DEBUG
         let value = self.retrieve_raw_bytes(&result.clone().unwrap().unwrap().1).unwrap();
-        tracing::debug!(target: "runtime", key = ?StateRecord::from_raw_key_value(key.to_vec(), value));
+        tracing::debug!(target: "trie", key = ?StateRecord::from_raw_key_value(key.to_vec(), value));
 
         result
     }
