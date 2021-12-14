@@ -695,8 +695,8 @@ impl Trie {
         root: &CryptoHash,
         key: &[u8],
     ) -> Result<Option<(u32, CryptoHash)>, StorageError> {
-        let key = NibbleSlice::new(key);
-        let result = self.lookup(root, key);
+        let key_nibbles = NibbleSlice::new(key);
+        let result = self.lookup(root, key_nibbles);
         // DEBUG
         let value = self.retrieve_raw_bytes(&result.unwrap().unwrap().1.clone()).unwrap();
         tracing::debug!(target: "runtime", key = ?StateRecord::from_raw_key_value(key.to_vec(), value));
