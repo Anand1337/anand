@@ -647,6 +647,7 @@ impl Trie {
                 return Ok(None);
             }
             let bytes = self.retrieve_raw_bytes(&hash)?;
+            tracing::debug!(target: "runtime", "key in lookup: {:?}", key = bytes);
             let node = RawTrieNodeWithSize::decode(&bytes).map_err(|_| {
                 StorageError::StorageInconsistentState("RawTrieNode decode failed".to_string())
             })?;
