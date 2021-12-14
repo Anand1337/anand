@@ -698,7 +698,7 @@ impl Trie {
         let key_nibbles = NibbleSlice::new(key);
         let result = self.lookup(root, key_nibbles);
         // DEBUG
-        let value = self.retrieve_raw_bytes(&result.unwrap().unwrap().1.clone()).unwrap();
+        let value = self.retrieve_raw_bytes(&result.clone().unwrap().unwrap().1).unwrap();
         tracing::debug!(target: "runtime", key = ?StateRecord::from_raw_key_value(key.to_vec(), value));
 
         result
