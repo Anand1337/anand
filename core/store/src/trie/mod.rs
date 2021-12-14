@@ -12,6 +12,7 @@ use near_primitives::challenge::PartialState;
 use near_primitives::contract::ContractCode;
 use near_primitives::hash::{hash, CryptoHash};
 pub use near_primitives::shard_layout::ShardUId;
+use near_primitives::state_record::StateRecord;
 use near_primitives::types::{StateRoot, StateRootNode};
 
 use crate::trie::insert_delete::NodesStorage;
@@ -699,7 +700,8 @@ impl Trie {
     }
 
     pub fn get(&self, root: &CryptoHash, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
-        tracing::debug!(target: "runtime", key = %std::str::from_utf8(key).unwrap());
+        // record with empty value. only key matters
+        tracing::debug!(target: "runtime", key = %StateRecord::from_raw_key_value(key.to_vec(), vec![]));
         match self.get_ref(root, key)? {
             Some((_length, hash)) => self.retrieve_raw_bytes(&hash).map(Some),
             None => Ok(None),
