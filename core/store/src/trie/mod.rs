@@ -699,7 +699,7 @@ impl Trie {
     }
 
     pub fn get(&self, root: &CryptoHash, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
-        tracing::debug!(target: "runtime", key = %String::from_utf8(key).unwrap());
+        tracing::debug!(target: "runtime", key = %std::str::from_utf8(key).unwrap());
         match self.get_ref(root, key)? {
             Some((_length, hash)) => self.retrieve_raw_bytes(&hash).map(Some),
             None => Ok(None),
