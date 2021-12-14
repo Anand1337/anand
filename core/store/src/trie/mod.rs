@@ -696,16 +696,17 @@ impl Trie {
         key: &[u8],
     ) -> Result<Option<(u32, CryptoHash)>, StorageError> {
         let key = NibbleSlice::new(key);
-        self.lookup(root, key)
+        let result = self.lookup(root, key);
+        // DEBUG
+        let value = self.retrieve_raw_bytes(&result.unwrap().unwrap().1.clone()).unwrap();
+        tracing::debug!(target: "runtime", key = ?StateRecord::from_raw_key_value(key.to_vec(), value));
+
+        result
     }
 
     pub fn get(&self, root: &CryptoHash, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
         match self.get_ref(root, key)? {
-            Some((_length, hash)) => {
-                let value = self.retrieve_raw_bytes(&hash).map(Some);
-                tracing::debug!(target: "runtime", key = ?StateRecord::from_raw_key_value(key.to_vec(), value.clone().unwrap().unwrap()));
-                value
-            }
+            Some((_length, hash)) => self.retrieve_raw_bytes(&hash).map(Some),
             None => Ok(None),
         }
     }
