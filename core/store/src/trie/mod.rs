@@ -706,7 +706,7 @@ impl Trie {
         // DEBUG
         let value = self
             .retrieve_raw_bytes(&result.clone().unwrap_or_default().unwrap_or_default().1)
-            .unwrap();
+            .unwrap_or_default();
         tracing::debug!(target: "trie", key = ?StateRecord::from_raw_key_value(key.to_vec(), value));
 
         result
