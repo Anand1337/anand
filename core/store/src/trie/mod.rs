@@ -704,7 +704,9 @@ impl Trie {
         let key_nibbles = NibbleSlice::new(key);
         let result = self.lookup(root, key_nibbles);
         // DEBUG
-        let value = self.retrieve_raw_bytes(&result.clone().unwrap().unwrap().1).unwrap();
+        let value = self
+            .retrieve_raw_bytes(&result.clone().unwrap_or_default().unwrap_or_default().1)
+            .unwrap();
         tracing::debug!(target: "trie", key = ?StateRecord::from_raw_key_value(key.to_vec(), value));
 
         result
