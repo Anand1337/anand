@@ -16,11 +16,11 @@ use crate::routing::routing_table_actor::{
 };
 use crate::stats::metrics;
 use crate::stats::metrics::NetworkMetrics;
-use crate::types::{FullPeerInfo, NetworkClientMessages, NetworkRequests, NetworkResponses};
 use crate::types::{
-    NetworkInfo, PeerManagerMessageRequest, PeerManagerMessageResponse, PeerMessage, PeerRequest,
-    PeerResponse, PeersRequest, PeersResponse, RegisterPeer, RegisterPeerResponse,
-    RoutingTableUpdate, SendMessage, StopMsg, Unregister, ValidateEdgeList,
+    FullPeerInfo, NetworkClientMessages, NetworkInfo, NetworkRequests, NetworkResponses,
+    PeerManagerMessageRequest, PeerManagerMessageResponse, PeerMessage, PeerRequest, PeerResponse,
+    PeersRequest, PeersResponse, RegisterPeer, RegisterPeerResponse, RoutingTableUpdate,
+    SendMessage, StopMsg, Unregister, ValidateEdgeList,
 };
 #[cfg(feature = "protocol_feature_routing_exchange_algorithm")]
 use crate::types::{RoutingSyncV2, RoutingVersion2};
