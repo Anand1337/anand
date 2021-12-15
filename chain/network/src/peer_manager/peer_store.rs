@@ -3,7 +3,7 @@ use near_network_primitives::types::{
     KnownPeerState, KnownPeerStatus, NetworkConfig, PeerInfo, ReasonForBan,
 };
 use near_primitives::network::PeerId;
-use near_primitives::time::Utc;
+use near_primitives::time::{Clock, Utc};
 use near_primitives::utils::to_timestamp;
 use near_store::{ColPeers, Store};
 use rand::seq::SliceRandom;
@@ -59,6 +59,7 @@ impl PeerStore {
         let mut peer_states = HashMap::default();
         let mut addr_peers = HashMap::default();
 
+        let now = Clock::utc();
         for peer_info in boot_nodes.iter() {
             if !peer_states.contains_key(&peer_info.id) {
                 if let Some(peer_addr) = peer_info.addr {
@@ -71,7 +72,7 @@ impl PeerStore {
                             entry.insert(VerifiedPeer::signed(peer_info.id.clone()));
                             peer_states.insert(
                                 peer_info.id.clone(),
-                                KnownPeerState::new(peer_info.clone()),
+                                KnownPeerState::new(peer_info.clone(), now),
                             );
                         }
                     }
@@ -291,7 +292,7 @@ impl PeerStore {
         self.peer_states
             .entry(peer_info.id.clone())
             .and_modify(|peer_state| peer_state.peer_info.addr = Some(peer_addr))
-            .or_insert_with(|| KnownPeerState::new(peer_info.clone()));
+            .or_insert_with(|| KnownPeerState::new(peer_info.clone(), Clock::utc()));
 
         self.touch(&peer_info.id)?;
         if let Some(touch_other) = touch_other {
@@ -344,7 +345,8 @@ impl PeerStore {
             // If doesn't have the address attached it is not verified and we add it
             // only if it is unknown to us.
             if !self.peer_states.contains_key(&peer_info.id) {
-                self.peer_states.insert(peer_info.id.clone(), KnownPeerState::new(peer_info));
+                self.peer_states
+                    .insert(peer_info.id.clone(), KnownPeerState::new(peer_info, Clock::utc()));
             }
         }
         Ok(())

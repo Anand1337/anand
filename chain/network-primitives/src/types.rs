@@ -15,7 +15,7 @@ use near_primitives::syncing::{
     EpochSyncFinalizationResponse, EpochSyncResponse, ShardStateSyncResponse,
     ShardStateSyncResponseV1,
 };
-use near_primitives::time::{Clock, Utc};
+use near_primitives::time::Utc;
 use near_primitives::transaction::{ExecutionOutcomeWithIdAndProof, SignedTransaction};
 use near_primitives::types::{AccountId, BlockHeight, BlockReference, EpochId, ShardId};
 use near_primitives::utils::{from_timestamp, to_timestamp};
@@ -687,12 +687,12 @@ pub struct KnownPeerState {
 }
 
 impl KnownPeerState {
-    pub fn new(peer_info: PeerInfo) -> Self {
+    pub fn new(peer_info: PeerInfo, now: DateTime<Utc>) -> Self {
         KnownPeerState {
             peer_info,
             status: KnownPeerStatus::Unknown,
-            first_seen: to_timestamp(Clock::utc()),
-            last_seen: to_timestamp(Clock::utc()),
+            first_seen: to_timestamp(now),
+            last_seen: to_timestamp(now),
         }
     }
 

@@ -563,6 +563,7 @@ impl PeerManagerActor {
             full_peer_info.partial_edge_info.signature.clone(),
         );
 
+        let now = Clock::instant();
         self.connected_peers.insert(
             target_peer_id.clone(),
             ConnectedPeer {
@@ -570,9 +571,9 @@ impl PeerManagerActor {
                 full_peer_info,
                 sent_bytes_per_sec: 0,
                 received_bytes_per_sec: 0,
-                last_time_peer_requested: Clock::instant(),
-                last_time_received_message: Clock::instant(),
-                connection_established_time: Clock::instant(),
+                last_time_peer_requested: now,
+                last_time_received_message: now,
+                connection_established_time: now,
                 peer_type,
                 throttle_controller: throttle_controller.clone(),
             },
@@ -923,9 +924,10 @@ impl PeerManagerActor {
     fn query_active_peers_for_more_peers(&mut self, ctx: &mut Context<Self>) {
         let mut requests = futures::stream::FuturesUnordered::new();
         let msg = SendMessage { message: PeerMessage::PeersRequest };
+        let now = Clock::instant();
         for (_, active_peer) in self.connected_peers.iter_mut() {
             if active_peer.last_time_peer_requested.elapsed() > REQUEST_PEERS_INTERVAL {
-                active_peer.last_time_peer_requested = Clock::instant();
+                active_peer.last_time_peer_requested = now;
                 requests.push(active_peer.addr.send(msg.clone()));
             }
         }
@@ -1165,10 +1167,11 @@ impl PeerManagerActor {
     ///  - remove expired peers,
     fn monitor_peers_trigger(&mut self, ctx: &mut Context<Self>, max_interval: Duration) {
         let mut to_unban = vec![];
+        let now = Clock::utc();
         for (peer_id, peer_state) in self.peer_store.iter() {
             if let KnownPeerStatus::Banned(_, last_banned) = peer_state.status {
                 let interval = unwrap_or_error!(
-                    (Clock::utc() - from_timestamp(last_banned)).to_std(),
+                    (now - from_timestamp(last_banned)).to_std(),
                     "Failed to convert time"
                 );
                 if interval > self.config.ban_window {
