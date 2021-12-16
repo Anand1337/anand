@@ -949,22 +949,22 @@ def create_upgrade_schedule(rpc_nodes, validator_nodes, progressive_upgrade,
                 else:
                     prev_stake = prev_stake + STAKE_STEP
                     staked = prev_stake * ONE_NEAR
-                stakes.append((staked, node))
+                stakes.append((staked, node.instance_name))
                 print(f'{node_account_name(node.instance_name)} {staked}')
 
         else:
             for i, node in enumerate(validator_nodes):
-                stakes.append((MIN_STAKE, node))
+                stakes.append((MIN_STAKE, node.instance_name))
         logger.info(f'create_upgrade_schedule {stakes}')
 
         # Compute seat assignments.
         seats = compute_seats(stakes, num_block_producer_seats)
 
         seats_upgraded = 0
-        for seat, stake, node in seats:
+        for seat, stake, instance_name in seats:
             if (seats_upgraded + seat) * 5 > 4 * num_block_producer_seats:
                 break
-            schedule[node.instance_name] = 0
+            schedule[instance_name] = 0
             seats_upgraded += seat
 
         # Upgrade the remaining validators during 4 epochs.
@@ -986,8 +986,8 @@ def create_upgrade_schedule(rpc_nodes, validator_nodes, progressive_upgrade,
 
 def compute_seats(stakes, num_block_producer_seats):
     max_stake = 0
-    for i in stakes:
-        max_stake = max(max_stake, i[0])
+    for i, j in stakes:
+        max_stake = max(max_stake, i)
 
     # Compute seats assignment.
     l = 0
@@ -998,6 +998,7 @@ def compute_seats(stakes, num_block_producer_seats):
         num_seats = 0
         for i in range(len(stakes)):
             num_seats += stakes[i][0] // tmp_seat_price
+        logger.info(f'tmp_seat_price: {tmp_seat_price}, num_seats: {num_seats}, num_block_producer_seats: {num_block_producer_seats}')
         if num_seats <= num_block_producer_seats:
             r = tmp_seat_price
         else:
