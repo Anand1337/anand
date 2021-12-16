@@ -706,15 +706,15 @@ impl Trie {
         let key_nibbles = NibbleSlice::new(key);
         let result = self.lookup(root, key_nibbles);
         // DEBUG
-        if result.is_ok() {
-            let result_inner = result.clone().unwrap();
-            if result_inner.is_some() {
-                let value = self.retrieve_raw_bytes(&result_inner.unwrap().1);
-                if value.is_ok() {
-                    tracing::debug!(target: "trie", key = ?StateRecord::from_raw_key_value(key.to_vec(), value.unwrap()));
-                }
-            }
-        }
+        // if result.is_ok() {
+        //     let result_inner = result.clone().unwrap();
+        //     if result_inner.is_some() {
+        //         let value = self.retrieve_raw_bytes(&result_inner.unwrap().1);
+        //         if value.is_ok() {
+        //             tracing::debug!(target: "trie", key = ?StateRecord::from_raw_key_value(key.to_vec(), value.unwrap()));
+        //         }
+        //     }
+        // }
 
         result
     }
