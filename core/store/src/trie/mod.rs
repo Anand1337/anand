@@ -12,6 +12,7 @@ use near_primitives::challenge::PartialState;
 use near_primitives::contract::ContractCode;
 use near_primitives::hash::{hash, CryptoHash};
 pub use near_primitives::shard_layout::ShardUId;
+use near_primitives::state_record::StateRecord;
 use near_primitives::types::{StateRoot, StateRootNode};
 
 use crate::trie::insert_delete::NodesStorage;
@@ -694,8 +695,21 @@ impl Trie {
         root: &CryptoHash,
         key: &[u8],
     ) -> Result<Option<(u32, CryptoHash)>, StorageError> {
-        let key = NibbleSlice::new(key);
-        self.lookup(root, key)
+        let key_nibbles = NibbleSlice::new(key);
+        let result = self.lookup(root, key_nibbles);
+
+        // DEBUG
+        if result.is_ok() {
+            let result_inner = result.clone().unwrap();
+            if result_inner.is_some() {
+                let value = self.retrieve_raw_bytes(&result_inner.unwrap().1);
+                if value.is_ok() {
+                    tracing::debug!(target: "trie", key = ?StateRecord::from_raw_key_value(key.to_vec(), value.unwrap()));
+                }
+            }
+        }
+
+        result
     }
 
     pub fn get(&self, root: &CryptoHash, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
