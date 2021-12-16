@@ -136,6 +136,7 @@ def function_call_ft_transfer_call(account, i, node_account):
 
 def random_transaction(account, i, node_account, max_tps_per_node):
     time.sleep(random.random() * mocknet.NUM_ACCOUNTS / max_tps_per_node / 3)
+    account.get_amount_yoctonear()
     choice = random.randint(0, 2)
     if choice == 0:
         logger.info(f'Account {i} transfers')
@@ -144,9 +145,12 @@ def random_transaction(account, i, node_account, max_tps_per_node):
         function_call_set_delete_state(account, i, node_account)
     elif choice == 2:
         function_call_ft_transfer_call(account, i, node_account)
+    wait_at_least_one_block()
+    account.get_amount_yoctonear()
 
 
 def send_random_transactions(node_account, test_accounts, max_tps_per_node):
+    node_account.get_amount_yoctonear()
     pmap(
         lambda index_and_account: random_transaction(index_and_account[
             1], index_and_account[0], node_account, max_tps_per_node),

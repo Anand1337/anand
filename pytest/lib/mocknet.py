@@ -22,8 +22,7 @@ KEY_TARGET_ENV_VAR = 'NEAR_PYTEST_KEY_TARGET'
 # NODE_SSH_KEY_PATH = '~/.ssh/near_ops'
 NODE_SSH_KEY_PATH = None
 NODE_USERNAME = 'ubuntu'
-NUM_SHARDS = 1
-NUM_ACCOUNTS = 26 * 2
+NUM_ACCOUNTS = 26 * 10
 PROJECT = 'near-mocknet'
 PUBLIC_KEY = 'ed25519:76NVkDErhbP1LGrSAf5Db6BsFJ6LBw6YVA4BsfTBohmN'
 TX_OUT_FILE = '/home/ubuntu/tx_events'
@@ -185,8 +184,7 @@ def start_load_test_helpers(nodes,
                             rpc_nodes,
                             num_nodes,
                             max_tps,
-                            get_node_key=False,
-                            progressive_upgrade=False):
+                            get_node_key=False):
     account = get_validator_account(nodes[0])
     pmap(
         lambda node: start_load_test_helper(node,
@@ -714,7 +712,7 @@ def create_genesis_file(validator_node_names,
         total_supply += int(account.get('amount', 0))
     genesis_config['total_supply'] = str(total_supply)
     # Testing simple nightshade.
-    genesis_config['protocol_version'] = 48
+    genesis_config['protocol_version'] = 49
     genesis_config['epoch_length'] = int(epoch_length)
     genesis_config['num_block_producer_seats'] = int(num_seats)
     # Loadtest helper signs all transactions using the same block.
@@ -955,7 +953,7 @@ def create_upgrade_schedule(rpc_nodes, validator_nodes, progressive_upgrade,
                 print(f'{node_account_name(node.instance_name)} {staked}')
 
         else:
-            staked = MIN_STAKE
+            stakes.append(MIN_STAKE)
         logger.info(f'create_upgrade_schedule {stakes}')
 
         # Compute seat assignments.
@@ -971,10 +969,10 @@ def create_upgrade_schedule(rpc_nodes, validator_nodes, progressive_upgrade,
         # Upgrade the remaining validators during 4 epochs.
         for node in validator_nodes:
             if node.instance_name not in schedule:
-                schedule[node.instance_name] = random.randint(1, 4)
+                schedule[node.instance_name] = random.randint(1, 2)
 
         for node in rpc_nodes:
-            schedule[node.instance_name] = random.randint(0, 4)
+            schedule[node.instance_name] = random.randint(0, 2)
     else:
         # Start all nodes upgraded.
         for node in rpc_nodes:
