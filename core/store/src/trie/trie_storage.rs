@@ -13,12 +13,18 @@ use near_primitives::shard_layout::ShardUId;
 use std::cell::RefCell;
 use std::io::ErrorKind;
 
+use konst::{primitive::parse_usize, result::unwrap_ctx};
+use std::env;
+
 #[derive(Clone)]
 pub struct TrieCache(Arc<Mutex<SizedCache<CryptoHash, Vec<u8>>>>);
 
 impl TrieCache {
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(SizedCache::with_size(TRIE_MAX_CACHE_SIZE))))
+        // Self(Arc::new(Mutex::new(SizedCache::with_size(TRIE_MAX_CACHE_SIZE))))
+        let TRIE_MAX_CACHE_SIZE_OVERRIDE: usize =
+            unwrap_ctx!(parse_usize(&env::var("TRIE_MAX_CACHE_SIZE_OVERRIDE").unwrap()));
+        Self(Arc::new(Mutex::new(SizedCache::with_size(TRIE_MAX_CACHE_SIZE_OVERRIDE))))
     }
 
     pub fn clear(&self) {
@@ -26,11 +32,13 @@ impl TrieCache {
     }
 
     pub fn update_cache(&self, ops: Vec<(CryptoHash, Option<Vec<u8>>)>) {
+        let TRIE_LIMIT_CACHED_VALUE_SIZE_OVERRIDE: usize =
+            unwrap_ctx!(parse_usize(&env::var("TRIE_LIMIT_CACHED_VALUE_SIZE_OVERRIDE").unwrap()));
         let mut guard = self.0.lock().expect(POISONED_LOCK_ERR);
         for (hash, opt_value_rc) in ops {
             if let Some(value_rc) = opt_value_rc {
                 if let (Some(value), _rc) = decode_value_with_rc(&value_rc) {
-                    if value.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
+                    if value.len() < TRIE_LIMIT_CACHED_VALUE_SIZE_OVERRIDE {
                         guard.cache_set(hash, value.to_vec());
                     }
                 } else {
@@ -163,6 +171,9 @@ impl TrieCachingStorage {
 
 impl TrieStorage for TrieCachingStorage {
     fn retrieve_raw_bytes(&self, hash: &CryptoHash) -> Result<Vec<u8>, StorageError> {
+        let TRIE_LIMIT_CACHED_VALUE_SIZE_OVERRIDE: usize =
+            unwrap_ctx!(parse_usize(&env::var("TRIE_LIMIT_CACHED_VALUE_SIZE_OVERRIDE").unwrap()));
+
         let mut guard = self.cache.0.lock().expect(POISONED_LOCK_ERR);
         if let Some(val) = guard.cache_get(hash) {
             Ok(val.clone())
@@ -173,7 +184,7 @@ impl TrieStorage for TrieCachingStorage {
                 .get(ColState, key.as_ref())
                 .map_err(|_| StorageError::StorageInternalError)?;
             if let Some(val) = val {
-                if val.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
+                if val.len() < TRIE_LIMIT_CACHED_VALUE_SIZE_OVERRIDE {
                     guard.cache_set(*hash, val.clone());
                 }
                 Ok(val)
