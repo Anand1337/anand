@@ -665,10 +665,14 @@ fn rocksdb_block_based_options(cache_size: usize) -> BlockBasedOptions {
     block_opts
 }
 
+use konst::{primitive::parse_usize, result::unwrap_ctx};
+use std::env;
+
 // TODO(#5213) Use ByteSize package to represent sizes.
 fn choose_cache_size(col: DBCol) -> usize {
+    let COL_STATE_SIZE: usize = unwrap_ctx!(parse_usize(&env::var("COL_STATE_SIZE").unwrap()));
     match col {
-        DBCol::ColState => 512 * 1024 * 1024,
+        DBCol::ColState => COL_STATE_SIZE * 1024 * 1024,
         _ => 32 * 1024 * 1024,
     }
 }
