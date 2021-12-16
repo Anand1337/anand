@@ -702,7 +702,7 @@ impl Trie {
         key: &[u8],
     ) -> Result<Option<(u32, CryptoHash)>, StorageError> {
         let _span = tracing::debug_span!(target: "trie", "trie/get_ref").entered();
-        tracing::debug!(target: "trie", key = key);
+        tracing::debug!(target: "trie", key = %key);
         let key_nibbles = NibbleSlice::new(key);
         let result = self.lookup(root, key_nibbles);
         // DEBUG

@@ -76,7 +76,7 @@ impl TrieUpdate {
     pub fn get_ref(&self, key: &TrieKey) -> Result<Option<TrieUpdateValuePtr<'_>>, StorageError> {
         let _span = tracing::debug_span!(target: "trie", "trie_update/get_ref").entered();
         let key = key.to_vec();
-        tracing::debug!(target: "trie", key = key);
+        tracing::debug!(target: "trie", key = %key);
         if let Some(key_value) = self.prospective.get(&key) {
             return Ok(key_value.value.as_ref().map(TrieUpdateValuePtr::MemoryRef));
         } else if let Some(changes_with_trie_key) = self.committed.get(&key) {
