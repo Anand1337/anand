@@ -79,7 +79,7 @@ pub fn apply_chain_range(
     maybe_add_to_csv(&csv_file_mutex, "Height,Hash,Author,#Tx,#Receipt,Timestamp,GasUsed,ChunkPresent,#ProcessedDelayedReceipts,#DelayedReceipts");
 
     let processed_blocks_cnt = AtomicU64::new(0);
-    (start_height..=end_height).into_par_iter().for_each(|height| {
+    (start_height..=end_height).into_iter().for_each(|height| {
             let mut chain_store = ChainStore::new(store.clone(), genesis.config.genesis_height);
             let block_hash = match chain_store.get_block_hash_by_height(height) {
                 Ok(block_hash) => block_hash,
@@ -209,8 +209,9 @@ pub fn apply_chain_range(
                 apply_result.total_balance_burnt,
             );
 
-            let state_update = runtime_adapter.get_tries().new_trie_update(shard_uid, *chunk_extra.state_root());
-            let delayed_indices = get::<DelayedReceiptIndices>(&state_update, &TrieKey::DelayedReceiptIndices).unwrap();
+            // debug comment. failing with StorageInconsistentState("Trie node missing")
+            // let state_update = runtime_adapter.get_tries().new_trie_update(shard_uid, *chunk_extra.state_root());
+            let delayed_indices = None; // get::<DelayedReceiptIndices>(&state_update, &TrieKey::DelayedReceiptIndices).unwrap();
 
         match existing_chunk_extra {
             Some(existing_chunk_extra) => {
