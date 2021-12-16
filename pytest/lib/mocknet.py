@@ -953,7 +953,8 @@ def create_upgrade_schedule(rpc_nodes, validator_nodes, progressive_upgrade,
                 print(f'{node_account_name(node.instance_name)} {staked}')
 
         else:
-            stakes.append(MIN_STAKE)
+            for i, node in enumerate(validator_nodes):
+                stakes.append((MIN_STAKE, node))
         logger.info(f'create_upgrade_schedule {stakes}')
 
         # Compute seat assignments.
