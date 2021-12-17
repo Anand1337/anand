@@ -144,11 +144,11 @@ def function_call_ft_transfer_call(account, i, node_account):
         f'{account.key.account_id} ft_transfer to {dest_account_id} {tx_res}')
 
 
+QUERIES_PER_TX = 5
+
+
 def random_transaction(account, i, node_account, max_tps_per_node):
     time.sleep(random.random() * mocknet.NUM_ACCOUNTS / max_tps_per_node / 3)
-    logger.info(
-        f'Account {account.key.account_id} balance before transaction: {retry_and_ignore_errors(lambda:account.get_amount_yoctonear())}'
-    )
     choice = random.randint(0, 2)
     if choice == 0:
         logger.info(f'Account {i} transfers')
@@ -157,10 +157,11 @@ def random_transaction(account, i, node_account, max_tps_per_node):
         function_call_set_delete_state(account, i, node_account)
     elif choice == 2:
         function_call_ft_transfer_call(account, i, node_account)
-    wait_at_least_one_block()
-    logger.info(
-        f'Account {account.key.account_id} balance after transaction: {retry_and_ignore_errors(lambda:account.get_amount_yoctonear())}'
-    )
+    for t in range(QUERIES_PER_TX):
+        wait_at_least_one_block()
+        logger.info(
+            f'Account {account.key.account_id} balance after {t} blocks: {retry_and_ignore_errors(lambda:account.get_amount_yoctonear())}'
+        )
 
 
 def send_random_transactions(node_account, test_accounts, max_tps_per_node):
