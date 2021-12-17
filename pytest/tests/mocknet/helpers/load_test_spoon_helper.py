@@ -292,6 +292,7 @@ def main(argv):
         logger.info(f'Deploying contract for account {i}')
         account.send_deploy_contract_tx(mocknet.WASM_FILENAME)
         init_ft_account(node_account, account, i)
+        logging.info(f'Account {account.key.account_id} balance after initialization: {get_amount_yoctonear(account)}')
         time.sleep(max(1.0, start_time + (i + 1) * delay - time.time()))
 
     logger.info('Done deploying')
