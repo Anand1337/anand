@@ -266,6 +266,8 @@ pub(crate) fn apply_chain_range_all_shards(
         };
         let block = chain_store.get_block(&block_hash).unwrap().clone();
         (0..4).into_par_iter().for_each(|shard_id| {
+            let mut chain_store = ChainStore::new(store.clone(), genesis.config.genesis_height);
+
             let mut existing_chunk_extra = None;
             let mut prev_chunk_extra = None;
             let mut num_tx = 0;
