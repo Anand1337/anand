@@ -8,7 +8,8 @@ use near_logger_utils::init_integration_logger;
 use near_primitives::types::{BlockHeight, ShardId};
 use near_primitives::version::{DB_VERSION, PROTOCOL_VERSION};
 use near_store::{create_store, Store};
-use nearcore::{get_default_home, get_store_path, load_config, NearConfig};
+use nearcore::{get_default_home, get_store_path, load_config, NearConfig, NightshadeRuntime};
+use crate::apply_chain_range::apply_chain_range_all_shards;
 
 use crate::commands::*;
 
@@ -65,6 +66,9 @@ pub enum StateViewerSubCommand {
     /// Apply blocks at a range of heights for a single shard.
     #[clap(name = "apply_range")]
     ApplyRange(ApplyRangeCmd),
+    /// Apply blocks at a range of heights for a single shard.
+    #[clap(name = "apply_range_all_shards")]
+    ApplyRangeAllShards(ApplyRangeAllShardsCmd),
     /// Apply block at some height for shard.
     #[clap(name = "apply")]
     Apply(ApplyCmd),
@@ -171,6 +175,42 @@ impl ApplyRangeCmd {
     }
 }
 
+#[derive(Clap)]
+pub struct ApplyRangeAllShardsCmd {
+    #[clap(long)]
+    start_index: Option<BlockHeight>,
+    #[clap(long)]
+    end_index: Option<BlockHeight>,
+    #[clap(long)]
+    verbose_output: bool,
+    #[clap(long, parse(from_os_str))]
+    csv_file: Option<PathBuf>,
+}
+
+impl ApplyRangeAllShardsCmd {
+    pub fn run(self, home_dir: &Path, near_config: NearConfig, store: Arc<Store>) {
+        let mut csv_file = self.csv_file.map(|filename| std::fs::File::create(filename).unwrap());
+
+        let runtime = NightshadeRuntime::with_config(
+            &home_dir,
+            store.clone(),
+            &near_config,
+            None,
+            near_config.client_config.max_gas_burnt_view,
+        );
+        apply_chain_range_all_shards(
+            store,
+            &near_config.genesis,
+            self.start_index,
+            self.end_index,
+            runtime,
+            self.verbose_output,
+            csv_file.as_mut(),
+        );
+    }
+}
+
+apply_chain_range_all_shards
 #[derive(Clap)]
 pub struct ApplyCmd {
     #[clap(long)]
