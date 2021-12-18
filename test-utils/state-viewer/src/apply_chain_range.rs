@@ -254,11 +254,8 @@ pub(crate) fn apply_chain_range_all_shards(
     let start_height = start_height.unwrap_or_else(|| chain_store.tail().unwrap());
     let mut chain_store = ChainStore::new(store.clone(), genesis.config.genesis_height);
 
+    let processed_blocks_cnt = AtomicU64::new(0);
     (start_height..=end_height).into_iter().for_each(|height| {
-        let mut num_tx = 0;
-        let mut num_receipt = 0;
-        let chunk_present: bool;
-
         let block_hash = match chain_store.get_block_hash_by_height(height) {
             Ok(block_hash) => block_hash,
             Err(_) => {
@@ -269,6 +266,11 @@ pub(crate) fn apply_chain_range_all_shards(
         };
         let block = chain_store.get_block(&block_hash).unwrap().clone();
         (0..4).into_par_iter().for_each(|shard_id| {
+            let mut existing_chunk_extra = None;
+            let mut prev_chunk_extra = None;
+            let mut num_tx = 0;
+            let mut num_receipt = 0;
+            let chunk_present: bool;
             let shard_uid = runtime_adapter.shard_id_to_uid(shard_id, block.header().epoch_id()).unwrap();
 
             let block_author = runtime_adapter
