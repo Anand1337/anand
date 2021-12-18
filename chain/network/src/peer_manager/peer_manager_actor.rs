@@ -263,7 +263,7 @@ impl PeerManagerActor {
                         act.ban_peer(ctx, &peer, ReasonForBan::InvalidEdge);
                     }
                 }
-                _ => error!(target: "network", message = "expected RoutingTableUpdateResponse"),
+                _ => error!(target: "network", "expected RoutingTableUpdateResponse"),
             })
             .spawn(ctx);
     }
@@ -303,7 +303,7 @@ impl PeerManagerActor {
                         )
                     }
                 }
-                _ => error!(target: "network", message = "expected AddIbfSetResponse"),
+                _ => error!(target: "network", "expected AddIbfSetResponse"),
             })
             .spawn(ctx);
     }
@@ -481,7 +481,7 @@ impl PeerManagerActor {
                                 seed,
                                 Some(throttle_controller_clone),
                             ),
-                        _ => error!(target: "network", message = "expected AddIbfSetResponse"),
+                        _ => error!(target: "network", "expected AddIbfSetResponse"),
                     })
                     .spawn(ctx);
             }
@@ -508,7 +508,7 @@ impl PeerManagerActor {
                         message: crate::types::PeerMessage::RoutingTableSyncV2(response),
                     });
                 }
-                _ => error!(target: "network", message = "expected StartRoutingTableSyncResponse"),
+                _ => error!(target: "network", "expected StartRoutingTableSyncResponse"),
             })
             .spawn(ctx);
     }
@@ -537,7 +537,7 @@ impl PeerManagerActor {
             self.outgoing_peers.remove(&full_peer_info.peer_info.id);
         }
         if let Err(err) = self.peer_store.peer_connected(&full_peer_info.peer_info) {
-            error!(target: "network", message = "Failed to save peer data", ?err);
+            error!(target: "network", ?err, "Failed to save peer data");
             return;
         };
 
@@ -604,7 +604,7 @@ impl PeerManagerActor {
                             routing_table,
                         );
                     }
-                    _ => error!(target: "network", message = "expected AddIbfSetResponse"),
+                    _ => error!(target: "network", "expected AddIbfSetResponse"),
                 })
                 .spawn(ctx);
         });
@@ -716,7 +716,7 @@ impl PeerManagerActor {
         if remove_from_peer_store {
             self.remove_active_peer(ctx, &peer_id, Some(peer_type));
             if let Err(err) = self.peer_store.peer_disconnected(&peer_id) {
-                error!(target: "network", message = "Failed to save peer data", ?err);
+                error!(target: "network", ?err, "Failed to save peer data")
             };
         }
     }
@@ -728,7 +728,7 @@ impl PeerManagerActor {
         warn!(target: "network", "Banning peer {:?} for {:?}", peer_id, ban_reason);
         self.remove_active_peer(ctx, peer_id, None);
         if let Err(err) = self.peer_store.peer_ban(peer_id, ban_reason) {
-            error!(target: "network", message = "Failed to save peer data", ?err);
+            error!(target: "network", ?err, "Failed to save peer data");
         };
     }
 
@@ -1033,7 +1033,7 @@ impl PeerManagerActor {
                 .send(QueryPeerStats {})
                 .into_actor(self)
                 .map(|result, _, _| result.map_err(|err|
-                    error!(target: "network", message = "Failed sending message(monitor_peer_stats)", ?err)))
+                    error!(target: "network", ?err, "Failed sending message(monitor_peer_stats)")))
                 .map(move |res, act, _| {
                     let _ignore = res.map(|res| {
                         if res.is_abusive {
@@ -1169,7 +1169,7 @@ impl PeerManagerActor {
 
         for peer_id in to_unban {
             if let Err(err) = self.peer_store.peer_unban(&peer_id) {
-                error!(target: "network", message = "Failed to unban a peer", ?err);
+                error!(target: "network", ?err, "Failed to unban a peer");
                 // TODO: Do we really want to return?
                 // Doesn't this stop the trigger?
                 return;
@@ -1205,7 +1205,7 @@ impl PeerManagerActor {
         }
 
         if let Err(err) = self.peer_store.remove_expired(&self.config) {
-            error!(target: "network", message = "Failed to remove expired peers", ?err);
+            error!(target: "network", ?err, "Failed to remove expired peers");
             // TODO: Do we really want to return?
             return;
         };
@@ -2248,7 +2248,7 @@ impl PeerManagerActor {
         if let Err(err) = self.peer_store.add_indirect_peers(
             msg.peers.into_iter().filter(|peer_info| peer_info.id != self.my_peer_id).collect(),
         ) {
-            error!(target: "network", message = "Fail to update peer store", ?err);
+            error!(target: "network", ?err, "Fail to update peer store");
         };
     }
 }
