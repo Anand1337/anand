@@ -621,7 +621,6 @@ impl Database for TestDB {
 fn rocksdb_options() -> Options {
     let mut opts = Options::default();
 
-    opts.set_max_file_opening_threads()
     opts.create_missing_column_families(true);
     opts.create_if_missing(true);
     opts.set_use_fsync(false);
