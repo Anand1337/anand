@@ -1,6 +1,7 @@
 use crate::commands::*;
 use crate::epoch_info;
-use clap::{AppSettings, Clap};
+use clap::AppSettings;
+use clap::Parser;
 use near_logger_utils::init_integration_logger;
 use near_primitives::account::id::AccountId;
 use near_primitives::types::{BlockHeight, ShardId};
@@ -14,14 +15,20 @@ use std::sync::Arc;
 
 static DEFAULT_HOME: Lazy<PathBuf> = Lazy::new(|| get_default_home());
 
-#[derive(Clap)]
-//#[derive(Parser)]
-//#[clap(setting = AppSettings::SubcommandRequiredElseHelp)]
+#[derive(clap::Parser)]
+#[clap(setting = AppSettings::SubcommandRequiredElseHelp)]
 pub struct StateViewerCmd {
     #[clap(flatten)]
     opts: StateViewerOpts,
     #[clap(subcommand)]
     subcmd: StateViewerSubCommand,
+}
+
+#[derive(clap::Parser)]
+#[clap(setting = AppSettings::SubcommandRequiredElseHelp)]
+pub struct StateViewerCmdNoOpts {
+    #[clap(subcommand)]
+    pub subcmd: StateViewerSubCommand,
 }
 
 impl StateViewerCmd {
@@ -35,7 +42,7 @@ impl StateViewerCmd {
     }
 }
 
-#[derive(Parser, Debug)]
+#[derive(clap::Parser, Debug)]
 struct StateViewerOpts {
     /// Directory for config and data.
     #[clap(long, parse(from_os_str), default_value_os = DEFAULT_HOME.as_os_str())]
@@ -48,12 +55,7 @@ impl StateViewerOpts {
     }
 }
 
-<<<<<<< HEAD
-#[derive(Clap)]
-#[clap(setting = AppSettings::SubcommandRequiredElseHelp)]
-=======
-#[derive(Parser)]
->>>>>>> Upgrade clap to `3.0.0-beta5`
+#[derive(clap::Parser)]
 pub enum StateViewerSubCommand {
     #[clap(name = "peers")]
     Peers,
@@ -112,7 +114,7 @@ impl StateViewerSubCommand {
     }
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 pub struct DumpStateCmd {
     /// Optionally, can specify at which height to dump state.
     #[clap(long)]
@@ -136,7 +138,7 @@ impl DumpStateCmd {
     }
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 pub struct ChainCmd {
     #[clap(long)]
     start_index: BlockHeight,
@@ -150,7 +152,7 @@ impl ChainCmd {
     }
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 pub struct ReplayCmd {
     #[clap(long)]
     start_index: BlockHeight,
@@ -164,7 +166,7 @@ impl ReplayCmd {
     }
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 pub struct ApplyRangeCmd {
     #[clap(long)]
     start_index: Option<BlockHeight>,
@@ -196,7 +198,7 @@ impl ApplyRangeCmd {
     }
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 pub struct ApplyCmd {
     #[clap(long)]
     height: BlockHeight,
@@ -210,7 +212,7 @@ impl ApplyCmd {
     }
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 pub struct ViewChainCmd {
     #[clap(long)]
     height: Option<BlockHeight>,
@@ -226,7 +228,7 @@ impl ViewChainCmd {
     }
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 pub struct DumpCodeCmd {
     #[clap(long)]
     account_id: String,
@@ -240,7 +242,7 @@ impl DumpCodeCmd {
     }
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 pub struct DumpAccountStorageCmd {
     #[clap(long)]
     account_id: String,
@@ -265,9 +267,10 @@ impl DumpAccountStorageCmd {
         );
     }
 }
-#[derive(Clap)]
+#[derive(clap::Parser)]
+#[clap(setting = AppSettings::SubcommandRequiredElseHelp)]
 pub struct EpochInfoCmd {
-    #[clap(flatten)]
+    #[clap(subcommand)]
     epoch_selection: epoch_info::EpochSelection,
     /// Displays kickouts of the given validator and expected and missed blocks and chunks produced.
     #[clap(long)]

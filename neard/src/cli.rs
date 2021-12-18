@@ -2,7 +2,7 @@ use super::{DEFAULT_HOME, NEARD_VERSION, NEARD_VERSION_STRING, PROTOCOL_VERSION}
 use clap::{AppSettings, Parser};
 use futures::future::FutureExt;
 use near_primitives::types::{Gas, NumSeats, NumShards};
-use near_state_viewer::StateViewerSubCommand;
+use near_state_viewer::cli::StateViewerCmdNoOpts;
 use nearcore::get_store_path;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -15,7 +15,7 @@ use tracing::metadata::LevelFilter;
 use tracing_subscriber::EnvFilter;
 
 /// NEAR Protocol Node
-#[derive(Parser)]
+#[derive(clap::Parser)]
 #[clap(version = NEARD_VERSION_STRING.as_str())]
 #[clap(setting = AppSettings::SubcommandRequiredElseHelp)]
 pub(super) struct NeardCmd {
@@ -59,7 +59,7 @@ impl NeardCmd {
                 fs::remove_dir_all(home_dir).expect("Removing data and config failed.");
             }
             NeardSubCommand::StateViewer(cmd) => {
-                cmd.run(&home_dir);
+                cmd.subcmd.run(&home_dir);
             }
         }
     }
@@ -82,7 +82,7 @@ impl NeardOpts {
     }
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 pub(super) enum NeardSubCommand {
     /// Initializes NEAR configuration
     #[clap(name = "init")]
@@ -104,10 +104,10 @@ pub(super) enum NeardSubCommand {
     UnsafeResetData,
     /// View DB state.
     #[clap(name = "view_state")]
-    StateViewer(StateViewerSubCommand),
+    StateViewer(StateViewerCmdNoOpts),
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 pub(super) struct InitCmd {
     /// Download the verified NEAR genesis file automatically.
     #[clap(long)]
@@ -177,7 +177,7 @@ impl InitCmd {
     }
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 pub(super) struct RunCmd {
     /// Keep old blocks in the storage (default false).
     #[clap(long)]
@@ -310,7 +310,7 @@ impl RunCmd {
     }
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 pub(super) struct TestnetCmd {
     /// Number of non-validators to initialize the testnet with.
     #[clap(long = "n", default_value = "0")]

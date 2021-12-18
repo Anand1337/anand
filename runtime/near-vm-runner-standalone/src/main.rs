@@ -57,7 +57,7 @@ impl<'de> Deserialize<'de> for State {
     }
 }
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 struct CliArgs {
     /// Specifies the execution context in JSON format, see `VMContext`.
     #[clap(long)]

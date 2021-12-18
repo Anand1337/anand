@@ -21,7 +21,7 @@ use std::process::Command;
 use std::sync::Arc;
 use std::time;
 
-#[derive(Parser)]
+#[derive(clap::Parser)]
 struct CliArgs {
     /// Directory for config and data. If not set, a temporary directory is used
     /// to generate appropriate data.
