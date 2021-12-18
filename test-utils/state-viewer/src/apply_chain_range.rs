@@ -255,6 +255,10 @@ pub(crate) fn apply_chain_range_all_shards(
     let mut chain_store = ChainStore::new(store.clone(), genesis.config.genesis_height);
 
     (start_height..=end_height).into_iter().for_each(|height| {
+        let mut num_tx = 0;
+        let mut num_receipt = 0;
+        let chunk_present: bool;
+
         let block_hash = match chain_store.get_block_hash_by_height(height) {
             Ok(block_hash) => block_hash,
             Err(_) => {
