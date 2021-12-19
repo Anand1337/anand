@@ -962,7 +962,7 @@ def create_upgrade_schedule(rpc_nodes, validator_nodes, progressive_upgrade,
 
         seats_upgraded = 0
         for seat, stake, instance_name in seats:
-            if (seats_upgraded + seat) * 5 > 4 * num_block_producer_seats:
+            if (seats_upgraded + seat) * 100 > 75 * num_block_producer_seats:
                 break
             schedule[instance_name] = 0
             seats_upgraded += seat
@@ -970,10 +970,10 @@ def create_upgrade_schedule(rpc_nodes, validator_nodes, progressive_upgrade,
         # Upgrade the remaining validators during 4 epochs.
         for node in validator_nodes:
             if node.instance_name not in schedule:
-                schedule[node.instance_name] = random.randint(1, 2)
+                schedule[node.instance_name] = random.randint(1, 3)
 
         for node in rpc_nodes:
-            schedule[node.instance_name] = random.randint(0, 2)
+            schedule[node.instance_name] = random.randint(0, 3)
     else:
         # Start all nodes upgraded.
         for node in rpc_nodes:
