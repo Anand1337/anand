@@ -140,8 +140,11 @@ impl RocksDB {
         for cf in self.cfs.clone() {
             unsafe {
                 let ncf = cf.read();
-                let stats =
-                    self.db.property_value_cf(&ncf, "kCFStatsNoFileHistogram").unwrap().unwrap();
+                let stats = self
+                    .db
+                    .property_value_cf(&ncf, "rocksdb.cfstats-no-file-histogram")
+                    .unwrap()
+                    .unwrap();
                 println!("{}", stats);
             }
         }
