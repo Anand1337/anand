@@ -137,7 +137,7 @@ impl RocksDB {
     }
 
     pub unsafe fn dump_stats(self) {
-        for cf in self.cfs {
+        for cf in self.cfs.clone() {
             let ncf = cf.read();
             let stats =
                 self.db.property_value_cf(&ncf, "kCFStatsNoFileHistogram").unwrap().unwrap();
