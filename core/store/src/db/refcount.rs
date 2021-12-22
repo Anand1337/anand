@@ -139,7 +139,7 @@ impl RocksDB {
     pub unsafe fn dump_stats(self) {
         for cf in self.cfs {
             let ncf = cf.read();
-            let stats = self.db.property_value_cf(cf, "kCFStatsNoFileHistogram").unwrap().unwrap();
+            let stats = self.db.property_value_cf(ncf, "kCFStatsNoFileHistogram").unwrap().unwrap();
             println!("{}", stats);
         }
     }
