@@ -136,7 +136,7 @@ impl RocksDB {
         }
     }
 
-    pub unsafe fn dump_stats(self) {
+    pub unsafe fn dump_stats(&self) {
         for cf in self.cfs.clone() {
             let ncf = cf.read();
             let stats =
