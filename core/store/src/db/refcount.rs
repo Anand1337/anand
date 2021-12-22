@@ -136,12 +136,14 @@ impl RocksDB {
         }
     }
 
-    pub unsafe fn dump_stats(&mut self) {
+    pub fn dump_stats(&self) {
         for cf in self.cfs.clone() {
-            let ncf = cf.read();
-            let stats =
-                self.db.property_value_cf(&ncf, "kCFStatsNoFileHistogram").unwrap().unwrap();
-            println!("{}", stats);
+            unsafe {
+                let ncf = cf.read();
+                let stats =
+                    self.db.property_value_cf(&ncf, "kCFStatsNoFileHistogram").unwrap().unwrap();
+                println!("{}", stats);
+            }
         }
     }
 }
