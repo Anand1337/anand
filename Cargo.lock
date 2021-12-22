@@ -181,7 +181,7 @@ dependencies = [
 name = "actix-tls"
 version = "3.0.0-beta.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcebfd4a6255a2a75b7b87c1a3a723c57f08293ca9a7fade692e94515585f7a6"
+checksum = "0bd80ba563d12cb7ca41845b0ca2cc7d9e9e15eb7ae9566980789e32170984d5"
 dependencies = [
  "actix-codec",
  "actix-rt",
@@ -189,9 +189,9 @@ dependencies = [
  "actix-utils",
  "derive_more",
  "futures-core",
+ "http",
  "log",
  "openssl",
- "pin-project-lite",
  "tokio-openssl",
  "tokio-util",
 ]
@@ -3253,6 +3253,7 @@ version = "1.23.0"
 dependencies = [
  "actix",
  "actix-rt",
+ "actix-tls",
  "actix-web",
  "actix_derive",
  "awc",
