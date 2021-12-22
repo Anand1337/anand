@@ -367,19 +367,19 @@ pub fn start_with_config(home_dir: &Path, config: NearConfig) -> NearNode {
         .unwrap()
     });
 
-    #[cfg(feature = "json_rpc")]
-    if let Some(rpc_config) = config.rpc_config {
-        rpc_servers.extend_from_slice(&near_jsonrpc::start_http(
-            rpc_config,
-            config.genesis.config.clone(),
-            client_actor.clone(),
-            view_client.clone(),
-            #[cfg(feature = "test_features")]
-            network_actor.clone(),
-            #[cfg(feature = "test_features")]
-            routing_table_addr2,
-        ));
-    }
+    // #[cfg(feature = "json_rpc")]
+    // if let Some(rpc_config) = config.rpc_config {
+    //     rpc_servers.extend_from_slice(&near_jsonrpc::start_http(
+    //         rpc_config,
+    //         config.genesis.config.clone(),
+    //         client_actor.clone(),
+    //         view_client.clone(),
+    //         #[cfg(feature = "test_features")]
+    //         network_actor.clone(),
+    //         #[cfg(feature = "test_features")]
+    //         routing_table_addr2,
+    //     ));
+    // }
 
     #[cfg(feature = "rosetta_rpc")]
     if let Some(rosetta_rpc_config) = config.rosetta_rpc_config {
