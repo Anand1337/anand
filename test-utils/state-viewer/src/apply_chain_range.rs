@@ -65,7 +65,8 @@ pub fn apply_chain_range(
     csv_file: Option<&mut File>,
 ) {
     let db = store.get_rocksdb().unwrap();
-    println!("{:?}", db.options.get_statistics());
+    // println!("{:?}", db.options.get_statistics());
+    db.dump_stats();
     let runtime_adapter: Arc<dyn RuntimeAdapter> = Arc::new(runtime);
     let chain_store = ChainStore::new(store.clone(), genesis.config.genesis_height);
     let end_height = end_height.unwrap_or_else(|| chain_store.head().unwrap().height);

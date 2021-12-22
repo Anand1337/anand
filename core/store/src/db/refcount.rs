@@ -135,4 +135,11 @@ impl RocksDB {
             Box::new(iterator)
         }
     }
+
+    pub fn dump_stats(self) {
+        for cf in self.cfs {
+            let stats = self.db.property_value_cf(cf, "kCFStatsNoFileHistogram").unwrap().unwrap();
+            println!("{}", stats);
+        }
+    }
 }

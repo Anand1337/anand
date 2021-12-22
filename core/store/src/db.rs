@@ -296,8 +296,7 @@ impl DBTransaction {
 pub struct RocksDB {
     db: DB,
     cfs: Vec<*const ColumnFamily>,
-    pub options: Options,
-
+    // pub options: Options,
     check_free_space_counter: std::sync::atomic::AtomicU16,
     check_free_space_interval: u16,
     free_space_threshold: bytesize::ByteSize,
@@ -390,7 +389,7 @@ impl RocksDBOptions {
         Ok(RocksDB {
             db,
             cfs,
-            options,
+            // options,
             _pin: PhantomPinned,
             check_free_space_interval: self.check_free_space_interval,
             check_free_space_counter: std::sync::atomic::AtomicU16::new(0),
@@ -431,7 +430,7 @@ impl RocksDBOptions {
         Ok(RocksDB {
             db,
             cfs,
-            options,
+            // options,
             _pin: PhantomPinned,
             check_free_space_interval: self.check_free_space_interval,
             check_free_space_counter: std::sync::atomic::AtomicU16::new(0),
@@ -632,7 +631,7 @@ fn rocksdb_options() -> Options {
     opts.set_bytes_per_sync(bytesize::MIB);
     opts.set_write_buffer_size(256 * bytesize::MIB as usize);
     opts.set_max_bytes_for_level_base(256 * bytesize::MIB);
-    opts.enable_statistics();
+    // opts.enable_statistics();
     #[cfg(not(feature = "single_thread_rocksdb"))]
     {
         opts.increase_parallelism(cmp::max(1, num_cpus::get() as i32 / 2));
