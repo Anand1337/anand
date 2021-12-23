@@ -3,6 +3,7 @@ use std::cmp;
 use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomPinned;
+use std::os::raw::c_char;
 use std::sync::RwLock;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -732,6 +733,41 @@ impl RocksDB {
             Err(PreWriteCheckErr::LowDiskSpace(available))
         } else {
             Ok(())
+        }
+    }
+
+    pub fn dump_stats(&self) {
+        for cf in self.cfs.clone() {
+            unsafe {
+                let ncf = cf.read();
+                // db->GetProperty("rocksdb.estimate-num-keys", &num)
+
+                let stats = self
+                    .db
+                    .property_value_cf(&ncf, "rocksdb.cfstats-no-file-histogram")
+                    .unwrap()
+                    .unwrap();
+                println!("{}", stats);
+                let stats =
+                    self.db.property_value_cf(&ncf, "rocksdb.estimate-num-keys").unwrap().unwrap();
+                println!("rocksdb.estimate-num-keys: {}", stats);
+
+                let mut sizes: [u64; 2] = [0, 0];
+                let start: [*const c_char; 2] = [cstrp!("a"), cstrp!("k00000000000000010000")];
+                let start_len: [size_t; 2] = [1, 21];
+                let limit: [*const c_char; 2] = [cstrp!("k00000000000000010000"), cstrp!("z")];
+                let limit_len: [size_t; 2] = [21, 1];
+                rocksdb_approximate_sizes(
+                    db,
+                    2,
+                    start.as_ptr(),
+                    start_len.as_ptr(),
+                    limit.as_ptr(),
+                    limit_len.as_ptr(),
+                    sizes.as_mut_ptr(),
+                    &mut err,
+                );
+            }
         }
     }
 }

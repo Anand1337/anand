@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use std::io::{Cursor, Write};
+use std::os::raw::c_char;
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rocksdb::compaction_filter::Decision;
@@ -7,6 +8,11 @@ use rocksdb::MergeOperands;
 
 use crate::db::RocksDB;
 use crate::DBCol;
+use const_cstr::const_cstr;
+
+macro_rules! cstrp {
+    ($($arg:tt)*) => (const_cstr!($($arg)*).as_ptr());
+}
 
 /// Refcounted columns store value with rc.
 ///
@@ -133,25 +139,6 @@ impl RocksDB {
             }))
         } else {
             Box::new(iterator)
-        }
-    }
-
-    pub fn dump_stats(&self) {
-        for cf in self.cfs.clone() {
-            unsafe {
-                let ncf = cf.read();
-                // db->GetProperty("rocksdb.estimate-num-keys", &num)
-
-                let stats = self
-                    .db
-                    .property_value_cf(&ncf, "rocksdb.cfstats-no-file-histogram")
-                    .unwrap()
-                    .unwrap();
-                println!("{}", stats);
-                let stats =
-                    self.db.property_value_cf(&ncf, "rocksdb.estimate-num-keys").unwrap().unwrap();
-                println!("{}", stats);
-            }
         }
     }
 }
