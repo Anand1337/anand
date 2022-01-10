@@ -1,10 +1,11 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
+use std::time::Duration;
 
-use actix::System;
+use actix::{Addr, System};
 use futures::{future, FutureExt};
 use near_primitives::num_rational::Rational;
 
@@ -19,9 +20,9 @@ use near_chain_configs::{ClientConfig, Genesis};
 use near_chunks::{ChunkStatus, ShardsManager};
 use near_client::test_utils::{
     create_chunk_on_height, run_catchup, setup_client, setup_mock, setup_mock_all_validators,
-    TestEnv,
+    setup_mock_all_validators_with_delay, TestEnv,
 };
-use near_client::{Client, GetBlock, GetBlockWithMerkleTree};
+use near_client::{Client, ClientActor, GetBlock, GetBlockWithMerkleTree, ViewClientActor};
 use near_crypto::{InMemorySigner, KeyType, PublicKey, Signature, Signer};
 use near_logger_utils::init_test_logger;
 use near_network::test_utils::{wait_or_panic, MockPeerManagerAdapter};
@@ -31,6 +32,7 @@ use near_network::types::{
 use near_primitives::block::{Approval, ApprovalInner};
 use near_primitives::block_header::BlockHeader;
 
+use log::debug;
 use near_network::routing::EdgeInfo;
 use near_network::types::{NetworkInfo, PeerManagerMessageRequest, PeerManagerMessageResponse};
 use near_network_primitives::types::{PeerChainInfoV2, PeerInfo, ReasonForBan};
@@ -471,6 +473,150 @@ fn produce_block_with_approvals() {
         }));
         near_network::test_utils::wait_or_panic(5000);
     });
+}
+
+#[test]
+fn start_delayed_clients() {
+    init_test_logger();
+
+    let sys = actix_rt::System::new();
+
+    let messages = Arc::new(Mutex::new(Vec::new()));
+    let msgs = messages.clone();
+    let validators = vec![
+        "test1".parse().unwrap(),
+        "test2".parse().unwrap(),
+        "test3".parse().unwrap(),
+        "test4".parse().unwrap(),
+    ];
+    let genesis = Genesis::test(validators.clone(), validators.len() as u64);
+    let key_pairs =
+        vec![PeerInfo::random(), PeerInfo::random(), PeerInfo::random(), PeerInfo::random()];
+    let mut runtime_adapters = vec![];
+    for _ in &validators {
+        let runtime_adapter: Arc<dyn RuntimeAdapter> = Arc::new(nearcore::NightshadeRuntime::test(
+            Path::new("."),
+            create_test_store(),
+            &genesis,
+        ));
+        runtime_adapters.push(runtime_adapter);
+    }
+    let mut msg_time_increments = HashMap::new();
+    for i in 0..3 {
+        msg_time_increments.insert(validators[i].clone(), vec![Some(10)]);
+    }
+    msg_time_increments
+        .insert(validators[3].clone(), vec![None, Some(100), Some(10), Some(50), None, Some(100)]);
+    sys.block_on(async move {
+        let network_mock: Arc<
+            RwLock<
+                Box<dyn FnMut(AccountId, &PeerManagerMessageRequest) -> PeerManagerMessageResponse>,
+            >,
+        > = Arc::new(RwLock::new(Box::new(|_: _, _: &PeerManagerMessageRequest| {
+            PeerManagerMessageResponse::NetworkResponses(NetworkResponses::NoResponse)
+        })));
+        let conns = setup_mock_all_validators_with_delay(
+            validators.clone(),
+            key_pairs,
+            runtime_adapters,
+            1,
+            true,
+            2000,
+            false,
+            100,
+            msg_time_increments,
+            network_mock.clone(),
+        );
+        *network_mock.write().unwrap() =
+            Box::new(move |_: _, msg: &PeerManagerMessageRequest| -> PeerManagerMessageResponse {
+                let msg = msg.as_network_requests_ref();
+                match msg {
+                    NetworkRequests::Block { block } => {
+                        if block.header().height() >= 10 {
+                            System::current().stop();
+                        }
+                        let mut data = msgs.lock().unwrap();
+                        data.push(msg.clone());
+                        drop(data);
+                        NetworkResponses::NoResponse.into()
+                    }
+                    _ => {
+                        let mut data = msgs.lock().unwrap();
+                        data.push(msg.clone());
+                        drop(data);
+                        NetworkResponses::NoResponse.into()
+                    }
+                }
+            });
+
+        let MAX_TPS: u64 = 1;
+        // let mut last_second_tx_timestamps = LinkedList::new();
+
+        actix::spawn(async move {
+            let mut interval = actix_rt::time::interval(Duration::from_secs(1));
+
+            loop {
+                interval.tick().await;
+                /*
+                while !last_second_tx_timestamps.is_empty()
+                    && Instant::now().duration_since(*last_second_tx_timestamps.front().unwrap()) > Duration::from_secs(1) {
+                    last_second_tx_timestamps.pop_front();
+                }*/
+                for i in 0..MAX_TPS {
+                    // last_second_tx_timestamps.push_back(Instant::now());
+                    let connectors: Arc<RwLock<Vec<(Addr<ClientActor>, Addr<ViewClientActor>)>>> =
+                        Arc::new(RwLock::new(vec![]));
+                    *connectors.write().unwrap() = conns.clone();
+                    let view_client = connectors.write().unwrap()[0].1.clone();
+                    actix::spawn(view_client.send(GetBlock::latest()).then(move |res| {
+                        let block = res.unwrap().unwrap();
+                        let block_hash = block.header.hash.clone();
+                        let height = block.header.height.clone();
+
+                        let connectors_ = connectors.write().unwrap();
+                        for account_idx in 0..4 {
+                            let account_id =
+                                AccountId::try_from(format!("test{}", account_idx)).unwrap();
+                            let signer = InMemorySigner::from_seed(
+                                account_id.clone(),
+                                KeyType::ED25519,
+                                account_id.as_ref(),
+                            );
+
+                            let nonce = height * 500 * 2 + account_idx + i * 5;
+
+                            let next_account_id =
+                                AccountId::try_from(format!("test{}", (account_idx + 1) % 4))
+                                    .unwrap();
+                            let transaction = SignedTransaction::send_money(
+                                nonce,
+                                account_id.clone(),
+                                next_account_id.clone(),
+                                &signer,
+                                1,
+                                block_hash,
+                            );
+                            for connector in connectors_.iter() {
+                                connector.0.do_send(NetworkClientMessages::Transaction {
+                                    transaction: transaction.clone(),
+                                    is_forwarded: false,
+                                    check_only: false,
+                                });
+                            }
+                        }
+
+                        future::ready(())
+                    }));
+                }
+            }
+        });
+        // near_network::test_utils::wait_or_panic(100000);
+    });
+    sys.run().unwrap();
+    let vec_msgs = messages.lock().unwrap().clone();
+    for msg in vec_msgs {
+        debug!("Messages: {:?}", &msg);
+    }
 }
 
 /// When approvals arrive early, they should be properly cached.

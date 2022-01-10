@@ -1,9 +1,12 @@
 use log::info;
 use std::cmp::max;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::mem::swap;
 use std::ops::DerefMut;
-use std::sync::{Arc, RwLock};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc, RwLock,
+};
 use std::time::Duration;
 
 use actix::actors::mocker::Mocker;
@@ -80,17 +83,22 @@ pub fn setup(
     transaction_validity_period: NumBlocks,
     genesis_time: DateTime<Utc>,
     ctx: &Context<ClientActor>,
+    runtime_adapter: Option<Arc<dyn RuntimeAdapter>>,
 ) -> (Block, ClientActor, Addr<ViewClientActor>) {
     let store = create_test_store();
     let num_validator_seats = validators.iter().map(|x| x.len()).sum::<usize>() as NumSeats;
-    let runtime = Arc::new(KeyValueRuntime::new_with_validators_and_no_gc(
-        store,
-        validators,
-        validator_groups,
-        num_shards,
-        epoch_length,
-        archive,
-    ));
+    let runtime = if let Some(runtime) = runtime_adapter {
+        runtime
+    } else {
+        Arc::new(KeyValueRuntime::new_with_validators_and_no_gc(
+            store,
+            validators,
+            validator_groups,
+            num_shards,
+            epoch_length,
+            archive,
+        ))
+    };
     let chain_genesis = ChainGenesis {
         time: genesis_time,
         height: 0,
@@ -288,6 +296,7 @@ pub fn setup_mock_with_validity_period_and_no_epoch_sync(
             transaction_validity_period,
             Clock::utc(),
             ctx,
+            None,
         );
         vca = Some(view_client_addr);
         client
@@ -1005,6 +1014,7 @@ pub fn setup_mock_all_validators(
                 10000,
                 genesis_time,
                 &ctx,
+                None,
             );
             *view_client_addr1.write().unwrap() = Some(view_client_addr);
             *genesis_block1.write().unwrap() = Some(block);
@@ -1021,6 +1031,593 @@ pub fn setup_mock_all_validators(
     *locked_connectors = ret.clone();
     let value = genesis_block.read().unwrap();
     (value.clone().unwrap(), ret, block_stats)
+}
+
+fn increment_idx(time_increments: &Arc<Vec<Option<usize>>>, time_increment_idx: &Arc<AtomicUsize>) {
+    time_increment_idx.fetch_add(1, Ordering::Relaxed);
+    if time_increment_idx.load(Ordering::Relaxed) >= time_increments.len() {
+        time_increment_idx.store(0, Ordering::Relaxed);
+    }
+}
+
+fn add_next_message(
+    msg_queue: &mut BinaryHeap<(i64, usize)>,
+    time_increments: &Arc<Vec<Option<usize>>>,
+    time_increment_idx: &Arc<AtomicUsize>,
+    time: &Arc<AtomicUsize>,
+    index: usize,
+) {
+    loop {
+        if time_increments[time_increment_idx.load(Ordering::Relaxed)] != None {
+            break;
+        }
+        increment_idx(time_increments, &time_increment_idx);
+    }
+
+    let time = time.load(Ordering::Relaxed);
+    let idx = time_increment_idx.load(Ordering::Relaxed);
+    msg_queue.push((-((time + time_increments[idx].unwrap()) as i64), index));
+}
+
+pub fn setup_mock_all_validators_with_delay(
+    validators: Vec<AccountId>,
+    key_pairs: Vec<PeerInfo>,
+    runtime_adapters: Vec<Arc<dyn RuntimeAdapter>>,
+    validator_groups: u64,
+    skip_sync_wait: bool,
+    block_prod_time: u64,
+    drop_chunks: bool,
+    epoch_length: BlockHeightDelta,
+    msg_time_increments: HashMap<AccountId, Vec<Option<usize>>>,
+    peer_manager_mock: Arc<
+        RwLock<Box<dyn FnMut(AccountId, &PeerManagerMessageRequest) -> PeerManagerMessageResponse>>,
+    >,
+) -> Vec<(Addr<ClientActor>, Addr<ViewClientActor>)> {
+    let validators_clone = validators.clone();
+    let key_pairs = key_pairs;
+
+    let addresses: Vec<_> = (0..key_pairs.len()).map(|i| hash(vec![i as u8].as_ref())).collect();
+    let genesis_time = Clock::utc();
+    let mut ret = vec![];
+
+    let connectors: Arc<RwLock<Vec<(Addr<ClientActor>, Addr<ViewClientActor>)>>> =
+        Arc::new(RwLock::new(vec![]));
+
+    // Lock the connectors so that none of the threads spawned below access them until we overwrite
+    //    them at the end of this function
+    let mut locked_connectors = connectors.write().unwrap();
+
+    let announced_accounts = Arc::new(RwLock::new(HashSet::new()));
+    let genesis_block = Arc::new(RwLock::new(None));
+    let num_shards = validators.iter().map(|x| x.len()).min().unwrap() as NumShards;
+
+    let last_height = Arc::new(RwLock::new(vec![0; key_pairs.len()]));
+    let hash_to_height = Arc::new(RwLock::new(HashMap::new()));
+
+    let msg_queue = Arc::new(RwLock::new(BinaryHeap::new()));
+    /// Adding initial message time.
+    info!("Start adding initial times");
+    for (index, account_id) in validators.clone().into_iter().enumerate() {
+        let mut queue = msg_queue.write().unwrap();
+        add_next_message(
+            &mut queue,
+            &Arc::new(msg_time_increments[&account_id].clone()),
+            &Arc::new(AtomicUsize::new(0)),
+            &Arc::new(AtomicUsize::new(0)),
+            index,
+        );
+        drop(queue);
+    }
+    info!("Done adding initial times");
+
+    for (index, account_id) in validators.into_iter().enumerate() {
+        let view_client_addr = Arc::new(RwLock::new(None));
+        let view_client_addr1 = view_client_addr.clone();
+        let validators_clone1 = validators_clone.clone();
+        let validators_clone2 = validators_clone.clone();
+        let genesis_block1 = genesis_block.clone();
+        let key_pairs = key_pairs.clone();
+        let key_pairs1 = key_pairs.clone();
+        let addresses = addresses.clone();
+        let connectors1 = connectors.clone();
+        let connectors2 = connectors.clone();
+        let announced_accounts1 = announced_accounts.clone();
+        let last_height2 = last_height.clone();
+        let runtime_adapters1 = runtime_adapters.clone();
+        let network_mock1 = peer_manager_mock.clone();
+
+        let msg_queue2 = msg_queue.clone();
+        let time_increments1 = Arc::new(msg_time_increments[&account_id].clone());
+        let time_increment_idx1 = Arc::new(AtomicUsize::new(0));
+        let time1 = Arc::new(AtomicUsize::new(0));
+
+        let client_addr = ClientActor::create(move |ctx| {
+            let client_addr = ctx.address();
+            let _account_id = account_id.clone();
+            let pm = PeerManagerMock::mock(Box::new(move|msg, _ctx| {
+                let msg1 = msg.downcast_ref::<PeerManagerMessageRequest>().unwrap().as_network_requests_ref().clone();
+
+                let drop_message = time_increments1[time_increment_idx1.load(Ordering::Relaxed)] == None;
+
+
+                let account_id1 = account_id.clone();
+                let time_increments = time_increments1.clone();
+                let time_increment_idx = time_increment_idx1.clone();
+                let time = time1.clone();
+                let msg_queue1 = msg_queue2.clone();
+                let network_mock = network_mock1.clone();
+                actix::spawn( async move {
+                        info!("Starting here {}", &account_id1);
+                        if let Some(increment) = time_increments[time_increment_idx.load(Ordering::Relaxed)] {
+                            info!("1");
+                            time.fetch_add(increment, Ordering::Relaxed);
+                            info!("2");
+                            loop {
+                                info!("3");
+                                let queue = msg_queue1.read().unwrap();
+                                info!("4");
+                                let mut interval = actix_rt::time::interval(Duration::from_millis(5));
+                                info!("5");
+                                interval.tick().await;
+                                info!("6");
+                                info!("Queue: {:?}, top: {:?}", queue, queue.peek());
+                                info!("Time: {}, index: {}, idx: {}", time.load(Ordering::Relaxed), index, time_increment_idx.load(Ordering::Relaxed));
+                                if queue.peek() == Some(&(-(time.load(Ordering::Relaxed) as i64), index)) {
+                                    info!("7");
+                                    drop(queue);
+
+                                    /// When we choose next message from the queue, every client should be represented in it.
+                                    /// Thus we have to add next non-dropped message into queue for top client
+                                    /// before dropping the lock on queue.
+                                    let queue = &mut msg_queue1.write().unwrap();
+                                    info!("8");
+                                    queue.pop();
+                                    info!("9");
+                                    increment_idx(&time_increments, &time_increment_idx);
+                                    info!("10");
+                                    add_next_message(queue, &time_increments, &time_increment_idx, &time, index);
+                                    info!("11");
+                                    {
+                                        info!("WRITING MESSAGE WITH TIME {} FROM {}", time.load(Ordering::Relaxed), index);
+                                        let mut guard = network_mock.write().unwrap();
+                                        guard.deref_mut()(account_id1.clone(),
+                                                                     msg.downcast_ref::<PeerManagerMessageRequest>().unwrap());
+                                        drop(guard);
+                                    }
+                                    drop(queue);
+                                    break;
+                                } else {
+                                    drop(queue);
+                                    info!("12");
+                                    interval.tick().await;
+                                    info!("13");
+
+                                }
+                                increment_idx(&time_increments, &time_increment_idx);
+                            }
+                        }
+                        future::ready(())
+                });
+                {
+                    info!("Account_id: {:?}, index: {}, drop_message: {}, time: {}", &account_id, time_increment_idx1.load(Ordering::Relaxed), drop_message, time1.load(Ordering::Relaxed));
+                }
+                if !drop_message {
+                    let mut my_key_pair = None;
+                    let mut my_address = None;
+                    let mut my_ord = None;
+                    for (i, name) in validators_clone2.iter().enumerate() {
+                        if name == &account_id {
+                            my_key_pair = Some(key_pairs[i].clone());
+                            my_address = Some(addresses[i].clone());
+                            my_ord = Some(i);
+                        }
+                    }
+                    let my_key_pair = my_key_pair.unwrap();
+                    let my_address = my_address.unwrap();
+                    let my_ord = my_ord.unwrap();
+
+                    {
+                        let last_height2 = last_height2.read().unwrap();
+                        let peers: Vec<_> = key_pairs1
+                            .iter()
+                            .take(connectors2.read().unwrap().len())
+                            .enumerate()
+                            .map(|(i, peer_info)| FullPeerInfo {
+                                peer_info: peer_info.clone(),
+                                chain_info: PeerChainInfoV2 {
+                                    genesis_id: GenesisId {
+                                        chain_id: "unittest".to_string(),
+                                        hash: Default::default(),
+                                    },
+                                    height: last_height2[i],
+                                    tracked_shards: vec![],
+                                    archival: true,
+                                },
+                                edge_info: EdgeInfo::default(),
+                            })
+                            .collect();
+                        let peers2 = peers.clone();
+                        let info = NetworkInfo {
+                            active_peers: peers,
+                            num_active_peers: key_pairs1.len(),
+                            peer_max_count: key_pairs1.len() as u32,
+                            highest_height_peers: peers2,
+                            sent_bytes_per_sec: 0,
+                            received_bytes_per_sec: 0,
+                            known_producers: vec![],
+                            peer_counter: 0,
+                        };
+                        client_addr.do_send(NetworkClientMessages::NetworkInfo(info));
+                    }
+
+                    //
+                    match &msg1 {
+                        NetworkRequests::Block { block } => {
+                            for (client, _) in connectors1.read().unwrap().iter() {
+                                client.do_send(NetworkClientMessages::Block(
+                                    block.clone(),
+                                    PeerInfo::random().id,
+                                    false,
+                                ))
+                            }
+                        }
+                        NetworkRequests::PartialEncodedChunkRequest { target, request } => {
+                            let create_msg = || {
+                                NetworkClientMessages::PartialEncodedChunkRequest(
+                                    request.clone(),
+                                    my_address,
+                                )
+                            };
+                            send_chunks(
+                                Arc::clone(&connectors1),
+                                validators_clone2.iter().map(|s| Some(s.clone())).enumerate(),
+                                target.account_id.as_ref().map(|s| s.clone()),
+                                drop_chunks,
+                                create_msg,
+                            );
+                        }
+                        NetworkRequests::PartialEncodedChunkResponse { route_back, response } => {
+                            let create_msg = || {
+                                NetworkClientMessages::PartialEncodedChunkResponse(response.clone())
+                            };
+                            send_chunks(
+                                Arc::clone(&connectors1),
+                                addresses.iter().enumerate(),
+                                route_back,
+                                drop_chunks,
+                                create_msg,
+                            );
+                        }
+                        NetworkRequests::PartialEncodedChunkMessage {
+                            account_id,
+                            partial_encoded_chunk,
+                        } => {
+                            let create_msg = || {
+                                NetworkClientMessages::PartialEncodedChunk(
+                                    partial_encoded_chunk.clone().into(),
+                                )
+                            };
+                            send_chunks(
+                                Arc::clone(&connectors1),
+                                validators_clone2.iter().cloned().enumerate(),
+                                account_id.clone(),
+                                drop_chunks,
+                                create_msg,
+                            );
+                        }
+                        NetworkRequests::PartialEncodedChunkForward { account_id, forward } => {
+                            let create_msg = || {
+                                NetworkClientMessages::PartialEncodedChunkForward(forward.clone())
+                            };
+                            send_chunks(
+                                Arc::clone(&connectors1),
+                                validators_clone2.iter().cloned().enumerate(),
+                                account_id.clone(),
+                                drop_chunks,
+                                create_msg,
+                            );
+                        }
+                        NetworkRequests::BlockRequest { hash, peer_id } => {
+                            for (i, peer_info) in key_pairs.iter().enumerate() {
+                                let peer_id = peer_id.clone();
+                                if peer_info.id == peer_id {
+                                    let connectors2 = connectors1.clone();
+                                    actix::spawn(
+                                        connectors1.read().unwrap()[i]
+                                            .1
+                                            .send(NetworkViewClientMessages::BlockRequest(*hash))
+                                            .then(move |response| {
+                                                let response = response.unwrap();
+                                                match response {
+                                                    NetworkViewClientResponses::Block(block) => {
+                                                        connectors2.read().unwrap()[my_ord]
+                                                            .0
+                                                            .do_send(NetworkClientMessages::Block(
+                                                                *block, peer_id, true,
+                                                            ));
+                                                    }
+                                                    NetworkViewClientResponses::NoResponse => {}
+                                                    _ => assert!(false),
+                                                }
+                                                future::ready(())
+                                            }),
+                                    );
+                                }
+                            }
+                        }
+                        NetworkRequests::EpochSyncRequest { epoch_id, peer_id } => {
+                            for (i, peer_info) in key_pairs.iter().enumerate() {
+                                let peer_id = peer_id.clone();
+                                if peer_info.id == peer_id {
+                                    let connectors2 = connectors1.clone();
+                                    actix::spawn(
+                                        connectors1.read().unwrap()[i]
+                                            .1
+                                            .send(NetworkViewClientMessages::EpochSyncRequest {
+                                                epoch_id: epoch_id.clone(),
+                                            })
+                                            .then(move |response| {
+                                                let response = response.unwrap();
+                                                match response {
+                                                    NetworkViewClientResponses::EpochSyncResponse(response) => {
+                                                        connectors2.read().unwrap()[my_ord]
+                                                            .0
+                                                            .do_send(NetworkClientMessages::EpochSyncResponse(
+                                                                peer_id, response
+                                                            ));
+                                                    }
+                                                    NetworkViewClientResponses::NoResponse => {}
+                                                    _ => assert!(false),
+                                                }
+                                                future::ready(())
+                                            }),
+                                    );
+                                }
+                            }
+                        }
+                        NetworkRequests::EpochSyncFinalizationRequest { epoch_id, peer_id } => {
+                            for (i, peer_info) in key_pairs.iter().enumerate() {
+                                let peer_id = peer_id.clone();
+                                if peer_info.id == peer_id {
+                                    let connectors2 = connectors1.clone();
+                                    actix::spawn(
+                                        connectors1.read().unwrap()[i]
+                                            .1
+                                            .send(NetworkViewClientMessages::EpochSyncFinalizationRequest {
+                                                epoch_id: epoch_id.clone(),
+                                            })
+                                            .then(move |response| {
+                                                let response = response.unwrap();
+                                                match response {
+                                                    NetworkViewClientResponses::EpochSyncFinalizationResponse(response) => {
+                                                        connectors2.read().unwrap()[my_ord]
+                                                            .0
+                                                            .do_send(NetworkClientMessages::EpochSyncFinalizationResponse(
+                                                                peer_id, response
+                                                            ));
+                                                    }
+                                                    NetworkViewClientResponses::NoResponse => {}
+                                                    _ => assert!(false),
+                                                }
+                                                future::ready(())
+                                            }),
+                                    );
+                                }
+                            }
+                        }
+                        NetworkRequests::BlockHeadersRequest { hashes, peer_id } => {
+                            for (i, peer_info) in key_pairs.iter().enumerate() {
+                                let peer_id = peer_id.clone();
+                                if peer_info.id == peer_id {
+                                    let connectors2 = connectors1.clone();
+                                    actix::spawn(
+                                        connectors1.read().unwrap()[i]
+                                            .1
+                                            .send(NetworkViewClientMessages::BlockHeadersRequest(
+                                                hashes.clone(),
+                                            ))
+                                            .then(move |response| {
+                                                let response = response.unwrap();
+                                                match response {
+                                                    NetworkViewClientResponses::BlockHeaders(
+                                                        headers,
+                                                    ) => {
+                                                        connectors2.read().unwrap()[my_ord]
+                                                            .0
+                                                            .do_send(
+                                                                NetworkClientMessages::BlockHeaders(
+                                                                    headers, peer_id,
+                                                                ),
+                                                            );
+                                                    }
+                                                    NetworkViewClientResponses::NoResponse => {}
+                                                    _ => assert!(false),
+                                                }
+                                                future::ready(())
+                                            }),
+                                    );
+                                }
+                            }
+                        }
+                        NetworkRequests::StateRequestHeader {
+                            shard_id,
+                            sync_hash,
+                            target: target_account_id,
+                        } => {
+                            let target_account_id = match target_account_id {
+                                AccountOrPeerIdOrHash::AccountId(x) => x,
+                                _ => panic!(),
+                            };
+                            for (i, name) in validators_clone2.iter().enumerate() {
+                                if name == target_account_id {
+                                    let connectors2 = connectors1.clone();
+                                    actix::spawn(
+                                        connectors1.read().unwrap()[i]
+                                            .1
+                                            .send(NetworkViewClientMessages::StateRequestHeader {
+                                                shard_id: *shard_id,
+                                                sync_hash: *sync_hash,
+                                            })
+                                            .then(move |response| {
+                                                let response = response.unwrap();
+                                                match response {
+                                                    NetworkViewClientResponses::StateResponse(
+                                                        response,
+                                                    ) => {
+                                                        connectors2.read().unwrap()[my_ord]
+                                                            .0
+                                                            .do_send(
+                                                                NetworkClientMessages::StateResponse(
+                                                                    *response,
+                                                                ),
+                                                            );
+                                                    }
+                                                    NetworkViewClientResponses::NoResponse => {}
+                                                    _ => assert!(false),
+                                                }
+                                                future::ready(())
+                                            }),
+                                    );
+                                }
+                            }
+                        }
+                        NetworkRequests::StateRequestPart {
+                            shard_id,
+                            sync_hash,
+                            part_id,
+                            target: target_account_id,
+                        } => {
+                            let target_account_id = match target_account_id {
+                                AccountOrPeerIdOrHash::AccountId(x) => x,
+                                _ => panic!(),
+                            };
+                            for (i, name) in validators_clone2.iter().enumerate() {
+                                if name == target_account_id {
+                                    let connectors2 = connectors1.clone();
+                                    actix::spawn(
+                                        connectors1.read().unwrap()[i]
+                                            .1
+                                            .send(NetworkViewClientMessages::StateRequestPart {
+                                                shard_id: *shard_id,
+                                                sync_hash: *sync_hash,
+                                                part_id: *part_id,
+                                            })
+                                            .then(move |response| {
+                                                let response = response.unwrap();
+                                                match response {
+                                                    NetworkViewClientResponses::StateResponse(
+                                                        response,
+                                                    ) => {
+                                                        connectors2.read().unwrap()[my_ord]
+                                                            .0
+                                                            .do_send(
+                                                                NetworkClientMessages::StateResponse(
+                                                                    *response,
+                                                                ),
+                                                            );
+                                                    }
+                                                    NetworkViewClientResponses::NoResponse => {}
+                                                    _ => assert!(false),
+                                                }
+                                                future::ready(())
+                                            }),
+                                    );
+                                }
+                            }
+                        }
+                        NetworkRequests::StateResponse { route_back, response } => {
+                            for (i, address) in addresses.iter().enumerate() {
+                                if route_back == address {
+                                    connectors1.read().unwrap()[i].0.do_send(
+                                        NetworkClientMessages::StateResponse(response.clone()),
+                                    );
+                                }
+                            }
+                        }
+                        NetworkRequests::AnnounceAccount(announce_account) => {
+                            let mut aa = announced_accounts1.write().unwrap();
+                            let key = (
+                                announce_account.account_id.clone(),
+                                announce_account.epoch_id.clone(),
+                            );
+                            if aa.get(&key).is_none() {
+                                aa.insert(key);
+                                for (_, view_client) in connectors1.read().unwrap().iter() {
+                                    view_client.do_send(NetworkViewClientMessages::AnnounceAccount(
+                                        vec![(announce_account.clone(), None)],
+                                    ))
+                                }
+                            }
+                        }
+                        NetworkRequests::Approval { approval_message } => {
+                            let approval = approval_message.approval.clone();
+
+                            for (i, name) in validators_clone2.iter().enumerate() {
+                                if name == &approval_message.target {
+                                    connectors1.read().unwrap()[i].0.do_send(
+                                        NetworkClientMessages::BlockApproval(
+                                            approval.clone(),
+                                            my_key_pair.id.clone(),
+                                        ),
+                                    );
+                                }
+                            }
+                        }
+                        NetworkRequests::ForwardTx(_, _)
+                        | NetworkRequests::Sync { .. }
+                        | NetworkRequests::FetchRoutingTable
+                        | NetworkRequests::PingTo(_, _)
+                        | NetworkRequests::FetchPingPongInfo
+                        | NetworkRequests::BanPeer { .. }
+                        | NetworkRequests::TxStatus(_, _, _)
+                        | NetworkRequests::Query { .. }
+                        | NetworkRequests::Challenge(_)
+                        | NetworkRequests::RequestUpdateNonce(_, _)
+                        | NetworkRequests::ResponseUpdateNonce(_)
+                        | NetworkRequests::ReceiptOutComeRequest(_, _) => {}
+                        #[cfg(feature = "protocol_feature_routing_exchange_algorithm")]
+                        | NetworkRequests::IbfMessage { .. } => {}
+                    };
+                }
+
+                Box::new(Some(PeerManagerMessageResponse::NetworkResponses(NetworkResponses::NoResponse)))
+            }))
+            .start();
+
+            let network_adapter = NetworkRecipient::new();
+            network_adapter.set_recipient(pm.recipient());
+            let (block, client, view_client_addr) = setup(
+                vec![validators_clone1.clone()],
+                validator_groups,
+                num_shards,
+                epoch_length,
+                _account_id,
+                skip_sync_wait,
+                block_prod_time,
+                block_prod_time * 3,
+                true,
+                false,
+                true,
+                Arc::new(network_adapter),
+                10000,
+                genesis_time,
+                &ctx,
+                Some(runtime_adapters1[index].clone()),
+            );
+            *view_client_addr1.write().unwrap() = Some(view_client_addr);
+            *genesis_block1.write().unwrap() = Some(block);
+            client
+        });
+
+        ret.push((client_addr, view_client_addr.clone().read().unwrap().clone().unwrap()));
+    }
+    hash_to_height.write().unwrap().insert(CryptoHash::default(), 0);
+    hash_to_height
+        .write()
+        .unwrap()
+        .insert(*genesis_block.read().unwrap().as_ref().unwrap().header().clone().hash(), 0);
+    *locked_connectors = ret.clone();
+    ret
 }
 
 /// Sets up ClientActor and ViewClientActor without network.
