@@ -1,8 +1,8 @@
-use crate::routing::edge::{Edge, EdgeState};
+use crate::network_protocol::{Edge, EdgeState};
+use crate::private_actix::{StopMsg, ValidateEdgeList};
 use crate::routing::edge_validator_actor::EdgeValidatorActor;
 use crate::routing::routing::{Graph, SAVE_PEERS_MAX_TIME};
 use crate::stats::metrics;
-use crate::types::{StopMsg, ValidateEdgeList};
 use actix::dev::MessageResponse;
 use actix::{
     Actor, ActorFuture, Addr, Context, ContextFutureSpawner, Handler, Message, Running,
@@ -523,8 +523,7 @@ impl RoutingTableActor {
     ) -> (Vec<crate::routing::SimpleEdge>, Vec<u64>, u64) {
         let ibf = ibf_set.get_ibf(ibf_level);
 
-        let mut new_ibf =
-            crate::routing::ibf::Ibf::from_vec(ibf_vec.clone(), seed ^ (ibf_level.0 as u64));
+        let mut new_ibf = crate::routing::ibf::Ibf::from_vec(ibf_vec, seed ^ (ibf_level.0 as u64));
 
         if !new_ibf.merge(&ibf.data, seed ^ (ibf_level.0 as u64)) {
             tracing::error!(target: "network", "exchange routing tables failed with peer {}", peer_id);
