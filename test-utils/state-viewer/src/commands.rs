@@ -68,7 +68,7 @@ pub(crate) fn dump_contracts(
         for (i, item) in trie.enumerate() {
             let (key, value) = item.unwrap();
             if i % 100 == 0 {
-                if i >= 81_000 {
+                if i >= 84_000 {
                     panic!("reached limit");
                 }
                 // tracing::info!(target: "neard", "{} {:?}", i, StateRecord::from_raw_key_value(key.clone(), value.clone()));
