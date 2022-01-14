@@ -804,11 +804,8 @@ fn main() {
         }
         ("dump_contracts", Some(args)) => {
             let output = PathBuf::from(args.value_of("output").expect("output is required"));
-            let home_dir = get_default_home();
-            let near_config = load_config(&home_dir);
-            let store = create_store(&get_store_path(&home_dir));
 
-            dump_contracts(&output, &home_dir, near_config, store);
+            dump_contracts(&output, home_dir, near_config, store);
         }
         (_, _) => unreachable!(),
     }
