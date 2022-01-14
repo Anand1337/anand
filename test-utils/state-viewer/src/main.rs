@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::fs::{self, File};
 use std::io::Write;
@@ -21,7 +21,8 @@ use near_primitives::contract::ContractCode;
 use near_primitives::hash::CryptoHash;
 use near_primitives::serialize::to_base;
 use near_primitives::shard_layout::ShardUId;
-use near_primitives::state_record::StateRecord;
+use near_primitives::state_record::{is_contract_code_key, StateRecord};
+use near_primitives::trie_key::trie_key_parsers::parse_account_id_from_contract_code_key;
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{BlockHeight, ShardId, StateRoot};
@@ -420,6 +421,43 @@ fn dump_code(account: &str, contract_code: ContractCode, output: &str) {
     println!("Dump contract of account {} into file {}", account, output);
 }
 
+fn dump_contracts(output: &Path, home_dir: &Path, near_config: NearConfig, store: Arc<Store>) {
+    let (runtime, state_roots, header) = load_trie(store, home_dir, &near_config);
+    // let (runtime, state_roots, header) =
+    //     load_trie_stop_at_height(store, home_dir, &near_config, LoadTrieMode::Height(55175075));
+    println!("Storage roots are {:?}, block height is {}", state_roots, header.height());
+    let mut distinct_codes: HashSet<Vec<u8>> = HashSet::default();
+    std::fs::create_dir_all(output);
+    for (shard_id, state_root) in state_roots.iter().enumerate() {
+        let trie = runtime.get_trie_for_shard(shard_id as u64, header.prev_hash()).unwrap();
+        let mut trie = TrieIterator::new(&trie, state_root).unwrap();
+        // trie.seek(CONTRACT_CODE)
+        // Optimization: contract nodes form a contiguous segment in the set of nodes with values, so if we touched a
+        // contract node and then touched a non-contract node, then we can stop iterating.
+        let mut touched_contract_node = false;
+        for (i, item) in trie.enumerate() {
+            let (key, value) = item.unwrap();
+            if i % 100 == 0 {
+                if i >= 25_000 {
+                    panic!("reached limit");
+                }
+                // tracing::info!(target: "neard", "{} {:?}", i, StateRecord::from_raw_key_value(key.clone(), value.clone()));
+                tracing::info!(target: "neard", "{}", i);
+            }
+            if is_contract_code_key(&key) {
+                touched_contract_node = true;
+                let account_id = parse_account_id_from_contract_code_key(&key).unwrap();
+                if !distinct_codes.contains(&value) {
+                    distinct_codes.insert(value.clone());
+                    std::fs::write(output.join(format!("{}.wasm", account_id)), value);
+                }
+            } else if touched_contract_node {
+                break;
+            }
+        }
+    }
+}
+
 fn main() {
     init_integration_logger();
 
@@ -596,6 +634,11 @@ fn main() {
                 )
                 .help("dump contract data in storage of given account to binary file"),
         )
+        .subcommand(
+            SubCommand::with_name("dump_contracts")
+                .arg(Arg::with_name("output").long("output").help("output").takes_value(true))
+                .help("dump_contracts"),
+        )
         .get_matches();
 
     let home_dir = matches.value_of("home").map(|dir| Path::new(dir)).unwrap();
@@ -758,6 +801,14 @@ fn main() {
             }
             println!("Storage under key {} of account {} not found", storage_key, account_id);
             std::process::exit(1);
+        }
+        ("dump_contracts", Some(args)) => {
+            let output = PathBuf::from(args.value_of("output").expect("output is required"));
+            let home_dir = get_default_home();
+            let near_config = load_config(&home_dir);
+            let store = create_store(&get_store_path(&home_dir));
+
+            dump_contracts(&output, &home_dir, near_config, store);
         }
         (_, _) => unreachable!(),
     }
