@@ -15,7 +15,6 @@ use tokio_util::codec::{Decoder, Encoder};
 use tracing::error;
 
 /// Maximum size of network message in encoded format.
-/// The size of message is stored as `u32`, so the limit has type `u32`
 const NETWORK_MESSAGE_MAX_SIZE_BYTES: usize = 512 * MIB as usize;
 /// Maximum capacity of write buffer in bytes.
 const MAX_WRITE_BUFFER_CAPACITY_BYTES: usize = GIB as usize;
