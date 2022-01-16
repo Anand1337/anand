@@ -78,24 +78,30 @@ impl Decoder for Codec {
     type Error = Error;
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        if let Some(header) = buf.get(..4) {
-            let len = u32::from_le_bytes(header.try_into().unwrap()) as usize;
-            if len > NETWORK_MESSAGE_MAX_SIZE_BYTES {
-                // If this point is reached, abusive peer is banned.
-                return Ok(Some(Err(ReasonForBan::Abusive)));
-            }
+        // Unfortunately, there is no way to get array ref ([u8; 4]) from slice directly.
+        // This would allow to avoid unwrap below.
+        // See https://internals.rust-lang.org/t/slice-lacks-get-array-ref-function/15966
+        Ok(match buf.get(..4) {
+            // not enough bytes, keep waiting
+            None => None,
+            Some(header) => {
+                let len = u32::from_le_bytes(header.try_into().unwrap()) as usize;
+                if len > NETWORK_MESSAGE_MAX_SIZE_BYTES {
+                    // If this point is reached, abusive peer is banned.
+                    return Ok(Some(Err(ReasonForBan::Abusive)));
+                }
 
-            if let Some(data) = buf.get(4..4 + len) {
-                let res = Some(Ok(data.to_vec()));
-                buf.advance(4 + len);
-                Ok(res)
-            } else {
-                // not enough bytes, keep waiting
-                Ok(None)
+                match buf.get(4..4 + len) {
+                    Some(data) => {
+                        let res = Some(Ok(data.to_vec()));
+                        buf.advance(4 + len);
+                        res
+                    }
+                    // not enough bytes, keep waiting
+                    None => None,
+                }
             }
-        } else {
-            Ok(None)
-        }
+        })
     }
 }
 
