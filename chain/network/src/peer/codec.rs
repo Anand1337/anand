@@ -15,6 +15,7 @@ use tokio_util::codec::{Decoder, Encoder};
 use tracing::error;
 
 /// Maximum size of network message in encoded format.
+/// The size of message is stored as `u32`, so the limit has type `u32`
 const NETWORK_MESSAGE_MAX_SIZE_BYTES: usize = 512 * MIB as usize;
 /// Maximum capacity of write buffer in bytes.
 const MAX_WRITE_BUFFER_CAPACITY_BYTES: usize = GIB as usize;
@@ -77,23 +78,22 @@ impl Decoder for Codec {
     type Error = Error;
 
     fn decode(&mut self, buf: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        if buf.len() < 4 {
-            // not enough bytes to start decoding
-            return Ok(None);
-        }
+        if let Some(header) = buf.get(..4) {
+            let len = u32::from_le_bytes(header.try_into().unwrap()) as usize;
+            if len > NETWORK_MESSAGE_MAX_SIZE_BYTES {
+                // If this point is reached, abusive peer is banned.
+                return Ok(Some(Err(ReasonForBan::Abusive)));
+            }
 
-        let len = u32::from_le_bytes(buf[..4].try_into().unwrap()) as usize;
-        if len > NETWORK_MESSAGE_MAX_SIZE_BYTES {
-            // If this point is reached, abusive peer is banned.
-            return Ok(Some(Err(ReasonForBan::Abusive)));
-        }
-
-        if 4 + len <= buf.len() {
-            let res = Some(Ok(buf[4..4 + len].to_vec()));
-            buf.advance(4 + len);
-            Ok(res)
+            if let Some(data) = buf.get(4..4 + len) {
+                let res = Some(Ok(data.to_vec()));
+                buf.advance(4 + len);
+                Ok(res)
+            } else {
+                // not enough bytes, keep waiting
+                Ok(None)
+            }
         } else {
-            // not enough bytes, keep waiting
             Ok(None)
         }
     }
