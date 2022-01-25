@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+use std::collections::HashSet;
 use std::time::Duration;
 
 use actix::Addr;
@@ -7,6 +8,7 @@ use actix_cors::Cors;
 use actix_web::{http, middleware, web, App, Error as HttpError, HttpResponse, HttpServer};
 use futures::Future;
 use futures::FutureExt;
+use once_cell::sync::Lazy;
 use prometheus;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -205,6 +207,47 @@ struct JsonRpcHandler {
     routing_table_addr: Addr<near_network::RoutingTableActor>,
 }
 
+static SUPPORTED_METHODS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    HashSet::from([
+        "adv_set_weight",
+        "adv_disable_header_sync",
+        "adv_disable_doomslug",
+        "adv_produce_blocks",
+        "adv_switch_to_height",
+        "adv_get_saved_blocks",
+        "adv_check_store",
+        "adv_set_options",
+        "adv_set_routing_table",
+        "adv_start_routing_table_syncv2",
+        "adv_get_peer_id",
+        "adv_get_routing_table",
+        "block",
+        "broadcast_tx_async",
+        "broadcast_tx_commit",
+        "chunk",
+        "gas_price",
+        "health",
+        "light_client_proof",
+        "next_light_client_block",
+        "network_info",
+        "query",
+        "status",
+        "tx",
+        "validators",
+        "EXPERIMENTAL_broadcast_tx_sync",
+        "EXPERIMENTAL_changes",
+        "EXPERIMENTAL_changes_in_block",
+        "EXPERIMENTAL_check_tx",
+        "EXPERIMENTAL_genesis_config",
+        "EXPERIMENTAL_light_client_proof",
+        "EXPERIMENTAL_protocol_config",
+        "EXPERIMENTAL_receipt",
+        "EXPERIMENTAL_tx_status",
+        "EXPERIMENTAL_validators_ordered",
+        "sandbox_patch_state",
+    ])
+});
+
 impl JsonRpcHandler {
     pub async fn process(&self, message: Message) -> Result<Message, HttpError> {
         let id = message.id();
@@ -219,6 +262,12 @@ impl JsonRpcHandler {
     }
 
     async fn process_request(&self, request: Request) -> Result<Value, RpcError> {
+        let method_name: &str = request.method.as_ref();
+        if !SUPPORTED_METHODS.contains(method_name) {
+            metrics::HTTP_RPC_REQUEST_COUNT.with_label_values(&["UNSUPPORTED_METHOD"]).inc();
+            return Err(RpcError::method_not_found(request.method.clone()));
+        }
+
         metrics::HTTP_RPC_REQUEST_COUNT.with_label_values(&[request.method.as_ref()]).inc();
         let _rpc_processing_time = metrics::RPC_PROCESSING_TIME
             .with_label_values(&[request.method.as_ref()])
