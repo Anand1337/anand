@@ -207,6 +207,7 @@ struct JsonRpcHandler {
     routing_table_addr: Addr<near_network::RoutingTableActor>,
 }
 
+// Whitelist of supported methods. This lets us avoid keeping metrics for unsupported methods.
 static SUPPORTED_METHODS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     HashSet::from([
         "adv_set_weight",
@@ -263,7 +264,12 @@ impl JsonRpcHandler {
 
     async fn process_request(&self, request: Request) -> Result<Value, RpcError> {
         let method_name: &str = request.method.as_ref();
+
+
+        // Avoid processing requests of unsupported methods and also don't count metrics for
+        // unsupported metrics.
         if !SUPPORTED_METHODS.contains(method_name) {
+            // We still want to know if the server is getting unsupported methods.
             metrics::HTTP_RPC_REQUEST_COUNT.with_label_values(&["UNSUPPORTED_METHOD"]).inc();
             return Err(RpcError::method_not_found(request.method.clone()));
         }
