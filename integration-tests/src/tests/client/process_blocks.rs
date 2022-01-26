@@ -4490,7 +4490,7 @@ impl TestPoolIterator {
 impl PoolIterator for TestPoolIterator {
     fn next(&mut self) -> Option<&mut TransactionGroup> {
         self.i += 1;
-        Some(txs[i - 1])
+        Some(self.txs[self.i - 1])
     }
 }
 
@@ -4540,7 +4540,7 @@ fn test_tx_number() {
                 account_id,
                 &signer,
                 vec![Action::Transfer(TransferAction { deposit: 0 })],
-                *Default::default(),
+                *prev_block.hash(),
             )],
             removed_transaction_hashes: vec![],
         })
