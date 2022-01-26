@@ -4478,7 +4478,7 @@ mod contract_precompilation_tests {
 }
 
 struct TestPoolIterator {
-    txs: Vec<TransactionGroup>,
+    txs: dyn Iterator<Item = TransactionGroup>,
 }
 
 impl PoolIterator for TestPoolIterator {
@@ -4504,34 +4504,37 @@ fn test_tx_number() {
         ))];
     let runtime_adapter = runtimes[0].as_ref();
     let mut env = TestEnv::builder(chain_genesis).runtime_adapters(runtimes).build();
-
+    let height = produce_blocks_from_height(&mut env, epoch_length, 0);
     let shard_id = 0;
-    let chunk_extra: ChunkExtra = Default::default();
-    let prev_block_header: BlockHeader = Default::default();
+    let prev_block = env.clients[0].chain.get_block_by_height(height - 2).unwrap().clone();
+    let block = env.clients[0].chain.get_block_by_height(height - 1).unwrap().clone();
+    let shard_layout = runtime_adapter.get_shard_layout(&Default::default())?;
+    let shard_uid = ShardUId::from_shard_id_and_layout(shard_id, &shard_layout);
+    let chunk_extra = env.clients[0].chain.get_chunk_extra(block.hash(), &shard_uid).unwrap();
+    let prev_block_header = prev_block.header();
 
     // let Self { chain, shards_mgr, runtime_adapter, .. } = self;
 
-    let next_epoch_id = runtime_adapter.get_epoch_id_from_prev_block(prev_block_header.hash())?;
-    let protocol_version = runtime_adapter.get_epoch_protocol_version(&next_epoch_id)?;
+    let next_epoch_id =
+        runtime_adapter.get_epoch_id_from_prev_block(prev_block_header.hash()).unwrap();
+    let protocol_version = runtime_adapter.get_epoch_protocol_version(&next_epoch_id).unwrap();
 
     let account_id: AccountId = "test0".parse().unwrap();
     let signer = InMemorySigner::from_seed(account_id.clone(), KeyType::ED25519, "test0");
 
     let mut pool_iterator = TestPoolIterator {
-        txs: (0..10_000)
-            .map(|i: u64| TransactionGroup {
-                key: Default::default(),
-                transactions: vec![SignedTransaction::from_actions(
-                    i,
-                    account_id.clone(),
-                    account_id,
-                    &signer,
-                    vec![Action::Transfer(TransferAction { deposit: 0 })],
-                    *Default::default(),
-                )],
-                removed_transaction_hashes: vec![],
-            })
-            .collect(),
+        txs: (0..10_000).map(|i: u64| TransactionGroup {
+            key: Default::default(),
+            transactions: vec![SignedTransaction::from_actions(
+                i,
+                account_id.clone(),
+                account_id,
+                &signer,
+                vec![Action::Transfer(TransferAction { deposit: 0 })],
+                *Default::default(),
+            )],
+            removed_transaction_hashes: vec![],
+        }),
     };
     runtime_adapter
         .prepare_transactions(
