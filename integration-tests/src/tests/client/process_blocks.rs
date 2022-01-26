@@ -4498,7 +4498,7 @@ impl PoolIterator for TestPoolIterator {
 #[test]
 fn test_tx_number() {
     // Prepare TestEnv with a contract at the old protocol version.
-
+    eprintln!("0");
     let epoch_length = 5;
     let mut genesis = Genesis::test(vec!["test0".parse().unwrap(), "test1".parse().unwrap()], 1);
     genesis.config.epoch_length = epoch_length;
@@ -4513,6 +4513,7 @@ fn test_tx_number() {
         ))];
     let mut env = TestEnv::builder(chain_genesis).runtime_adapters(runtimes).build();
     let runtime_adapter = env.clients[0].runtime_adapter.clone();
+    eprintln!("1");
     let height = produce_blocks_from_height(&mut env, epoch_length, 1);
     let shard_id = 0;
     let prev_block = env.clients[0].chain.get_block_by_height(height - 2).unwrap().clone();
@@ -4521,6 +4522,7 @@ fn test_tx_number() {
     let shard_uid = ShardUId::from_shard_id_and_layout(shard_id, &shard_layout);
     let chunk_extra = env.clients[0].chain.get_chunk_extra(block.hash(), &shard_uid).unwrap();
     let prev_block_header = prev_block.header();
+    eprintln!("2");
 
     // let Self { chain, shards_mgr, runtime_adapter, .. } = self;
 
