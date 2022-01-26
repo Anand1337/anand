@@ -31,6 +31,7 @@ use near_network::types::{
 };
 use near_network::types::{NetworkInfo, PeerManagerMessageRequest, PeerManagerMessageResponse};
 use near_network_primitives::types::{PeerChainInfoV2, PeerInfo, ReasonForBan};
+use near_pool::types::{PoolIterator, TransactionGroup};
 use near_primitives::block::{Approval, ApprovalInner};
 use near_primitives::block_header::BlockHeader;
 use near_primitives::epoch_manager::RngSeed;
@@ -49,9 +50,10 @@ use near_primitives::sharding::{
 use near_primitives::syncing::{get_num_state_parts, ShardStateSyncResponseHeader, StatePartKey};
 use near_primitives::transaction::{
     Action, DeployContractAction, ExecutionStatus, FunctionCallAction, SignedTransaction,
-    Transaction,
+    Transaction, TransferAction,
 };
 use near_primitives::trie_key::TrieKey;
+use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::validator_stake::ValidatorStake;
 use near_primitives::types::{AccountId, BlockHeight, EpochId, NumBlocks, ProtocolVersion};
 use near_primitives::utils::to_timestamp;
@@ -4473,4 +4475,78 @@ mod contract_precompilation_tests {
         // Check that contract is not cached for client 1 because of late state sync.
         assert!(caches[1].get(&contract_key.0).unwrap().is_none());
     }
+}
+
+struct TestPoolIterator {
+    txs: Vec<TransactionGroup>,
+}
+
+impl PoolIterator for TestPoolIterator {
+    fn next(&mut self) -> Option<&mut TransactionGroup> {}
+}
+
+// Check that we can't call a contract exceeding functions number limit after upgrade.
+#[test]
+fn test_tx_number() {
+    // Prepare TestEnv with a contract at the old protocol version.
+
+    let epoch_length = 5;
+    let mut genesis = Genesis::test(vec!["test0".parse().unwrap(), "test1".parse().unwrap()], 1);
+    genesis.config.epoch_length = epoch_length;
+    let chain_genesis = ChainGenesis::from(&genesis);
+    let runtimes: Vec<Arc<dyn RuntimeAdapter>> =
+        vec![Arc::new(nearcore::NightshadeRuntime::test_with_runtime_config_store(
+            Path::new("../../../.."),
+            create_test_store(),
+            &genesis,
+            TrackedConfig::new_empty(),
+            RuntimeConfigStore::new(None),
+        ))];
+    let runtime_adapter = runtimes[0].as_ref();
+    let mut env = TestEnv::builder(chain_genesis).runtime_adapters(runtimes).build();
+
+    let shard_id = 0;
+    let chunk_extra: ChunkExtra = Default::default();
+    let prev_block_header: BlockHeader = Default::default();
+
+    // let Self { chain, shards_mgr, runtime_adapter, .. } = self;
+
+    let next_epoch_id = runtime_adapter.get_epoch_id_from_prev_block(prev_block_header.hash())?;
+    let protocol_version = runtime_adapter.get_epoch_protocol_version(&next_epoch_id)?;
+
+    let account_id: AccountId = "test0".parse().unwrap();
+    let signer = InMemorySigner::from_seed(account_id.clone(), KeyType::ED25519, "test0");
+
+    let mut pool_iterator = TestPoolIterator {
+        txs: (0..10_000)
+            .map(|i: u64| TransactionGroup {
+                key: Default::default(),
+                transactions: vec![SignedTransaction::from_actions(
+                    i,
+                    account_id.clone(),
+                    account_id,
+                    &signer,
+                    vec![Action::Transfer(TransferAction { deposit: 0 })],
+                    *Default::default(),
+                )],
+                removed_transaction_hashes: vec![],
+            })
+            .collect(),
+    };
+    runtime_adapter
+        .prepare_transactions(
+            prev_block_header.gas_price(),
+            chunk_extra.gas_limit(),
+            &next_epoch_id,
+            shard_id,
+            *chunk_extra.state_root(),
+            // while the height of the next block that includes the chunk might not be prev_height + 1,
+            // passing it will result in a more conservative check and will not accidentally allow
+            // invalid transactions to be included.
+            prev_block_header.height() + 1,
+            &mut pool_iterator,
+            &mut |_: &SignedTransaction| -> bool { true },
+            protocol_version,
+        )
+        .unwrap();
 }

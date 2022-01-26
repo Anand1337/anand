@@ -2071,6 +2071,7 @@ dependencies = [
  "near-logger-utils",
  "near-network",
  "near-network-primitives",
+ "near-pool",
  "near-primitives",
  "near-store",
  "near-telemetry",

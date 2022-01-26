@@ -16,11 +16,11 @@ pub(crate) type PoolKey = CryptoHash;
 /// Represents a group of transactions with the same key.
 pub struct TransactionGroup {
     /// The key of the group.
-    pub(crate) key: PoolKey,
+    pub key: PoolKey,
     /// Ordered transactions by nonce in non-increasing order (e.g. 3, 2, 2).
-    pub(crate) transactions: Vec<SignedTransaction>,
+    pub transactions: Vec<SignedTransaction>,
     /// Hashes of the transactions that were pulled from the group using `.next()`.
-    pub(crate) removed_transaction_hashes: Vec<CryptoHash>,
+    pub removed_transaction_hashes: Vec<CryptoHash>,
 }
 
 impl TransactionGroup {

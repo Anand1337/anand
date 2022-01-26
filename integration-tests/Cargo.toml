@@ -29,6 +29,7 @@ wat = "1.0"
 
 near-actix-test-utils = { path = "../test-utils/actix-test-utils" }
 near-chain = { path = "../chain/chain" }
+near-pool = {path = "../chain/pool"}
 near-chain-configs = { path = "../core/chain-configs" }
 near-chunks = { path = "../chain/chunks" }
 near-client = { path = "../chain/client" }
