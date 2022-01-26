@@ -4479,7 +4479,7 @@ mod contract_precompilation_tests {
 
 struct TestPoolIterator {
     txs: Vec<TransactionGroup>,
-    i: u64,
+    i: usize,
 }
 
 impl TestPoolIterator {
@@ -4490,7 +4490,7 @@ impl TestPoolIterator {
 impl PoolIterator for TestPoolIterator {
     fn next(&mut self) -> Option<&mut TransactionGroup> {
         self.i += 1;
-        Some(self.txs[self.i - 1])
+        Some(&mut self.txs[self.i - 1])
     }
 }
 
