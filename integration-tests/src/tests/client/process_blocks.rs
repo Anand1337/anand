@@ -4512,7 +4512,7 @@ fn test_tx_number() {
             RuntimeConfigStore::new(None),
         ))];
     let mut env = TestEnv::builder(chain_genesis).runtime_adapters(runtimes).build();
-    let runtime_adapter = env.clients[0].runtime_adapter;
+    let runtime_adapter = env.clients[0].runtime_adapter.clone();
     let height = produce_blocks_from_height(&mut env, epoch_length, 0);
     let shard_id = 0;
     let prev_block = env.clients[0].chain.get_block_by_height(height - 2).unwrap().clone();
