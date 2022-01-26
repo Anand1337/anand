@@ -4481,7 +4481,7 @@ struct TestPoolIterator<'a> {
     txs: dyn Iterator<Item = &'a mut TransactionGroup>,
 }
 
-impl PoolIterator for TestPoolIterator {
+impl PoolIterator for TestPoolIterator<'_> {
     fn next(&mut self) -> Option<&mut TransactionGroup> {
         self.txs.next()
     }
@@ -4510,7 +4510,7 @@ fn test_tx_number() {
     let shard_id = 0;
     let prev_block = env.clients[0].chain.get_block_by_height(height - 2).unwrap().clone();
     let block = env.clients[0].chain.get_block_by_height(height - 1).unwrap().clone();
-    let shard_layout = runtime_adapter.get_shard_layout(&Default::default())?;
+    let shard_layout = runtime_adapter.get_shard_layout(&Default::default()).unwrap();
     let shard_uid = ShardUId::from_shard_id_and_layout(shard_id, &shard_layout);
     let chunk_extra = env.clients[0].chain.get_chunk_extra(block.hash(), &shard_uid).unwrap();
     let prev_block_header = prev_block.header();
@@ -4525,18 +4525,21 @@ fn test_tx_number() {
     let signer = InMemorySigner::from_seed(account_id.clone(), KeyType::ED25519, "test0");
 
     let mut pool_iterator = TestPoolIterator {
-        txs: (0..10_000).map(|i: u64| TransactionGroup {
-            key: Default::default(),
-            transactions: vec![SignedTransaction::from_actions(
-                i,
-                account_id.clone(),
-                account_id,
-                &signer,
-                vec![Action::Transfer(TransferAction { deposit: 0 })],
-                *Default::default(),
-            )],
-            removed_transaction_hashes: vec![],
-        }),
+        txs: (0..10_000)
+            .map(|i: u64| TransactionGroup {
+                key: Default::default(),
+                transactions: vec![SignedTransaction::from_actions(
+                    i,
+                    account_id.clone(),
+                    account_id,
+                    &signer,
+                    vec![Action::Transfer(TransferAction { deposit: 0 })],
+                    *Default::default(),
+                )],
+                removed_transaction_hashes: vec![],
+            })
+            .collect()
+            .iter(),
     };
     runtime_adapter
         .prepare_transactions(
