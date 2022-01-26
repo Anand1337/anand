@@ -4477,8 +4477,8 @@ mod contract_precompilation_tests {
     }
 }
 
-struct TestPoolIterator {
-    txs: dyn Iterator<Item = &mut TransactionGroup>,
+struct TestPoolIterator<'a> {
+    txs: dyn Iterator<Item = &'a mut TransactionGroup>,
 }
 
 impl PoolIterator for TestPoolIterator {
