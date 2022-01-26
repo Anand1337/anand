@@ -4511,8 +4511,8 @@ fn test_tx_number() {
             TrackedConfig::new_empty(),
             RuntimeConfigStore::new(None),
         ))];
-    let runtime_adapter = runtimes[0].as_ref();
     let mut env = TestEnv::builder(chain_genesis).runtime_adapters(runtimes).build();
+    let runtime_adapter = env.clients[0].runtime_adapter;
     let height = produce_blocks_from_height(&mut env, epoch_length, 0);
     let shard_id = 0;
     let prev_block = env.clients[0].chain.get_block_by_height(height - 2).unwrap().clone();
@@ -4537,7 +4537,7 @@ fn test_tx_number() {
             transactions: vec![SignedTransaction::from_actions(
                 i,
                 account_id.clone(),
-                account_id,
+                account_id.clone(),
                 &signer,
                 vec![Action::Transfer(TransferAction { deposit: 0 })],
                 *prev_block.hash(),
