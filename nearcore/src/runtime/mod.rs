@@ -793,6 +793,7 @@ impl RuntimeAdapter for NightshadeRuntime {
             if let Some(iter) = pool_iterator.next() {
                 while let Some(tx) = iter.next() {
                     num_checked_transactions += 1;
+                    eprintln!("{}", num_checked_transactions);
                     // Verifying the transaction is on the same chain and hasn't expired yet.
                     if chain_validate(&tx) {
                         // Verifying the validity of the transaction based on the current state.

@@ -4548,7 +4548,7 @@ fn test_tx_number() {
         })
         .collect();
     let mut pool_iterator = TestPoolIterator::new(txs);
-    runtime_adapter
+    let result = runtime_adapter
         .prepare_transactions(
             prev_block_header.gas_price(),
             chunk_extra.gas_limit(),
@@ -4564,4 +4564,5 @@ fn test_tx_number() {
             protocol_version,
         )
         .unwrap();
+    eprintln!("size = {}", result.len());
 }
