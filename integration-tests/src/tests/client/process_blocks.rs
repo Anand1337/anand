@@ -4478,11 +4478,13 @@ mod contract_precompilation_tests {
 }
 
 struct TestPoolIterator {
-    txs: dyn Iterator<Item = TransactionGroup>,
+    txs: dyn Iterator<Item = &mut TransactionGroup>,
 }
 
 impl PoolIterator for TestPoolIterator {
-    fn next(&mut self) -> Option<&mut TransactionGroup> {}
+    fn next(&mut self) -> Option<&mut TransactionGroup> {
+        self.txs.next()
+    }
 }
 
 // Check that we can't call a contract exceeding functions number limit after upgrade.
