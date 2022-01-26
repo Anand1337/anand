@@ -4477,13 +4477,20 @@ mod contract_precompilation_tests {
     }
 }
 
-struct TestPoolIterator<'a> {
-    txs: dyn Iterator<Item = &'a mut TransactionGroup>,
+struct TestPoolIterator {
+    txs: Vec<TransactionGroup>,
+    i: u64,
 }
 
-impl PoolIterator for TestPoolIterator<'_> {
+impl TestPoolIterator {
+    fn new(txs: Vec<TransactionGroup>) -> Self {
+        Self { txs, i: 0 }
+    }
+}
+impl PoolIterator for TestPoolIterator {
     fn next(&mut self) -> Option<&mut TransactionGroup> {
-        self.txs.next()
+        self.i += 1;
+        Some(txs[i - 1])
     }
 }
 
@@ -4524,23 +4531,21 @@ fn test_tx_number() {
     let account_id: AccountId = "test0".parse().unwrap();
     let signer = InMemorySigner::from_seed(account_id.clone(), KeyType::ED25519, "test0");
 
-    let mut pool_iterator = TestPoolIterator {
-        txs: (0..10_000)
-            .map(|i: u64| TransactionGroup {
-                key: Default::default(),
-                transactions: vec![SignedTransaction::from_actions(
-                    i,
-                    account_id.clone(),
-                    account_id,
-                    &signer,
-                    vec![Action::Transfer(TransferAction { deposit: 0 })],
-                    *Default::default(),
-                )],
-                removed_transaction_hashes: vec![],
-            })
-            .collect()
-            .iter(),
-    };
+    let txs: Vec<TransactionGroup> = (0..10_000)
+        .map(|i: u64| TransactionGroup {
+            key: Default::default(),
+            transactions: vec![SignedTransaction::from_actions(
+                i,
+                account_id.clone(),
+                account_id,
+                &signer,
+                vec![Action::Transfer(TransferAction { deposit: 0 })],
+                *Default::default(),
+            )],
+            removed_transaction_hashes: vec![],
+        })
+        .collect();
+    let mut pool_iterator = TestPoolIterator::new(txs);
     runtime_adapter
         .prepare_transactions(
             prev_block_header.gas_price(),
