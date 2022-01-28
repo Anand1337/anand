@@ -1,3 +1,4 @@
+use std::fs::File;
 use crate::cache::into_vm_result;
 use crate::imports::wasmer2::Wasmer2Imports;
 use crate::prepare::WASM_FEATURES;
@@ -12,14 +13,14 @@ use near_vm_logic::gas_counter::FastGasCounter;
 use near_vm_logic::types::{PromiseResult, ProtocolVersion};
 use near_vm_logic::{External, MemoryLike, VMConfig, VMContext, VMLogic, VMOutcome};
 use std::hash::{Hash, Hasher};
+use std::io::Write;
 use std::mem::size_of;
+use std::process;
 use std::sync::Arc;
 use wasmer_compiler_singlepass::Singlepass;
 use wasmer_engine::{DeserializeError, Engine};
 use wasmer_engine_universal::{Universal, UniversalEngine};
-use wasmer_types::{
-    ExportIndex, Features, FunctionIndex, InstanceConfig, MemoryType, Pages, WASM_PAGE_SIZE,
-};
+use wasmer_types::{ExportIndex, Features, FunctionIndex, InstanceConfig, MemoryType, NamedFunction, Pages, WASM_PAGE_SIZE};
 use wasmer_vm::{LinearMemory, LinearTable, Memory, MemoryStyle, TrapCode, VMExtern, VMMemory};
 
 const WASMER_FEATURES: Features = Features {
@@ -322,6 +323,16 @@ impl Wasmer2VM {
         })
     }
 
+    fn write_perf_profiler_map(&self, functions: &Vec<NamedFunction>) -> Result<(), Box<dyn std::error::Error>>{
+        let pid = process::id();
+        let filename = format!("/tmp/perf-{}.map", pid);
+        let mut file = File::create(filename).expect("Unable to create file");
+        for f in functions {
+            file.write_fmt(format_args!("{:x} {:x} {}\n", f.address, f.size, f.name))?;
+        }
+        Ok(())
+    }
+
     fn run_method<'vmlogic, 'vmlogic_refs>(
         &self,
         artifact: &VMArtifact,
@@ -383,6 +394,10 @@ impl Wasmer2VM {
                     .map_err(|err| translate_instantiation_error(err, import.vmlogic))?;
                 handle
             };
+            let named = instance.named_functions();
+            self.write_perf_profiler_map(&named).unwrap_or_else(|e| {
+                println!("Cannot write profiler map: {:?}", e);
+            });
             let external = instance.lookup_by_declaration(&ExportIndex::Function(entrypoint));
             if let VMExtern::Function(f) = external {
                 let _span = tracing::debug_span!(target: "vm", "run_method/call").entered();
