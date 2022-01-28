@@ -1,9 +1,11 @@
-use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap, HashSet};
-
+use crate::proposals::proposals_to_epoch_info;
+pub use crate::reward_calculator::RewardCalculator;
+pub use crate::reward_calculator::NUM_SECONDS_IN_A_YEAR;
+use crate::types::EpochInfoAggregator;
+pub use crate::types::RngSeed;
 use log::{debug, warn};
-use primitive_types::U256;
-
+use near_chain::types::{BlockHeaderInfo, ValidatorInfoIdentifier};
+use near_chain_configs::GenesisConfig;
 use near_primitives::epoch_manager::block_info::BlockInfo;
 use near_primitives::epoch_manager::epoch_info::{EpochInfo, EpochSummary};
 use near_primitives::epoch_manager::{
@@ -11,27 +13,22 @@ use near_primitives::epoch_manager::{
 };
 use near_primitives::errors::EpochError;
 use near_primitives::hash::CryptoHash;
+use near_primitives::shard_layout::ShardLayout;
 use near_primitives::types::validator_stake::ValidatorStake;
 use near_primitives::types::{
-    AccountId, ApprovalStake, Balance, BlockChunkValidatorStats, BlockHeight, EpochId, ShardId,
-    ValidatorId, ValidatorKickoutReason, ValidatorStats,
+    AccountId, ApprovalStake, Balance, BlockChunkValidatorStats, BlockHeight, EpochHeight, EpochId,
+    ShardId, ValidatorId, ValidatorKickoutReason, ValidatorStats,
 };
+use near_primitives::upgrade::UpgradeMode;
 use near_primitives::version::{ProtocolVersion, UPGRADABILITY_FIX_PROTOCOL_VERSION};
 use near_primitives::views::{
     CurrentEpochValidatorInfo, EpochValidatorInfo, NextEpochValidatorInfo, ValidatorKickoutView,
 };
-use near_store::{ColBlockInfo, ColEpochInfo, ColEpochStart, Store, StoreUpdate};
-
-use crate::proposals::proposals_to_epoch_info;
-pub use crate::reward_calculator::RewardCalculator;
-use crate::types::EpochInfoAggregator;
-pub use crate::types::RngSeed;
-
-pub use crate::reward_calculator::NUM_SECONDS_IN_A_YEAR;
-use near_chain::types::{BlockHeaderInfo, ValidatorInfoIdentifier};
-use near_chain_configs::GenesisConfig;
-use near_primitives::shard_layout::ShardLayout;
 use near_store::db::DBCol::ColEpochValidatorInfo;
+use near_store::{ColBlockInfo, ColEpochInfo, ColEpochStart, Store, StoreUpdate};
+use primitive_types::U256;
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 mod proposals;
 mod reward_calculator;
@@ -125,6 +122,7 @@ impl EpochManager {
                 validator_reward,
                 0,
                 genesis_protocol_version,
+                None,
                 genesis_protocol_version,
             )?;
             // Dummy block info.
@@ -287,9 +285,9 @@ impl EpochManager {
         // Next protocol version calculation.
         // Implements https://github.com/nearprotocol/NEPs/pull/64/files#diff-45f773511fe4321b446c3c4226324873R76
         let mut versions = HashMap::new();
-        for (validator_id, version) in version_tracker.iter() {
+        for (validator_id, version_and_mode) in version_tracker.iter() {
             let stake = epoch_info.validator_stake(*validator_id);
-            *versions.entry(version).or_insert(0) += stake;
+            *versions.entry(version_and_mode).or_insert(0) += stake;
         }
         let total_block_producer_stake: u128 = epoch_info
             .block_producers_settlement()
@@ -307,20 +305,62 @@ impl EpochManager {
             };
 
         let config = self.config.for_protocol_version(protocol_version);
-        let next_version = if let Some((&version, stake)) =
-            versions.into_iter().max_by(|left, right| left.1.cmp(&right.1))
-        {
-            if stake
-                > (total_block_producer_stake
-                    * *config.protocol_upgrade_stake_threshold.numer() as u128)
-                    / *config.protocol_upgrade_stake_threshold.denom() as u128
-            {
-                version
+
+        let maybe_most_popular_version_and_mode_and_stake =
+            versions.iter().max_by(|left, right| left.1.cmp(&right.1));
+        let maybe_most_popular_version_and_stake =
+            versions.iter().map(|(v, s)| (v.0, s)).max_by(|left, right| left.1.cmp(&right.1));
+
+        let maybe_next_version_and_countdown: Option<(ProtocolVersion, Option<EpochHeight>)> =
+            if let Some(countdown) = next_epoch_info.protocol_upgrade_countdown() {
+                if countdown > 1 {
+                    Some((next_epoch_info.protocol_version(), Some(countdown - 1)))
+                } else if countdown == 1 {
+                    if let Some((version, _stake)) = maybe_most_popular_version_and_stake {
+                        Some((version, None))
+                    } else {
+                        // How is this possible?
+                        Some((protocol_version, None))
+                    }
+                } else {
+                    panic!("Impossible, countdown={}, {:#?}", countdown, next_epoch_info);
+                }
             } else {
-                protocol_version
+                None
+            };
+
+        let next_version_and_countdown = match maybe_next_version_and_countdown {
+            Some((next_version, countdown)) => (next_version, countdown),
+            None => {
+                if let Some((&version_and_mode, &stake)) =
+                    maybe_most_popular_version_and_mode_and_stake
+                {
+                    if version_and_mode.0 > protocol_version
+                        && stake
+                            > (total_block_producer_stake
+                                * *config.protocol_upgrade_stake_threshold.numer() as u128)
+                                / *config.protocol_upgrade_stake_threshold.denom() as u128
+                    {
+                        match version_and_mode.1 {
+                            UpgradeMode::Normal => {
+                                (version_and_mode.0, Some(config.protocol_upgrade_num_epochs - 1))
+                            }
+                            UpgradeMode::Emergency => {
+                                const EMERGENCY_PROTOCOL_UGPRADE_NUM_EPOCHS: EpochHeight = 2;
+                                assert!(EMERGENCY_PROTOCOL_UGPRADE_NUM_EPOCHS > 1);
+                                (
+                                    version_and_mode.0,
+                                    Some(EMERGENCY_PROTOCOL_UGPRADE_NUM_EPOCHS - 1),
+                                )
+                            }
+                        }
+                    } else {
+                        (protocol_version, None)
+                    }
+                } else {
+                    (protocol_version, None)
+                }
             }
-        } else {
-            protocol_version
         };
 
         // Gather slashed validators and add them to kick out first.
@@ -364,7 +404,8 @@ impl EpochManager {
             all_proposals: proposals,
             validator_kickout,
             validator_block_chunk_stats,
-            next_version,
+            next_version: next_version_and_countdown.0,
+            next_protocol_upgrade_countdown: next_version_and_countdown.1,
         })
     }
 
@@ -390,6 +431,7 @@ impl EpochManager {
             validator_kickout,
             validator_block_chunk_stats,
             next_version,
+            next_protocol_upgrade_countdown,
             ..
         } = epoch_summary;
 
@@ -419,6 +461,7 @@ impl EpochManager {
             validator_reward,
             minted_amount,
             next_version,
+            next_protocol_upgrade_countdown,
             epoch_protocol_version,
         ) {
             Ok(next_next_epoch_info) => next_next_epoch_info,

@@ -1323,6 +1323,7 @@ impl RuntimeAdapter for NightshadeRuntime {
             block_header_info.slashed_validators,
             block_header_info.total_supply,
             block_header_info.latest_protocol_version,
+            block_header_info.latest_protocol_version_upgrade_mode,
             block_header_info.timestamp_nanosec,
         );
         let rng_seed = block_header_info.random_value.0;
@@ -1962,6 +1963,7 @@ mod test {
 
     use super::*;
 
+    use near_primitives::upgrade::UpgradeMode;
     use primitive_types::U256;
 
     fn stake(
@@ -2140,6 +2142,7 @@ mod test {
                     chunk_mask: vec![],
                     total_supply: genesis_total_supply,
                     latest_protocol_version: genesis_protocol_version,
+                    latest_protocol_version_upgrade_mode: UpgradeMode::Normal,
                     timestamp_nanosec: 0,
                 })
                 .unwrap()
@@ -2207,6 +2210,7 @@ mod test {
                     chunk_mask,
                     total_supply: self.runtime.genesis_config.total_supply,
                     latest_protocol_version: self.runtime.genesis_config.protocol_version,
+                    latest_protocol_version_upgrade_mode: UpgradeMode::Normal,
                     timestamp_nanosec: self.time + 10u64.pow(9),
                 })
                 .unwrap()
@@ -2673,6 +2677,7 @@ mod test {
                     chunk_mask: vec![true],
                     total_supply: new_env.runtime.genesis_config.total_supply,
                     latest_protocol_version: new_env.runtime.genesis_config.protocol_version,
+                    latest_protocol_version_upgrade_mode: UpgradeMode::Normal,
                     timestamp_nanosec: new_env.time,
                 })
                 .unwrap()

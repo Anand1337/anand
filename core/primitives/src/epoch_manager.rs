@@ -131,6 +131,7 @@ pub mod block_info {
     use crate::challenge::SlashedValidator;
     use crate::types::validator_stake::{ValidatorStake, ValidatorStakeIter};
     use crate::types::EpochId;
+    use crate::upgrade::UpgradeMode;
     use borsh::{BorshDeserialize, BorshSerialize};
     use near_primitives_core::hash::CryptoHash;
     use near_primitives_core::types::{AccountId, Balance, BlockHeight, ProtocolVersion};
@@ -164,6 +165,7 @@ pub mod block_info {
             slashed: Vec<SlashedValidator>,
             total_supply: Balance,
             latest_protocol_version: ProtocolVersion,
+            latest_protocol_version_upgrade_mode: UpgradeMode,
             timestamp_nanosec: u64,
         ) -> Self {
             Self::V2(BlockInfoV2 {
@@ -175,6 +177,7 @@ pub mod block_info {
                 proposals,
                 chunk_mask: validator_mask,
                 latest_protocol_version,
+                latest_protocol_version_upgrade_mode,
                 slashed: slashed
                     .into_iter()
                     .map(|s| {
@@ -290,6 +293,14 @@ pub mod block_info {
         }
 
         #[inline]
+        pub fn latest_protocol_version_upgrade_mode(&self) -> &UpgradeMode {
+            match self {
+                Self::V1(_v1) => &UpgradeMode::Normal,
+                Self::V2(v2) => &v2.latest_protocol_version_upgrade_mode,
+            }
+        }
+
+        #[inline]
         pub fn slashed(&self) -> &HashMap<AccountId, SlashState> {
             match self {
                 Self::V1(v1) => &v1.slashed,
@@ -337,6 +348,7 @@ pub mod block_info {
         pub chunk_mask: Vec<bool>,
         /// Latest protocol version this validator observes.
         pub latest_protocol_version: ProtocolVersion,
+        pub latest_protocol_version_upgrade_mode: UpgradeMode,
         /// Validators slashed since the start of epoch or in previous epoch.
         pub slashed: HashMap<AccountId, SlashState>,
         /// Total supply at this block.
@@ -502,6 +514,8 @@ pub mod epoch_info {
         pub seat_price: Balance,
         #[default(PROTOCOL_VERSION)]
         pub protocol_version: ProtocolVersion,
+        #[default(None)]
+        pub protocol_upgrade_countdown: Option<EpochHeight>,
         // stuff for selecting validators at each height
         rng_seed: RngSeed,
         block_producers_sampler: WeightedIndex,
@@ -524,6 +538,7 @@ pub mod epoch_info {
             minted_amount: Balance,
             seat_price: Balance,
             protocol_version: ProtocolVersion,
+            protocol_upgrade_countdown: Option<EpochHeight>,
             rng_seed: RngSeed,
         ) -> Self {
             if checked_feature!("stable", AliasValidatorSelectionAlgorithm, protocol_version) {
@@ -553,6 +568,7 @@ pub mod epoch_info {
                     minted_amount,
                     seat_price,
                     protocol_version,
+                    protocol_upgrade_countdown,
                     rng_seed,
                     block_producers_sampler,
                     chunk_producers_sampler,
@@ -646,6 +662,15 @@ pub mod epoch_info {
                 Self::V1(v1) => v1.protocol_version,
                 Self::V2(v2) => v2.protocol_version,
                 Self::V3(v3) => v3.protocol_version,
+            }
+        }
+
+        #[inline]
+        pub fn protocol_upgrade_countdown(&self) -> Option<EpochHeight> {
+            match self {
+                Self::V1(_) => None,
+                Self::V2(_) => None,
+                Self::V3(v3) => v3.protocol_upgrade_countdown,
             }
         }
 
@@ -865,6 +890,7 @@ pub mod epoch_info {
         pub validator_block_chunk_stats: HashMap<AccountId, BlockChunkValidatorStats>,
         /// Protocol version for next epoch.
         pub next_version: ProtocolVersion,
+        pub next_protocol_upgrade_countdown: Option<EpochHeight>,
     }
 }
 

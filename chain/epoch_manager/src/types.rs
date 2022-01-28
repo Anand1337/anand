@@ -10,6 +10,7 @@ use near_primitives::types::validator_stake::ValidatorStake;
 use near_primitives::types::{
     AccountId, BlockHeight, EpochId, ShardId, ValidatorId, ValidatorStats,
 };
+use near_primitives::upgrade::UpgradeMode;
 use near_primitives::version::ProtocolVersion;
 
 use crate::EpochManager;
@@ -24,7 +25,7 @@ pub struct EpochInfoAggregator {
     /// For each shard, a map of validator id to (num_chunks_produced, num_chunks_expected) so far in the given epoch.
     pub shard_tracker: HashMap<ShardId, HashMap<ValidatorId, ValidatorStats>>,
     /// Latest protocol version that each validator supports.
-    pub version_tracker: HashMap<ValidatorId, ProtocolVersion>,
+    pub version_tracker: HashMap<ValidatorId, (ProtocolVersion, UpgradeMode)>,
     /// All proposals in this epoch up to this block.
     pub all_proposals: BTreeMap<AccountId, ValidatorStake>,
     /// Id of the epoch that this aggregator is in.
@@ -94,9 +95,12 @@ impl EpochInfoAggregator {
         // Step 3: update version tracker
         let block_producer_id =
             EpochManager::block_producer_from_info(epoch_info, block_info_height);
-        self.version_tracker
-            .entry(block_producer_id)
-            .or_insert_with(|| *block_info.latest_protocol_version());
+        self.version_tracker.entry(block_producer_id).or_insert_with(|| {
+            (
+                *block_info.latest_protocol_version(),
+                *block_info.latest_protocol_version_upgrade_mode(),
+            )
+        });
 
         // Step 4: update proposals
         for proposal in block_info.proposals_iter() {

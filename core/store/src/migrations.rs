@@ -801,6 +801,7 @@ pub fn migrate_29_to_30(path: &Path) {
         validator_kickout: info.validator_kickout,
         validator_block_chunk_stats: info.validator_block_chunk_stats,
         next_version: info.next_version,
+        next_protocol_upgrade_countdown: None,
     })
     .unwrap();
 

@@ -153,6 +153,7 @@ mod tests {
     use crate::shard_tracker::TrackedConfig;
     use crate::shard_tracker::POISONED_LOCK_ERR;
     use near_epoch_manager::test_utils::hash_range;
+    use near_primitives::upgrade::UpgradeMode;
     use near_primitives::utils::get_num_seats_per_shard;
     use near_primitives::version::ProtocolFeature::SimpleNightshade;
     use near_primitives::version::PROTOCOL_VERSION;
@@ -230,6 +231,7 @@ mod tests {
                     vec![],
                     DEFAULT_TOTAL_SUPPLY,
                     protocol_version,
+                    UpgradeMode::Normal,
                     height * 10u64.pow(9),
                 ),
                 [0; 32],

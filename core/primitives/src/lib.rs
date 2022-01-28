@@ -28,6 +28,7 @@ pub mod time;
 pub mod transaction;
 pub mod trie_key;
 pub mod types;
+pub mod upgrade;
 pub mod utils;
 pub mod validator_signer;
 pub mod version;

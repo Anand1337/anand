@@ -6,7 +6,7 @@ use near_primitives::epoch_manager::{EpochConfig, RngSeed};
 use near_primitives::errors::EpochError;
 use near_primitives::types::validator_stake::ValidatorStake;
 use near_primitives::types::{
-    AccountId, Balance, NumSeats, ProtocolVersion, ValidatorKickoutReason,
+    AccountId, Balance, EpochHeight, NumSeats, ProtocolVersion, ValidatorKickoutReason,
 };
 
 /// Find threshold of stake per seat, given provided stakes and required number of seats.
@@ -46,6 +46,7 @@ pub fn proposals_to_epoch_info(
     validator_reward: HashMap<AccountId, Balance>,
     minted_amount: Balance,
     next_version: ProtocolVersion,
+    next_protocol_upgrade_countdown: Option<EpochHeight>,
     last_epoch_version: ProtocolVersion,
 ) -> Result<EpochInfo, EpochError> {
     if checked_feature!("stable", AliasValidatorSelectionAlgorithm, last_epoch_version) {
@@ -58,6 +59,7 @@ pub fn proposals_to_epoch_info(
             validator_reward,
             minted_amount,
             next_version,
+            next_protocol_upgrade_countdown,
             last_epoch_version,
         );
     } else {
@@ -70,6 +72,7 @@ pub fn proposals_to_epoch_info(
             validator_reward,
             minted_amount,
             next_version,
+            next_protocol_upgrade_countdown,
         );
     }
 }
@@ -83,7 +86,7 @@ mod old_validator_selection {
     use near_primitives::errors::EpochError;
     use near_primitives::types::validator_stake::ValidatorStake;
     use near_primitives::types::{
-        AccountId, Balance, NumSeats, ValidatorId, ValidatorKickoutReason,
+        AccountId, Balance, EpochHeight, NumSeats, ValidatorId, ValidatorKickoutReason,
     };
     use near_primitives::version::ProtocolVersion;
 
@@ -99,6 +102,7 @@ mod old_validator_selection {
         validator_reward: HashMap<AccountId, Balance>,
         minted_amount: Balance,
         next_version: ProtocolVersion,
+        next_protocol_upgrade_countdown: Option<EpochHeight>,
     ) -> Result<EpochInfo, EpochError> {
         // Combine proposals with rollovers.
         let mut ordered_proposals = BTreeMap::new();
@@ -267,6 +271,7 @@ mod old_validator_selection {
             minted_amount,
             threshold,
             next_version,
+            next_protocol_upgrade_countdown,
             rng_seed,
         ))
     }

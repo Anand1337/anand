@@ -10,6 +10,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
+use crate::upgrade::UpgradeMode;
 use near_crypto::{PublicKey, Signature};
 
 use crate::account::{AccessKey, AccessKeyPermission, Account, FunctionCallPermission};
@@ -396,6 +397,7 @@ pub struct BlockHeaderView {
     pub approvals: Vec<Option<Signature>>,
     pub signature: Signature,
     pub latest_protocol_version: ProtocolVersion,
+    pub latest_protocol_version_upgrade_mode: UpgradeMode,
 }
 
 impl From<BlockHeader> for BlockHeaderView {
@@ -437,6 +439,7 @@ impl From<BlockHeader> for BlockHeaderView {
             approvals: header.approvals().to_vec(),
             signature: header.signature().clone(),
             latest_protocol_version: header.latest_protocol_version(),
+            latest_protocol_version_upgrade_mode: header.latest_protocol_version_upgrade_mode(),
         }
     }
 }
@@ -544,6 +547,7 @@ impl From<BlockHeaderView> for BlockHeader {
                     epoch_sync_data_hash: view.epoch_sync_data_hash,
                     approvals: view.approvals.clone(),
                     latest_protocol_version: view.latest_protocol_version,
+                    latest_protocol_version_upgrade_mode: view.latest_protocol_version_upgrade_mode,
                 },
                 signature: view.signature,
                 hash: CryptoHash::default(),

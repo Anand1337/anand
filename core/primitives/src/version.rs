@@ -16,6 +16,7 @@ pub type DbVersion = u32;
 /// Current version of the database.
 pub const DB_VERSION: DbVersion = 31;
 
+use crate::upgrade::UpgradeMode;
 /// Protocol version type.
 pub use near_primitives_core::types::ProtocolVersion;
 
@@ -163,6 +164,8 @@ pub const PROTOCOL_VERSION: ProtocolVersion = MAIN_NET_PROTOCOL_VERSION;
 /// Current latest nightly version of the protocol.
 #[cfg(feature = "nightly_protocol")]
 pub const PROTOCOL_VERSION: ProtocolVersion = 126;
+
+pub const UPGRADE_MODE: UpgradeMode = UpgradeMode::Normal;
 
 impl ProtocolFeature {
     pub const fn protocol_version(self) -> ProtocolVersion {

@@ -6,7 +6,8 @@ use near_primitives::epoch_manager::{EpochConfig, RngSeed};
 use near_primitives::errors::EpochError;
 use near_primitives::types::validator_stake::ValidatorStake;
 use near_primitives::types::{
-    AccountId, Balance, NumShards, ProtocolVersion, ValidatorId, ValidatorKickoutReason,
+    AccountId, Balance, EpochHeight, NumShards, ProtocolVersion, ValidatorId,
+    ValidatorKickoutReason,
 };
 use num_rational::Ratio;
 use std::cmp::{self, Ordering};
@@ -24,6 +25,7 @@ pub fn proposals_to_epoch_info(
     validator_reward: HashMap<AccountId, Balance>,
     minted_amount: Balance,
     next_version: ProtocolVersion,
+    next_protocol_upgrade_countdown: Option<EpochHeight>,
     last_version: ProtocolVersion,
 ) -> Result<EpochInfo, EpochError> {
     debug_assert!(
@@ -205,6 +207,7 @@ pub fn proposals_to_epoch_info(
         minted_amount,
         bp_stake_threshold,
         next_version,
+        next_protocol_upgrade_countdown,
         rng_seed,
     ))
 }
@@ -406,6 +409,7 @@ mod tests {
             Default::default(),
             0,
             PROTOCOL_VERSION,
+            None,
             PROTOCOL_VERSION,
         )
         .unwrap();
@@ -561,6 +565,7 @@ mod tests {
             Default::default(),
             0,
             PROTOCOL_VERSION,
+            None,
             PROTOCOL_VERSION,
         )
         .unwrap();
@@ -700,6 +705,7 @@ mod tests {
             Default::default(),
             0,
             PROTOCOL_VERSION,
+            None,
             PROTOCOL_VERSION,
         )
         .unwrap();
@@ -744,6 +750,7 @@ mod tests {
             Default::default(),
             0,
             PROTOCOL_VERSION,
+            None,
             PROTOCOL_VERSION,
         )
         .unwrap();
@@ -768,6 +775,7 @@ mod tests {
             Default::default(),
             0,
             PROTOCOL_VERSION,
+            None,
             PROTOCOL_VERSION,
         )
         .unwrap();
@@ -796,6 +804,7 @@ mod tests {
             Default::default(),
             0,
             PROTOCOL_VERSION,
+            None,
             PROTOCOL_VERSION,
         )
         .unwrap();
@@ -826,6 +835,7 @@ mod tests {
             rewards_map,
             0,
             PROTOCOL_VERSION,
+            None,
             PROTOCOL_VERSION,
         )
         .unwrap();

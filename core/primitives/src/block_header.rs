@@ -3,6 +3,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use chrono::DateTime;
 use serde::Serialize;
 
+use crate::upgrade::UpgradeMode;
 use near_crypto::{KeyType, PublicKey, Signature};
 
 use crate::challenge::ChallengesResult;
@@ -13,7 +14,7 @@ use crate::types::validator_stake::{ValidatorStake, ValidatorStakeIter, Validato
 use crate::types::{AccountId, Balance, BlockHeight, EpochId, MerkleHash, NumBlocks};
 use crate::utils::{from_timestamp, to_timestamp};
 use crate::validator_signer::ValidatorSigner;
-use crate::version::{ProtocolVersion, PROTOCOL_VERSION};
+use crate::version::{ProtocolVersion, PROTOCOL_VERSION, UPGRADE_MODE};
 
 #[cfg_attr(feature = "deepsize_feature", derive(deepsize::DeepSizeOf))]
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Debug, Clone, Eq, PartialEq)]
@@ -156,6 +157,8 @@ pub struct BlockHeaderInnerRestV3 {
 
     /// Latest protocol version that this block producer has.
     pub latest_protocol_version: ProtocolVersion,
+    /// Upgrade to that protocol version.
+    pub latest_protocol_version_upgrade_mode: UpgradeMode,
 }
 
 /// The part of the block approval that is different for endorsements and skips
@@ -464,6 +467,7 @@ impl BlockHeader {
                 epoch_sync_data_hash,
                 approvals,
                 latest_protocol_version: PROTOCOL_VERSION,
+                latest_protocol_version_upgrade_mode: UPGRADE_MODE,
             };
             let (hash, signature) = signer.sign_block_header_parts(
                 prev_hash,
@@ -585,6 +589,7 @@ impl BlockHeader {
                 epoch_sync_data_hash: None, // Epoch Sync cannot be executed up to Genesis
                 approvals: vec![],
                 latest_protocol_version: genesis_protocol_version,
+                latest_protocol_version_upgrade_mode: UpgradeMode::Normal,
             };
             let hash = BlockHeader::compute_hash(
                 CryptoHash::default(),
@@ -892,6 +897,17 @@ impl BlockHeader {
             BlockHeader::BlockHeaderV1(header) => header.inner_rest.latest_protocol_version,
             BlockHeader::BlockHeaderV2(header) => header.inner_rest.latest_protocol_version,
             BlockHeader::BlockHeaderV3(header) => header.inner_rest.latest_protocol_version,
+        }
+    }
+
+    #[inline]
+    pub fn latest_protocol_version_upgrade_mode(&self) -> UpgradeMode {
+        match self {
+            BlockHeader::BlockHeaderV1(_) => UpgradeMode::Normal,
+            BlockHeader::BlockHeaderV2(_) => UpgradeMode::Normal,
+            BlockHeader::BlockHeaderV3(header) => {
+                header.inner_rest.latest_protocol_version_upgrade_mode
+            }
         }
     }
 

@@ -18,7 +18,7 @@ use near_primitives::types::{
     ValidatorId, ValidatorKickoutReason,
 };
 use near_primitives::utils::get_num_seats_per_shard;
-use near_primitives::version::PROTOCOL_VERSION;
+use near_primitives::version::{PROTOCOL_VERSION, UPGRADE_MODE};
 use near_store::test_utils::create_test_store;
 
 use near_primitives::shard_layout::ShardLayout;
@@ -119,6 +119,7 @@ pub fn epoch_info_with_num_seats(
         minted_amount,
         seat_price,
         PROTOCOL_VERSION,
+        None,
         TEST_SEED,
     )
 }
@@ -290,6 +291,7 @@ pub fn record_block_with_final_block_hash(
                 vec![],
                 DEFAULT_TOTAL_SUPPLY,
                 PROTOCOL_VERSION,
+                UPGRADE_MODE,
                 height * NUM_NS_IN_SECOND,
             ),
             [0; 32],
@@ -320,6 +322,7 @@ pub fn record_block_with_slashes(
                 slashed,
                 DEFAULT_TOTAL_SUPPLY,
                 PROTOCOL_VERSION,
+                UPGRADE_MODE,
                 height * NUM_NS_IN_SECOND,
             ),
             [0; 32],
@@ -360,6 +363,7 @@ pub fn block_info(
         proposals: vec![],
         chunk_mask,
         latest_protocol_version: PROTOCOL_VERSION,
+        latest_protocol_version_upgrade_mode: UPGRADE_MODE,
         slashed: Default::default(),
         total_supply,
         timestamp_nanosec: height * NUM_NS_IN_SECOND,

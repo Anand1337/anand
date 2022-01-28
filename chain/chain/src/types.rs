@@ -37,6 +37,7 @@ use crate::DoomslugThresholdMode;
 use near_primitives::epoch_manager::ShardConfig;
 use near_primitives::shard_layout::{account_id_to_shard_id, ShardLayout, ShardUId};
 use near_primitives::state_record::StateRecord;
+use near_primitives::upgrade::UpgradeMode;
 
 #[derive(Eq, PartialEq, Debug, Clone)]
 pub enum BlockStatus {
@@ -134,6 +135,7 @@ pub struct BlockHeaderInfo {
     pub chunk_mask: Vec<bool>,
     pub total_supply: Balance,
     pub latest_protocol_version: ProtocolVersion,
+    pub latest_protocol_version_upgrade_mode: UpgradeMode,
     pub timestamp_nanosec: u64,
 }
 
@@ -151,6 +153,7 @@ impl BlockHeaderInfo {
             chunk_mask: header.chunk_mask().to_vec(),
             total_supply: header.total_supply(),
             latest_protocol_version: header.latest_protocol_version(),
+            latest_protocol_version_upgrade_mode: header.latest_protocol_version_upgrade_mode(),
             timestamp_nanosec: header.raw_timestamp(),
         }
     }

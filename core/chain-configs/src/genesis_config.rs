@@ -109,7 +109,7 @@ pub struct GenesisConfig {
     #[serde(default = "default_protocol_upgrade_stake_threshold")]
     #[default(Rational::new(8, 10))]
     pub protocol_upgrade_stake_threshold: Rational,
-    /// Number of epochs after stake threshold was achieved to start next prtocol version.
+    /// Number of epochs after stake threshold was achieved to start next protocol version.
     pub protocol_upgrade_num_epochs: EpochHeight,
     /// Epoch length counted in block heights.
     pub epoch_length: BlockHeightDelta,
