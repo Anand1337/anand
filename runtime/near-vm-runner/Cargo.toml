@@ -25,7 +25,7 @@ memoffset = "0.6"
 # Use the following for development versions of Wasmer.
 wasmer-types = { package = "wasmer-types-near", git = "https://github.com/near/wasmer", branch = "near-main", optional = true }
 wasmer-compiler-singlepass = { package = "wasmer-compiler-singlepass-near", git = "https://github.com/near/wasmer", branch = "near-main", optional = true }
-wasmer-engine-universal = { package = "wasmer-engine-universal-near", git = "https://github.com/near/wasmer", branch = "near-main", optional = true }
+wasmer-engine-universal = { package = "wasmer-engine-universal-near", git = "https://github.com/near/wasmer", branch = "near-main", features = ["compiler"], optional = true }
 wasmer-vm = { package = "wasmer-vm-near", git = "https://github.com/near/wasmer", branch = "near-main", optional = true }
 wasmer-compiler = { package = "wasmer-compiler-near", git = "https://github.com/near/wasmer", branch = "near-main", optional = true }
 wasmer-engine = { package = "wasmer-engine-near", git = "https://github.com/near/wasmer", branch = "near-main", optional = true }
