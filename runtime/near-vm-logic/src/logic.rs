@@ -120,7 +120,7 @@ impl<'a> VMLogic<'a> {
             config.ext_costs.clone(),
             u64::MAX,
             config.regular_op_cost,
-            context.prepaid_gas,
+            u64::MAX,
             context.is_view(),
         );
         Self {

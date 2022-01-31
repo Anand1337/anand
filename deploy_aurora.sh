@@ -5,5 +5,5 @@ NEAR_ENV=localnet /home/birchmd/upstream/near-cli/bin/near create-account --netw
 
 /home/birchmd/upstream/aurora-is-near/aurora-cli/lib/aurora.js --network localnet --signer tester.node0 --engine aurora.node0 deploy-code $(cat contract.hex)
 NEAR_ENV=localnet /home/birchmd/upstream/near-cli/bin/near state --networkId localnet --keyPath /home/birchmd/tmp-near-localnet/node0/validator_key.json --masterAccount node0 tester.node0
-/home/birchmd/upstream/aurora-is-near/aurora-cli/lib/aurora.js --network localnet --signer tester.node0 --engine aurora.node0 call 0x527a5c6655b4a196d1e05dbdc8810fe34a924411 0x558badd700000000000000000000000000000000000000000000000000000000000001f4
+/home/birchmd/upstream/aurora-is-near/aurora-cli/lib/aurora.js --network localnet --signer tester.node0 --engine aurora.node0 call 0x527a5c6655b4a196d1e05dbdc8810fe34a924411 0x558badd70000000000000000000000000000000000000000000000000000000000000320
 NEAR_ENV=localnet /home/birchmd/upstream/near-cli/bin/near state --networkId localnet --keyPath /home/birchmd/tmp-near-localnet/node0/validator_key.json --masterAccount node0 tester.node0

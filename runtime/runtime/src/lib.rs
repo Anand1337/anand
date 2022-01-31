@@ -783,9 +783,9 @@ impl Runtime {
         )?;
         let deposit_refund = if result.result.is_err() { total_deposit } else { 0 };
         let gas_refund = if result.result.is_err() {
-            safe_add_gas(prepaid_gas, prepaid_exec_gas)? - result.gas_burnt
+            safe_add_gas(prepaid_gas, prepaid_exec_gas)?.checked_sub(result.gas_burnt).unwrap_or(0)
         } else {
-            safe_add_gas(prepaid_gas, prepaid_exec_gas)? - result.gas_used
+            safe_add_gas(prepaid_gas, prepaid_exec_gas)?.checked_sub(result.gas_used).unwrap_or(0)
         };
         // Refund for the unused portion of the gas at the price at which this gas was purchased.
         let mut gas_balance_refund = safe_gas_to_balance(action_receipt.gas_price, gas_refund)?;
@@ -1360,7 +1360,7 @@ impl Runtime {
             &outgoing_receipts,
             &stats,
             apply_state.current_protocol_version,
-        )?;
+        ).ok();
 
         state_update.commit(StateChangeCause::UpdatedDelayedReceipts);
 
