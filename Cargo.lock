@@ -3144,6 +3144,7 @@ dependencies = [
  "parity-wasm 0.41.0",
  "pwasm-utils 0.12.0",
  "pwasm-utils 0.18.2",
+ "rustc-demangle",
  "serde",
  "threadpool",
  "tracing",

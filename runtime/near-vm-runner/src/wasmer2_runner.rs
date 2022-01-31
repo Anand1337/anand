@@ -17,6 +17,7 @@ use std::io::Write;
 use std::mem::size_of;
 use std::process;
 use std::sync::Arc;
+use rustc_demangle::demangle;
 use wasmer_compiler_singlepass::Singlepass;
 use wasmer_engine::{DeserializeError, Engine};
 use wasmer_engine_universal::{Universal, UniversalEngine};
@@ -328,7 +329,7 @@ impl Wasmer2VM {
         let filename = format!("/tmp/perf-{}.map", pid);
         let mut file = File::create(filename).expect("Unable to create file");
         for f in functions {
-            file.write_fmt(format_args!("{:x} {:x} {}\n", f.address, f.size, f.name))?;
+            file.write_fmt(format_args!("{:x} {:x} {}\n", f.address, f.size, demangle(f.name.as_str())))?;
         }
         Ok(())
     }
