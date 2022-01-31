@@ -8,7 +8,7 @@ use byteorder::ByteOrder;
 use near_crypto::Secp256K1Signature;
 use near_primitives::version::is_implicit_account_creation_enabled;
 use near_primitives_core::config::ExtCosts::*;
-use near_primitives_core::config::{ActionCosts, ExtCosts, VMConfig, ViewConfig};
+use near_primitives_core::config::{ActionCosts, ExtCosts, VMConfig};
 use near_primitives_core::profile::ProfileData;
 use near_primitives_core::runtime::fees::{
     transfer_exec_fee, transfer_send_fee, RuntimeFeesConfig,
@@ -111,14 +111,14 @@ impl<'a> VMLogic<'a> {
         // Overflow should be checked before calling VMLogic.
         let current_account_balance = context.account_balance + context.attached_deposit;
         let current_storage_usage = context.storage_usage;
-        let max_gas_burnt = match context.view_config {
+        /*let max_gas_burnt = match context.view_config {
             Some(ViewConfig { max_gas_burnt: max_gas_burnt_view }) => max_gas_burnt_view,
             None => config.limit_config.max_gas_burnt,
-        };
+        };*/
         let current_account_locked_balance = context.account_locked_balance;
         let gas_counter = GasCounter::new(
             config.ext_costs.clone(),
-            max_gas_burnt,
+            u64::MAX,
             config.regular_op_cost,
             context.prepaid_gas,
             context.is_view(),
