@@ -397,6 +397,13 @@ pub(crate) fn apply_block_at_height(
     } else {
         println!("No existing chunk extra available");
     }
+    for outcome in apply_result.outcomes {
+        let id = outcome.id;
+        let view = near_primitives::views::ExecutionOutcomeView::from(outcome.outcome);
+        let json = serde_json::to_string_pretty(&view).unwrap();
+        println!("ID {:?}", id);
+        println!("{}\n\n", json);
+    }
 }
 
 pub(crate) fn view_chain(
