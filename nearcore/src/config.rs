@@ -130,7 +130,7 @@ pub const HIGHEST_PEER_HORIZON: u64 = 5;
 pub const MINIMUM_STAKE_DIVISOR: u64 = 10;
 
 /// Number of epochs before protocol upgrade.
-pub const PROTOCOL_UPGRADE_NUM_EPOCHS: EpochHeight = 2;
+pub const PROTOCOL_UPGRADE_NUM_EPOCHS: EpochHeight = 5;
 
 pub const CONFIG_FILENAME: &str = "config.json";
 pub const GENESIS_CONFIG_FILENAME: &str = "genesis.json";

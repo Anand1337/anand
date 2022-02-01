@@ -3,7 +3,7 @@ pub use crate::reward_calculator::RewardCalculator;
 pub use crate::reward_calculator::NUM_SECONDS_IN_A_YEAR;
 use crate::types::EpochInfoAggregator;
 pub use crate::types::RngSeed;
-use log::{debug, warn};
+use log::{debug, info, warn};
 use near_chain::types::{BlockHeaderInfo, ValidatorInfoIdentifier};
 use near_chain_configs::GenesisConfig;
 use near_primitives::epoch_manager::block_info::BlockInfo;
@@ -343,15 +343,12 @@ impl EpochManager {
                     {
                         match version_and_mode.1 {
                             UpgradeMode::Normal => {
-                                (version_and_mode.0, Some(config.protocol_upgrade_num_epochs - 1))
+                                (protocol_version, Some(config.protocol_upgrade_num_epochs - 1))
                             }
                             UpgradeMode::Emergency => {
                                 const EMERGENCY_PROTOCOL_UGPRADE_NUM_EPOCHS: EpochHeight = 2;
                                 assert!(EMERGENCY_PROTOCOL_UGPRADE_NUM_EPOCHS > 1);
-                                (
-                                    version_and_mode.0,
-                                    Some(EMERGENCY_PROTOCOL_UGPRADE_NUM_EPOCHS - 1),
-                                )
+                                (protocol_version, Some(EMERGENCY_PROTOCOL_UGPRADE_NUM_EPOCHS - 1))
                             }
                         }
                     } else {
@@ -362,6 +359,8 @@ impl EpochManager {
                 }
             }
         };
+
+        info!(target:"nep205","protocol_version: {}, maybe_most_popular_version_and_mode_and_stake: {:?}, maybe_most_popular_version_and_stake: {:?}, maybe_next_version_and_countdown: {:?}, next_version_and_countdown: {:?}",protocol_version,maybe_most_popular_version_and_mode_and_stake,maybe_most_popular_version_and_stake,maybe_next_version_and_countdown,next_version_and_countdown);
 
         // Gather slashed validators and add them to kick out first.
         let slashed_validators = last_block_info.slashed().clone();
