@@ -1,7 +1,6 @@
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
-use borsh::BorshSerialize;
 use near_primitives::borsh::maybestd::collections::HashMap;
 use near_primitives::hash::CryptoHash;
 use near_primitives::shard_layout;
@@ -287,6 +286,7 @@ impl WrappedTrieChanges {
     ///
     /// NOTE: the changes are drained from `self`.
     pub fn state_changes_into(&mut self, store_update: &mut StoreUpdate) {
+        let mut changes = Vec::new();
         for change_with_trie_key in self.state_changes.drain(..) {
             assert!(
                 !change_with_trie_key.changes.iter().any(|RawStateChange { cause, .. }| matches!(
@@ -314,16 +314,10 @@ impl WrappedTrieChanges {
                 | TrieKey::ContractData { .. } => {}
                 _ => continue,
             };
-            let storage_key = KeyForStateChanges::new_from_trie_key(
-                &self.block_hash,
-                &change_with_trie_key.trie_key,
-            );
-            store_update.set(
-                DBCol::ColStateChanges,
-                storage_key.as_ref(),
-                &change_with_trie_key.try_to_vec().expect("Borsh serialize cannot fail"),
-            );
+
+            changes.push(change_with_trie_key);
         }
+        store_update.set_ser(DBCol::ColStateChanges, self.block_hash.as_ref(), &changes).unwrap();
     }
 
     pub fn wrapped_into(
@@ -341,72 +335,31 @@ impl WrappedTrieChanges {
     }
 }
 
-#[derive(derive_more::AsRef, derive_more::Into)]
-pub struct KeyForStateChanges(Vec<u8>);
+pub fn get_state_changes(
+    store: &Store,
+    block_hash: &CryptoHash,
+) -> Result<Vec<RawStateChangesWithTrieKey>, std::io::Error> {
+    store
+        .get_ser(DBCol::ColStateChanges, block_hash.as_ref())
+        .map(|changes| changes.unwrap_or(Vec::new()))
+}
 
-impl KeyForStateChanges {
-    fn estimate_prefix_len() -> usize {
-        std::mem::size_of::<CryptoHash>()
-    }
+pub fn get_state_changes_with_prefix(
+    store: &Store,
+    block_hash: &CryptoHash,
+    prefix: &[u8],
+) -> Result<Vec<RawStateChangesWithTrieKey>, std::io::Error> {
+    get_state_changes(store, block_hash).map(|changes| {
+        changes.into_iter().filter(|change| change.trie_key.to_vec().starts_with(prefix)).collect()
+    })
+}
 
-    fn get_prefix_with_capacity(block_hash: &CryptoHash, reserve_capacity: usize) -> Self {
-        let mut key_prefix = Vec::with_capacity(Self::estimate_prefix_len() + reserve_capacity);
-        key_prefix.extend(block_hash.as_ref());
-        debug_assert_eq!(key_prefix.len(), Self::estimate_prefix_len());
-        Self(key_prefix)
-    }
-
-    pub fn get_prefix(block_hash: &CryptoHash) -> Self {
-        Self::get_prefix_with_capacity(block_hash, 0)
-    }
-
-    pub fn new(block_hash: &CryptoHash, raw_key: &[u8]) -> Self {
-        let mut key = Self::get_prefix_with_capacity(block_hash, raw_key.len());
-        key.0.extend(raw_key);
-        key
-    }
-
-    pub fn new_from_trie_key(block_hash: &CryptoHash, trie_key: &TrieKey) -> Self {
-        let mut key = Self::get_prefix_with_capacity(block_hash, trie_key.len());
-        key.0.extend(trie_key.to_vec());
-        key
-    }
-
-    pub fn find_iter<'a: 'b, 'b>(
-        &'a self,
-        store: &'b Store,
-    ) -> impl Iterator<Item = Result<RawStateChangesWithTrieKey, std::io::Error>> + 'b {
-        let prefix_len = Self::estimate_prefix_len();
-        debug_assert!(self.0.len() >= prefix_len);
-        store.iter_prefix_ser::<RawStateChangesWithTrieKey>(DBCol::ColStateChanges, &self.0).map(
-            move |change| {
-                // Split off the irrelevant part of the key, so only the original trie_key is left.
-                let (key, state_changes) = change?;
-                debug_assert!(key.starts_with(&self.0));
-                Ok(state_changes)
-            },
-        )
-    }
-
-    pub fn find_exact_iter<'a: 'b, 'b>(
-        &'a self,
-        store: &'b Store,
-    ) -> impl Iterator<Item = Result<RawStateChangesWithTrieKey, std::io::Error>> + 'b {
-        let prefix_len = Self::estimate_prefix_len();
-        let trie_key_len = self.0.len() - prefix_len;
-        self.find_iter(store).filter_map(move |change| {
-            let state_changes = match change {
-                Ok(change) => change,
-                error => {
-                    return Some(error);
-                }
-            };
-            if state_changes.trie_key.len() != trie_key_len {
-                None
-            } else {
-                debug_assert_eq!(&state_changes.trie_key.to_vec()[..], &self.0[prefix_len..]);
-                Some(Ok(state_changes))
-            }
-        })
-    }
+pub fn get_state_changes_exact(
+    store: &Store,
+    block_hash: &CryptoHash,
+    key: &[u8],
+) -> Result<Vec<RawStateChangesWithTrieKey>, std::io::Error> {
+    get_state_changes(store, block_hash).map(|changes| {
+        changes.into_iter().filter(|change| change.trie_key.to_vec() == key).collect()
+    })
 }

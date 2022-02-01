@@ -23,8 +23,8 @@ impl WrappedRocksDB {
     }
 }
 
-fn use_new_storage(col: DBCol) -> bool {
-    col != DBCol::ColStateChanges && col != DBCol::ColStateDlInfos && col != DBCol::ColPeers
+fn use_new_storage(_col: DBCol) -> bool {
+    true
 }
 
 fn mkkey(col: DBCol, key: &[u8]) -> Vec<u8> {

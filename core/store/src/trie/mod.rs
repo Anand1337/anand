@@ -16,7 +16,10 @@ use near_primitives::types::{StateRoot, StateRootNode};
 use crate::trie::insert_delete::NodesStorage;
 use crate::trie::iterator::TrieIterator;
 use crate::trie::nibble_slice::NibbleSlice;
-pub use crate::trie::shard_tries::{KeyForStateChanges, ShardTries, WrappedTrieChanges};
+pub use crate::trie::shard_tries::{
+    get_state_changes, get_state_changes_exact, get_state_changes_with_prefix, ShardTries,
+    WrappedTrieChanges,
+};
 use crate::trie::trie_storage::{
     TouchedNodesCounter, TrieMemoryPartialStorage, TrieRecordingStorage, TrieStorage,
 };

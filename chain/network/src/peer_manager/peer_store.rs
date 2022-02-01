@@ -1,4 +1,3 @@
-use borsh::{BorshDeserialize, BorshSerialize};
 use near_network_primitives::types::{
     KnownPeerState, KnownPeerStatus, NetworkConfig, PeerInfo, ReasonForBan,
 };
@@ -80,9 +79,9 @@ impl PeerStore {
         }
 
         let now = to_timestamp(Utc::now());
-        for (key, value) in store.iter(ColPeers) {
-            let peer_id: PeerId = PeerId::try_from_slice(key.as_ref())?;
-            let mut peer_state: KnownPeerState = KnownPeerState::try_from_slice(value.as_ref())?;
+        for (peer_id, mut peer_state) in
+            store.get_ser::<Vec<(PeerId, KnownPeerState)>>(ColPeers, b"")?.unwrap_or_default()
+        {
             // Mark loaded node last seen to now, to avoid deleting them as soon as they are loaded.
             peer_state.last_seen = now;
             match peer_state.status {
@@ -126,7 +125,7 @@ impl PeerStore {
         let entry = self.peer_states.get_mut(&peer_info.id).unwrap();
         entry.last_seen = to_timestamp(Utc::now());
         entry.status = KnownPeerStatus::Connected;
-        Self::save_to_db(&self.store, peer_info.id.try_to_vec()?.as_slice(), entry)
+        self.save_to_db()
     }
 
     pub(crate) fn peer_disconnected(
@@ -136,7 +135,7 @@ impl PeerStore {
         if let Some(peer_state) = self.peer_states.get_mut(peer_id) {
             peer_state.last_seen = to_timestamp(Utc::now());
             peer_state.status = KnownPeerStatus::NotConnected;
-            Self::save_to_db(&self.store, peer_id.try_to_vec()?.as_slice(), peer_state)
+            self.save_to_db()
         } else {
             Err(format!("Peer {} is missing in the peer store", peer_id).into())
         }
@@ -150,19 +149,15 @@ impl PeerStore {
         if let Some(peer_state) = self.peer_states.get_mut(peer_id) {
             peer_state.last_seen = to_timestamp(Utc::now());
             peer_state.status = KnownPeerStatus::Banned(ban_reason, to_timestamp(Utc::now()));
-            Self::save_to_db(&self.store, peer_id.try_to_vec()?.as_slice(), peer_state)
+            self.save_to_db()
         } else {
             Err(format!("Peer {} is missing in the peer store", peer_id).into())
         }
     }
 
-    fn save_to_db(
-        store: &Store,
-        peer_id: &[u8],
-        peer_state: &KnownPeerState,
-    ) -> Result<(), Box<dyn Error>> {
-        let mut store_update = store.store_update();
-        store_update.set_ser(ColPeers, peer_id, peer_state)?;
+    fn save_to_db(&self) -> Result<(), Box<dyn Error>> {
+        let mut store_update = self.store.store_update();
+        store_update.set_ser(ColPeers, b"", &self.peer_states.iter().collect::<Vec<_>>())?;
         store_update.commit().map_err(|err| err.into())
     }
 
@@ -172,7 +167,7 @@ impl PeerStore {
     ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(peer_state) = self.peer_states.get_mut(peer_id) {
             peer_state.status = KnownPeerStatus::NotConnected;
-            Self::save_to_db(&self.store, peer_id.try_to_vec()?.as_slice(), peer_state)
+            self.save_to_db()
         } else {
             Err(format!("Peer {} is missing in the peer store", peer_id).into())
         }
@@ -235,17 +230,15 @@ impl PeerStore {
                 to_remove.push(peer_id.clone());
             }
         }
-        let mut store_update = self.store.store_update();
         for peer_id in to_remove {
             self.peer_states.remove(&peer_id);
-            store_update.delete(ColPeers, &peer_id.try_to_vec()?);
         }
-        store_update.commit().map_err(|err| err.into())
+        self.save_to_db()
     }
 
     fn touch(&mut self, peer_id: &PeerId) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(peer_state) = self.peer_states.get(peer_id) {
-            Self::save_to_db(&self.store, peer_id.try_to_vec()?.as_slice(), peer_state)
+        if self.peer_states.get(peer_id).is_some() {
+            self.save_to_db()
         } else {
             Ok(())
         }

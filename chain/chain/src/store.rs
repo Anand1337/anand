@@ -2,7 +2,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::io;
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshSerialize;
 use lru::LruCache;
 use near_primitives::time::Utc;
 
@@ -34,15 +34,15 @@ use near_primitives::types::{
 use near_primitives::utils::{get_block_shard_id, index_to_bytes, to_timestamp};
 use near_primitives::views::LightClientBlockView;
 use near_store::{
-    read_with_cache, ColBlock, ColBlockExtra, ColBlockHeader, ColBlockHeight, ColBlockInfo,
-    ColBlockMerkleTree, ColBlockMisc, ColBlockOrdinal, ColBlockPerHeight, ColBlockRefCount,
-    ColBlocksToCatchup, ColChallengedBlocks, ColChunkExtra, ColChunkHashesByHeight,
-    ColChunkPerHeightShard, ColChunks, ColEpochLightClientBlocks, ColGCCount,
-    ColHeaderHashesByHeight, ColIncomingReceipts, ColInvalidChunks, ColNextBlockHashes,
-    ColOutcomeIds, ColOutgoingReceipts, ColPartialChunks, ColProcessedBlockHeights,
-    ColReceiptIdToShardId, ColReceipts, ColState, ColStateChanges, ColStateDlInfos,
-    ColStateHeaders, ColStateParts, ColTransactionResult, ColTransactions, ColTrieChanges, DBCol,
-    KeyForStateChanges, ShardTries, Store, StoreUpdate, TrieChanges, WrappedTrieChanges,
+    get_state_changes, get_state_changes_exact, get_state_changes_with_prefix, read_with_cache,
+    ColBlock, ColBlockExtra, ColBlockHeader, ColBlockHeight, ColBlockInfo, ColBlockMerkleTree,
+    ColBlockMisc, ColBlockOrdinal, ColBlockPerHeight, ColBlockRefCount, ColBlocksToCatchup,
+    ColChallengedBlocks, ColChunkExtra, ColChunkHashesByHeight, ColChunkPerHeightShard, ColChunks,
+    ColEpochLightClientBlocks, ColGCCount, ColHeaderHashesByHeight, ColIncomingReceipts,
+    ColInvalidChunks, ColNextBlockHashes, ColOutcomeIds, ColOutgoingReceipts, ColPartialChunks,
+    ColProcessedBlockHeights, ColReceiptIdToShardId, ColReceipts, ColState, ColStateChanges,
+    ColStateDlInfos, ColStateHeaders, ColStateParts, ColTransactionResult, ColTransactions,
+    ColTrieChanges, DBCol, ShardTries, Store, StoreUpdate, TrieChanges, WrappedTrieChanges,
     CHUNK_TAIL_KEY, FINAL_HEAD_KEY, FORK_TAIL_KEY, HEADER_HEAD_KEY, HEAD_KEY,
     LARGEST_TARGET_HEIGHT_KEY, LATEST_KNOWN_KEY, SHOULD_COL_GC, TAIL_KEY,
 };
@@ -398,15 +398,7 @@ impl ChainStore {
     }
 
     pub fn iterate_state_sync_infos(&self) -> Vec<(CryptoHash, StateSyncInfo)> {
-        self.store
-            .iter(ColStateDlInfos)
-            .map(|(k, v)| {
-                (
-                    CryptoHash::try_from(k.as_ref()).unwrap(),
-                    StateSyncInfo::try_from_slice(v.as_ref()).unwrap(),
-                )
-            })
-            .collect()
+        self.store.get_ser(ColStateDlInfos, b"").unwrap().unwrap_or_default()
     }
 
     pub fn get_state_changes_for_split_states(
@@ -650,22 +642,18 @@ impl ChainStore {
         // 2. Extract the original Trie key out of the keys returned by RocksDB
         // 3. Try extracting `account_id` from the key using KeyFor* implementations
 
-        let storage_key = KeyForStateChanges::get_prefix(block_hash);
+        let block_changes = get_state_changes(&self.store, block_hash)?;
 
-        let mut block_changes = storage_key.find_iter(&self.store);
-
-        Ok(StateChangesKinds::from_changes(&mut block_changes)?)
+        Ok(StateChangesKinds::from_changes(block_changes))
     }
 
     pub fn get_state_changes_with_cause_in_block(
         &self,
         block_hash: &CryptoHash,
     ) -> Result<StateChanges, Error> {
-        let storage_key = KeyForStateChanges::get_prefix(block_hash);
+        let block_changes = get_state_changes(&self.store, block_hash)?;
 
-        let mut block_changes = storage_key.find_iter(&self.store);
-
-        Ok(StateChanges::from_changes(&mut block_changes)?)
+        Ok(StateChanges::from_changes(block_changes))
     }
 
     /// Retrieve the key-value changes from the store and decode them appropriately.
@@ -705,9 +693,9 @@ impl ChainStore {
                 let mut changes = StateChanges::new();
                 for account_id in account_ids {
                     let data_key = TrieKey::Account { account_id: account_id.clone() }.to_vec();
-                    let storage_key = KeyForStateChanges::new(block_hash, data_key.as_ref());
-                    let changes_per_key = storage_key.find_exact_iter(&self.store);
-                    changes.extend(StateChanges::from_account_changes(changes_per_key)?);
+                    let changes_per_key =
+                        get_state_changes_exact(&self.store, block_hash, data_key.as_ref())?;
+                    changes.extend(StateChanges::from_account_changes(changes_per_key));
                 }
                 changes
             }
@@ -719,9 +707,9 @@ impl ChainStore {
                         public_key: key.public_key.clone(),
                     }
                     .to_vec();
-                    let storage_key = KeyForStateChanges::new(block_hash, data_key.as_ref());
-                    let changes_per_key = storage_key.find_exact_iter(&self.store);
-                    changes.extend(StateChanges::from_access_key_changes(changes_per_key)?);
+                    let changes_per_key =
+                        get_state_changes_exact(&self.store, block_hash, data_key.as_ref())?;
+                    changes.extend(StateChanges::from_access_key_changes(changes_per_key));
                 }
                 changes
             }
@@ -729,9 +717,9 @@ impl ChainStore {
                 let mut changes = StateChanges::new();
                 for account_id in account_ids {
                     let data_key = trie_key_parsers::get_raw_prefix_for_access_keys(account_id);
-                    let storage_key = KeyForStateChanges::new(block_hash, data_key.as_ref());
-                    let changes_per_key_prefix = storage_key.find_iter(&self.store);
-                    changes.extend(StateChanges::from_access_key_changes(changes_per_key_prefix)?);
+                    let changes_per_key_prefix =
+                        get_state_changes_with_prefix(&self.store, block_hash, data_key.as_ref())?;
+                    changes.extend(StateChanges::from_access_key_changes(changes_per_key_prefix));
                 }
                 changes
             }
@@ -740,9 +728,9 @@ impl ChainStore {
                 for account_id in account_ids {
                     let data_key =
                         TrieKey::ContractCode { account_id: account_id.clone() }.to_vec();
-                    let storage_key = KeyForStateChanges::new(block_hash, data_key.as_ref());
-                    let changes_per_key = storage_key.find_exact_iter(&self.store);
-                    changes.extend(StateChanges::from_contract_code_changes(changes_per_key)?);
+                    let changes_per_key =
+                        get_state_changes_exact(&self.store, block_hash, data_key.as_ref())?;
+                    changes.extend(StateChanges::from_contract_code_changes(changes_per_key));
                 }
                 changes
             }
@@ -753,9 +741,9 @@ impl ChainStore {
                         account_id,
                         key_prefix.as_ref(),
                     );
-                    let storage_key = KeyForStateChanges::new(block_hash, data_key.as_ref());
-                    let changes_per_key_prefix = storage_key.find_iter(&self.store);
-                    changes.extend(StateChanges::from_data_changes(changes_per_key_prefix)?);
+                    let changes_per_key_prefix =
+                        get_state_changes_with_prefix(&self.store, block_hash, data_key.as_ref())?;
+                    changes.extend(StateChanges::from_data_changes(changes_per_key_prefix));
                 }
                 changes
             }
@@ -2152,23 +2140,14 @@ impl<'a> ChainStoreUpdate<'a> {
         self.gc_col(ColNextBlockHashes, &block_hash_vec);
         self.gc_col(ColChallengedBlocks, &block_hash_vec);
         self.gc_col(ColBlocksToCatchup, &block_hash_vec);
-        let storage_key = KeyForStateChanges::get_prefix(&block_hash);
-        let stored_state_changes: Vec<Vec<u8>> = self
-            .chain_store
-            .store()
-            .iter_prefix(ColStateChanges, storage_key.as_ref())
-            .map(|key| key.0.into())
-            .collect();
-        for key in stored_state_changes {
-            self.gc_col(ColStateChanges, &key);
-        }
+        self.gc_col(ColStateChanges, &block_hash_vec);
         self.gc_col(ColBlockRefCount, &block_hash_vec);
         self.gc_outcomes(&block)?;
         match gc_mode {
             GCMode::StateSync { clear_block_info: false } => {}
             _ => self.gc_col(ColBlockInfo, &block_hash_vec),
         }
-        self.gc_col(ColStateDlInfos, &block_hash_vec);
+        self.remove_state_dl_infos.push(block_hash.clone());
 
         // 4. Update or delete block_hash_per_height
         self.gc_col_block_per_height(&block_hash, height, block.header().epoch_id())?;
@@ -2410,7 +2389,7 @@ impl<'a> ChainStoreUpdate<'a> {
                 store_update.delete(col, key);
             }
             DBCol::ColStateDlInfos => {
-                store_update.delete(col, key);
+                panic!("Don't use this");
             }
             DBCol::ColBlockInfo => {
                 store_update.delete(col, key);
@@ -2728,16 +2707,23 @@ impl<'a> ChainStoreUpdate<'a> {
             prev_table.push(new_hash);
             store_update.set_ser(ColBlocksToCatchup, prev_hash.as_ref(), &prev_table)?;
         }
+        let mut state_dl_infos = self
+            .store()
+            .get_ser::<Vec<(CryptoHash, StateSyncInfo)>>(ColStateDlInfos, b"")?
+            .unwrap_or_default()
+            .into_iter()
+            .collect::<HashMap<_, _>>();
         for state_dl_info in self.add_state_dl_infos.drain(..) {
-            store_update.set_ser(
-                ColStateDlInfos,
-                state_dl_info.epoch_tail_hash.as_ref(),
-                &state_dl_info,
-            )?;
+            state_dl_infos.insert(state_dl_info.epoch_tail_hash.clone(), state_dl_info);
         }
         for hash in self.remove_state_dl_infos.drain(..) {
-            store_update.delete(ColStateDlInfos, hash.as_ref());
+            state_dl_infos.remove(&hash);
         }
+        store_update.set_ser(
+            ColStateDlInfos,
+            b"",
+            &state_dl_infos.into_iter().collect::<Vec<_>>(),
+        )?;
         for hash in self.challenged_blocks.drain() {
             store_update.set_ser(ColChallengedBlocks, hash.as_ref(), &true)?;
         }
