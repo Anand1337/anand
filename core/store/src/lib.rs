@@ -39,6 +39,7 @@ pub use crate::trie::{
 
 pub mod db;
 pub mod migrations;
+mod newdb;
 pub mod test_utils;
 mod trie;
 
@@ -296,7 +297,7 @@ pub fn read_with_cache<'a, T: BorshDeserialize + 'a>(
 }
 
 pub fn create_store(path: &Path) -> Store {
-    let db = Arc::new(RocksDB::new(path).expect("Failed to open the database"));
+    let db = Arc::new(newdb::WrappedRocksDB::new(path).unwrap());
     Store::new(db)
 }
 

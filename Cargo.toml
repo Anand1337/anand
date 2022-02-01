@@ -4,6 +4,7 @@ members = [
     "core/crypto",
     "core/account-id",
     "core/account-id/fuzz",
+    "core/experimental-storage",
     "core/primitives",
     "core/primitives-core",
     "core/store",

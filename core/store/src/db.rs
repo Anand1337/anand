@@ -12,8 +12,6 @@ use rocksdb::{
 use strum::EnumIter;
 use tracing::warn;
 
-use near_primitives::version::DbVersion;
-
 use crate::db::refcount::merge_refcounted_records;
 
 use std::path::Path;
@@ -22,27 +20,10 @@ use std::sync::atomic::Ordering;
 pub(crate) mod refcount;
 pub(crate) mod v6_to_v7;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct DBError(rocksdb::Error);
+pub type DBError = io::Error;
 
-impl std::fmt::Display for DBError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        self.0.fmt(formatter)
-    }
-}
-
-impl std::error::Error for DBError {}
-
-impl From<rocksdb::Error> for DBError {
-    fn from(err: rocksdb::Error) -> Self {
-        DBError(err)
-    }
-}
-
-impl Into<io::Error> for DBError {
-    fn into(self) -> io::Error {
-        io::Error::new(io::ErrorKind::Other, self)
-    }
+fn to_db_error(err: rocksdb::Error) -> DBError {
+    io::Error::new(io::ErrorKind::Other, err)
 }
 
 /// This enum holds the information about the columns that we use within the RocksDB storage.
@@ -526,7 +507,8 @@ impl RocksDBOptions {
     pub fn read_only<P: AsRef<std::path::Path>>(self, path: P) -> Result<RocksDB, DBError> {
         let options = self.rocksdb_options.unwrap_or_default();
         let cf_names: Vec<_> = self.cf_names.unwrap_or_else(|| vec!["col0".to_string()]);
-        let db = DB::open_cf_for_read_only(&options, path, cf_names.iter(), false)?;
+        let db = DB::open_cf_for_read_only(&options, path, cf_names.iter(), false)
+            .map_err(to_db_error)?;
         let cfs =
             cf_names.iter().map(|n| db.cf_handle(n).unwrap() as *const ColumnFamily).collect();
         Ok(RocksDB {
@@ -555,7 +537,7 @@ impl RocksDBOptions {
                 })
                 .collect()
         });
-        let db = DB::open_cf_descriptors(&options, path, cf_descriptors)?;
+        let db = DB::open_cf_descriptors(&options, path, cf_descriptors).map_err(to_db_error)?;
         #[cfg(feature = "single_thread_rocksdb")]
         {
             // These have to be set after open db
@@ -606,7 +588,10 @@ pub trait Database: Sync + Send {
 impl Database for RocksDB {
     fn get(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError> {
         let read_options = rocksdb_read_options();
-        let result = self.db.get_cf_opt(unsafe { &*self.cfs[col as usize] }, key, &read_options)?;
+        let result = self
+            .db
+            .get_cf_opt(unsafe { &*self.cfs[col as usize] }, key, &read_options)
+            .map_err(to_db_error)?;
         Ok(RocksDB::get_with_rc_logic(col, result))
     }
 
@@ -691,7 +676,7 @@ impl Database for RocksDB {
                 }
             }
         }
-        Ok(self.db.write(batch)?)
+        self.db.write(batch).map_err(to_db_error)
     }
 
     fn as_rocksdb(&self) -> Option<&RocksDB> {
@@ -830,22 +815,6 @@ fn rocksdb_column_options(col: DBCol) -> Options {
 }
 
 impl RocksDB {
-    /// Returns version of the database state on disk.
-    pub fn get_version<P: AsRef<std::path::Path>>(path: P) -> Result<DbVersion, DBError> {
-        let db = RocksDB::new_read_only(path)?;
-        db.get(DBCol::ColDbVersion, VERSION_KEY).map(|result| {
-            serde_json::from_slice(
-                &result
-                    .expect("Failed to find version in first column. Database must be corrupted."),
-            )
-            .expect("Failed to parse version. Database must be corrupted.")
-        })
-    }
-
-    fn new_read_only<P: AsRef<std::path::Path>>(path: P) -> Result<Self, DBError> {
-        RocksDBOptions::default().read_only(path)
-    }
-
     pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<Self, DBError> {
         RocksDBOptions::default().read_write(path)
     }

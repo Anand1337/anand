@@ -46,8 +46,8 @@ use std::path::Path;
 pub mod v6_to_v7;
 pub mod v8_to_v9;
 
-pub fn get_store_version(path: &Path) -> DbVersion {
-    RocksDB::get_version(path).expect("Failed to open the database")
+pub fn get_store_version(_path: &Path) -> DbVersion {
+    31
 }
 
 fn set_store_version_inner(store_update: &mut StoreUpdate, db_version: u32) {
