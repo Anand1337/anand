@@ -36,9 +36,13 @@ pub struct SealsManagerTestFixture {
     mock_runtime: Arc<KeyValueRuntime>,
 }
 
+fn create_test_store() -> Store {
+    unimplemented!()
+}
+
 impl Default for SealsManagerTestFixture {
     fn default() -> Self {
-        let store = near_store::test_utils::create_test_store();
+        let store = create_test_store();
         // 12 validators, 3 shards => 4 validators per shard
         let validators = make_validators(12);
         let mock_runtime = KeyValueRuntime::new_with_validators(store.clone(), validators, 1, 3, 5);
@@ -152,7 +156,7 @@ impl Default for ChunkTestFixture {
 
 impl ChunkTestFixture {
     pub fn new(orphan_chunk: bool) -> Self {
-        let store = near_store::test_utils::create_test_store();
+        let store = create_test_store();
         // 12 validators, 3 shards => 4 validators per shard
         let validators = make_validators(12);
         let mock_runtime = Arc::new(KeyValueRuntime::new_with_validators(

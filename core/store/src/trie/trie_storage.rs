@@ -4,9 +4,8 @@ use std::sync::{Arc, Mutex};
 
 use near_primitives::hash::CryptoHash;
 
-use crate::db::refcount::decode_value_with_rc;
 use crate::trie::POISONED_LOCK_ERR;
-use crate::{ColState, StorageError, Store};
+use crate::{DBCol::ColState, StorageError, Store};
 use lru::LruCache;
 use near_primitives::shard_layout::ShardUId;
 use std::cell::RefCell;
@@ -24,19 +23,18 @@ impl TrieCache {
         self.0.lock().expect(POISONED_LOCK_ERR).clear()
     }
 
-    pub fn update_cache(&self, ops: Vec<(CryptoHash, Option<&Vec<u8>>)>) {
+    pub fn update_cache(&self, ops: &[(CryptoHash, Option<&[u8]>)]) {
         let mut guard = self.0.lock().expect(POISONED_LOCK_ERR);
-        for (hash, opt_value_rc) in ops {
-            if let Some(value_rc) = opt_value_rc {
-                if let (Some(value), _rc) = decode_value_with_rc(&value_rc) {
-                    if value.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
-                        guard.put(hash, value.to_vec());
+        for (hash, value) in ops {
+            match value {
+                Some(v) => {
+                    if v.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
+                        guard.put(hash.clone(), v.to_vec());
                     }
-                } else {
-                    guard.pop(&hash);
                 }
-            } else {
-                guard.pop(&hash);
+                None => {
+                    guard.pop(hash);
+                }
             }
         }
     }

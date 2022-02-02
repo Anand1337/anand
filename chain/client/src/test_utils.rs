@@ -43,7 +43,6 @@ use near_primitives::version::PROTOCOL_VERSION;
 use near_primitives::views::{
     AccountView, FinalExecutionOutcomeView, QueryRequest, QueryResponseKind, StateItem,
 };
-use near_store::test_utils::create_test_store;
 use near_store::Store;
 use near_telemetry::TelemetryActor;
 
@@ -65,6 +64,10 @@ use near_primitives::time::{Clock, Instant};
 use near_primitives::utils::MaybeValidated;
 
 pub type PeerManagerMock = Mocker<PeerManagerActor>;
+
+fn create_test_store() -> Store {
+    unimplemented!()
+}
 
 const TEST_SEED: RngSeed = [3; 32];
 /// Sets up ClientActor and ViewClientActor viewing the same store/runtime.

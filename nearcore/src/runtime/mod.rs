@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use std::fs;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
@@ -45,7 +44,7 @@ use near_vm_runner::precompile_contract;
 
 use near_store::{
     get_genesis_hash, get_genesis_state_roots, set_genesis_hash, set_genesis_state_roots,
-    ApplyStatePartResult, ColState, PartialStorage, ShardTries, Store, StoreCompiledContractCache,
+    ApplyStatePartResult, PartialStorage, ShardTries, Store, StoreCompiledContractCache,
     StoreUpdate, Trie, WrappedTrieChanges,
 };
 use node_runtime::adapter::ViewRuntimeAdapter;
@@ -74,7 +73,6 @@ pub mod errors;
 
 const POISONED_LOCK_ERR: &str = "The lock was poisoned.";
 const STATE_DUMP_FILE: &str = "state_dump";
-const GENESIS_ROOTS_FILE: &str = "genesis_roots";
 
 /// Wrapper type for epoch manager to get avoid implementing trait for foreign types.
 pub struct SafeEpochManager(pub Arc<RwLock<EpochManager>>);
@@ -254,9 +252,9 @@ impl NightshadeRuntime {
         }
     }
 
-    fn genesis_state_from_dump(store: Store, home_dir: &Path) -> Vec<StateRoot> {
+    fn genesis_state_from_dump(_store: Store, _home_dir: &Path) -> Vec<StateRoot> {
         error!(target: "near", "Loading genesis from a state dump file. Do not use this outside of genesis-tools");
-        let mut state_file = home_dir.to_path_buf();
+        /*let mut state_file = home_dir.to_path_buf();
         state_file.push(STATE_DUMP_FILE);
         store.load_from_file(ColState, state_file.as_path()).expect("Failed to read state dump");
         let mut roots_files = home_dir.to_path_buf();
@@ -264,7 +262,8 @@ impl NightshadeRuntime {
         let data = fs::read(roots_files).expect("Failed to read genesis roots file.");
         let state_roots: Vec<StateRoot> =
             BorshDeserialize::try_from_slice(&data).expect("Failed to deserialize genesis roots");
-        state_roots
+        state_roots*/
+        unimplemented!()
     }
 
     fn genesis_state_from_records(store: Store, genesis: &Genesis) -> Vec<StateRoot> {

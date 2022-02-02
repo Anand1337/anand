@@ -20,7 +20,10 @@ use near_primitives::version::{ProtocolVersion, UPGRADABILITY_FIX_PROTOCOL_VERSI
 use near_primitives::views::{
     CurrentEpochValidatorInfo, EpochValidatorInfo, NextEpochValidatorInfo, ValidatorKickoutView,
 };
-use near_store::{ColBlockInfo, ColEpochInfo, ColEpochStart, Store, StoreUpdate};
+use near_store::{
+    DBCol::{ColBlockInfo, ColEpochInfo, ColEpochStart},
+    Store, StoreUpdate,
+};
 
 use crate::proposals::proposals_to_epoch_info;
 pub use crate::reward_calculator::RewardCalculator;
@@ -31,7 +34,7 @@ pub use crate::reward_calculator::NUM_SECONDS_IN_A_YEAR;
 use near_chain::types::{BlockHeaderInfo, ValidatorInfoIdentifier};
 use near_chain_configs::GenesisConfig;
 use near_primitives::shard_layout::ShardLayout;
-use near_store::db::DBCol::ColEpochValidatorInfo;
+use near_store::DBCol::ColEpochValidatorInfo;
 
 mod proposals;
 mod reward_calculator;

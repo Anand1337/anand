@@ -22,7 +22,7 @@ docker-nearcore-nightly:
 
 release: neard-release
 	cargo build -p state-viewer --release
-	cargo build -p store-validator --release
+	#cargo build -p store-validator --release
 	cargo build -p runtime-params-estimator --release
 	cargo build -p genesis-populate --release
 	$(MAKE) sandbox-release

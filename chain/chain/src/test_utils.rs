@@ -5,7 +5,6 @@ use std::sync::{Arc, RwLock};
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use num_rational::Rational;
-use tracing::debug;
 
 use near_chain_configs::ProtocolConfig;
 use near_chain_primitives::{Error, ErrorKind};
@@ -39,14 +38,12 @@ use near_primitives::views::{
     AccessKeyInfoView, AccessKeyList, CallResult, ContractCodeView, EpochValidatorInfo,
     QueryRequest, QueryResponse, QueryResponseKind, ViewStateResult,
 };
-use near_store::test_utils::create_test_store;
 use near_store::{
-    ColBlockHeader, PartialStorage, ShardTries, Store, StoreUpdate, Trie, TrieChanges,
+    DBCol::ColBlockHeader, PartialStorage, ShardTries, Store, StoreUpdate, Trie, TrieChanges,
     WrappedTrieChanges,
 };
 
 use crate::chain::{Chain, NUM_EPOCHS_TO_KEEP_STORE_DATA};
-use crate::store::ChainStoreAccess;
 use crate::types::{
     ApplySplitStateResult, ApplyTransactionResult, BlockHeaderInfo, ChainGenesis,
     ValidatorInfoIdentifier,
@@ -1224,6 +1221,10 @@ pub fn setup() -> (Chain, Arc<KeyValueRuntime>, Arc<InMemoryValidatorSigner>) {
     setup_with_tx_validity_period(100)
 }
 
+fn create_test_store() -> Store {
+    unimplemented!()
+}
+
 pub fn setup_with_tx_validity_period(
     tx_validity_period: NumBlocks,
 ) -> (Chain, Arc<KeyValueRuntime>, Arc<InMemoryValidatorSigner>) {
@@ -1302,8 +1303,8 @@ pub fn format_hash(h: CryptoHash) -> String {
 }
 
 /// Displays chain from given store.
-pub fn display_chain(me: &Option<AccountId>, chain: &mut Chain, tail: bool) {
-    let runtime_adapter = chain.runtime_adapter();
+pub fn display_chain(_me: &Option<AccountId>, _chain: &mut Chain, _tail: bool) {
+    /*let runtime_adapter = chain.runtime_adapter();
     let chain_store = chain.mut_store();
     let head = chain_store.head().unwrap();
     debug!(
@@ -1393,7 +1394,8 @@ pub fn display_chain(me: &Option<AccountId>, chain: &mut Chain, tail: bool) {
                 }
             }
         }
-    }
+    }*/
+    unimplemented!()
 }
 
 impl ChainGenesis {

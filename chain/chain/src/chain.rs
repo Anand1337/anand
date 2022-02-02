@@ -44,7 +44,10 @@ use near_primitives::views::{
     FinalExecutionOutcomeWithReceiptView, FinalExecutionStatus, LightClientBlockView,
     SignedTransactionView,
 };
-use near_store::{ColState, ColStateHeaders, ColStateParts, ShardTries, StoreUpdate};
+use near_store::{
+    DBCol::{ColStateHeaders, ColStateParts},
+    ShardTries,
+};
 
 use near_primitives::state_record::StateRecord;
 
@@ -1094,11 +1097,12 @@ impl Chain {
 
         // clear all trie data
 
-        let tries = self.runtime_adapter.get_tries();
+        let _tries = self.runtime_adapter.get_tries();
         let mut chain_store_update = self.mut_store().store_update();
-        let mut store_update = StoreUpdate::new_with_tries(tries);
-        store_update.delete_all(ColState);
-        chain_store_update.merge(store_update);
+        // XXX
+        //let mut store_update = StoreUpdate::new_with_tries(tries);
+        //store_update.delete_all(ColState);
+        //chain_store_update.merge(store_update);
 
         // The reason to reset tail here is not to allow Tail be greater than Head
         chain_store_update.reset_tail();

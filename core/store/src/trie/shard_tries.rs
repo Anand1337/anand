@@ -10,7 +10,7 @@ use near_primitives::types::{
     NumShards, RawStateChange, RawStateChangesWithTrieKey, StateChangeCause, StateRoot,
 };
 
-use crate::db::{DBCol, DBOp, DBTransaction};
+use crate::db::{DBCol, StorageOp, StorageTxInner};
 use crate::trie::trie_storage::{TrieCache, TrieCachingStorage};
 use crate::trie::{TrieRefcountChange, POISONED_LOCK_ERR};
 use crate::{StorageError, Store, StoreUpdate, Trie, TrieChanges, TrieUpdate};
@@ -77,30 +77,27 @@ impl ShardTries {
         self.0.store.clone()
     }
 
-    pub fn update_cache(&self, transaction: &DBTransaction) -> std::io::Result<()> {
+    pub fn update_cache(&self, transaction: &StorageTxInner) -> std::io::Result<()> {
         let mut caches = self.0.caches.write().expect(POISONED_LOCK_ERR);
-        let mut shards = HashMap::new();
-        for op in &transaction.ops {
+        let mut shards = HashMap::<_, Vec<(_, Option<&[u8]>)>>::new();
+        for op in &transaction.0 {
             match op {
-                DBOp::UpdateRefcount { col, ref key, ref value } if *col == DBCol::ColState => {
+                StorageOp::UpdateRC { col, key, value, add_rc } if *col == DBCol::ColState => {
                     let (shard_uid, hash) =
                         TrieCachingStorage::get_shard_uid_and_hash_from_key(key)?;
-                    shards.entry(shard_uid).or_insert(vec![]).push((hash, Some(value)));
+                    shards
+                        .entry(shard_uid)
+                        .or_insert(vec![])
+                        .push((hash, if *add_rc < 0 { None } else { Some(value) }));
                 }
-                DBOp::Insert { col, .. } if *col == DBCol::ColState => unreachable!(),
-                DBOp::Delete { col, .. } if *col == DBCol::ColState => unreachable!(),
-                DBOp::DeleteAll { col } if *col == DBCol::ColState => {
-                    // Delete is possible in reset_data_pre_state_sync
-                    for (_, cache) in caches.iter() {
-                        cache.clear();
-                    }
-                }
+                StorageOp::Put { col, .. } if *col == DBCol::ColState => unreachable!(),
+                StorageOp::Delete { col, .. } if *col == DBCol::ColState => unreachable!(),
                 _ => {}
             }
         }
         for (shard_uid, ops) in shards {
             let cache = caches.entry(shard_uid).or_insert_with(TrieCache::new).clone();
-            cache.update_cache(ops);
+            cache.update_cache(&ops);
         }
         Ok(())
     }
@@ -236,7 +233,7 @@ impl ShardTries {
         assert_eq!(trie_changes.old_root, CryptoHash::default());
         assert!(trie_changes.deletions.is_empty());
         // Not new_with_tries on purpose
-        let mut store_update = StoreUpdate::new(self.get_store().storage.clone());
+        let mut store_update = self.get_store().store_update();
         for TrieRefcountChange { trie_node_or_value_hash, trie_node_or_value, rc } in
             trie_changes.insertions.into_iter()
         {

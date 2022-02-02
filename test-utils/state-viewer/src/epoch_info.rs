@@ -1,14 +1,12 @@
-use borsh::BorshDeserialize;
 use clap::{ArgEnum, Clap};
 use core::ops::Range;
 use near_chain::{ChainStore, ChainStoreAccess, RuntimeAdapter};
 use near_epoch_manager::EpochManager;
 use near_primitives::account::id::AccountId;
 use near_primitives::epoch_manager::epoch_info::EpochInfo;
-use near_primitives::epoch_manager::AGGREGATOR_KEY;
 use near_primitives::hash::CryptoHash;
 use near_primitives::types::{BlockHeight, EpochHeight, EpochId, ProtocolVersion, ShardId};
-use near_store::{DBCol, Store};
+use near_store::Store;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -149,22 +147,8 @@ fn get_epoch_ids(
 
 // Iterates over the ColEpochInfo column, ignores AGGREGATOR_KEY and returns deserialized EpochId
 // for EpochInfos that satisfy the given predicate.
-fn iterate_and_filter(store: Store, predicate: impl Fn(EpochInfo) -> bool) -> Vec<EpochId> {
-    store
-        .iter(DBCol::ColEpochInfo)
-        .filter_map(|(key, value)| {
-            if key.as_ref() == AGGREGATOR_KEY {
-                None
-            } else {
-                let epoch_info = EpochInfo::try_from_slice(value.as_ref()).unwrap();
-                if predicate(epoch_info) {
-                    Some(EpochId::try_from_slice(key.as_ref()).unwrap())
-                } else {
-                    None
-                }
-            }
-        })
-        .collect()
+fn iterate_and_filter(_store: Store, _predicate: impl Fn(EpochInfo) -> bool) -> Vec<EpochId> {
+    unimplemented!()
 }
 
 fn display_epoch_info(

@@ -19,9 +19,9 @@ use near_primitives::types::{
 };
 use near_primitives::utils::get_num_seats_per_shard;
 use near_primitives::version::PROTOCOL_VERSION;
-use near_store::test_utils::create_test_store;
 
 use near_primitives::shard_layout::ShardLayout;
+use near_store::Store;
 use {crate::reward_calculator::NUM_NS_IN_SECOND, crate::NUM_SECONDS_IN_A_YEAR};
 
 pub const DEFAULT_GAS_PRICE: u128 = 100;
@@ -38,6 +38,10 @@ pub fn hash_range(num: usize) -> Vec<CryptoHash> {
 
 pub fn change_stake(stake_changes: Vec<(AccountId, Balance)>) -> BTreeMap<AccountId, Balance> {
     stake_changes.into_iter().collect()
+}
+
+fn create_test_store() -> Store {
+    unimplemented!()
 }
 
 pub fn epoch_info(

@@ -1,17 +1,13 @@
-use std::fs::File;
-use std::io::{BufReader, Read, Write};
+use std::io;
 use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
-use std::{fmt, io};
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use lru::LruCache;
 
-pub use db::DBCol::{self, *};
 pub use db::{
-    CHUNK_TAIL_KEY, FINAL_HEAD_KEY, FORK_TAIL_KEY, HEADER_HEAD_KEY, HEAD_KEY,
+    DBCol, CHUNK_TAIL_KEY, FINAL_HEAD_KEY, FORK_TAIL_KEY, HEADER_HEAD_KEY, HEAD_KEY,
     LARGEST_TARGET_HEIGHT_KEY, LATEST_KNOWN_KEY, NUM_COLS, SHOULD_COL_GC, SKIP_COL_GC, TAIL_KEY,
 };
 use near_crypto::PublicKey;
@@ -20,16 +16,11 @@ use near_primitives::contract::ContractCode;
 pub use near_primitives::errors::StorageError;
 use near_primitives::hash::CryptoHash;
 use near_primitives::receipt::{DelayedReceiptIndices, Receipt, ReceivedData};
-use near_primitives::serialize::to_base;
 pub use near_primitives::shard_layout::ShardUId;
 use near_primitives::trie_key::{trie_key_parsers, TrieKey};
 use near_primitives::types::{AccountId, CompiledContractCache, StateRoot};
 
-pub use crate::db::refcount::decode_value_with_rc;
-use crate::db::refcount::encode_value_with_rc;
-use crate::db::{
-    DBOp, DBTransaction, Database, RocksDB, GENESIS_JSON_HASH_KEY, GENESIS_STATE_ROOTS_KEY,
-};
+use crate::db::{StorageInner, StorageTxInner, GENESIS_JSON_HASH_KEY, GENESIS_STATE_ROOTS_KEY};
 pub use crate::trie::iterator::TrieIterator;
 pub use crate::trie::update::{TrieUpdate, TrieUpdateIterator, TrieUpdateValuePtr};
 pub use crate::trie::{
@@ -37,151 +28,52 @@ pub use crate::trie::{
     ApplyStatePartResult, PartialStorage, ShardTries, Trie, TrieChanges, WrappedTrieChanges,
 };
 
-pub mod db;
-pub mod migrations;
-mod newdb;
-pub mod test_utils;
+mod db;
 mod trie;
 
 #[derive(Clone)]
-pub struct Store {
-    storage: Arc<dyn Database>,
-}
+pub struct Store(Arc<StorageInner>);
 
 impl Store {
-    pub fn new(storage: Arc<dyn Database>) -> Store {
-        Store { storage }
+    pub fn get(&self, column: DBCol, key: &[u8]) -> io::Result<Option<Vec<u8>>> {
+        self.0.get(column, key)
     }
 
-    pub fn get(&self, column: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, io::Error> {
-        self.storage.get(column, key).map_err(|e| e.into())
+    pub fn get_ser<T: BorshDeserialize>(&self, column: DBCol, key: &[u8]) -> io::Result<Option<T>> {
+        self.0
+            .get(column, key)
+            .map(|v| v.map(|v| T::try_from_slice(&v)).transpose())
+            .and_then(|v| v)
     }
 
-    pub fn get_ser<T: BorshDeserialize>(
-        &self,
-        column: DBCol,
-        key: &[u8],
-    ) -> Result<Option<T>, io::Error> {
-        match self.storage.get(column, key) {
-            Ok(Some(bytes)) => match T::try_from_slice(bytes.as_ref()) {
-                Ok(result) => Ok(Some(result)),
-                Err(e) => Err(e),
-            },
-            Ok(None) => Ok(None),
-            Err(e) => Err(e.into()),
-        }
-    }
-
-    pub fn exists(&self, column: DBCol, key: &[u8]) -> Result<bool, io::Error> {
-        self.storage.get(column, key).map(|value| value.is_some()).map_err(|e| e.into())
+    pub fn exists(&self, column: DBCol, key: &[u8]) -> io::Result<bool> {
+        self.0.get(column, key).map(|v| v.is_some())
     }
 
     pub fn store_update(&self) -> StoreUpdate {
-        StoreUpdate::new(self.storage.clone())
-    }
-
-    pub fn iter<'a>(
-        &'a self,
-        column: DBCol,
-    ) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
-        self.storage.iter(column)
-    }
-
-    pub fn iter_without_rc_logic<'a>(
-        &'a self,
-        column: DBCol,
-    ) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
-        self.storage.iter_without_rc_logic(column)
-    }
-
-    pub fn iter_prefix<'a>(
-        &'a self,
-        column: DBCol,
-        key_prefix: &'a [u8],
-    ) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
-        self.storage.iter_prefix(column, key_prefix)
-    }
-
-    pub fn iter_prefix_ser<'a, T: BorshDeserialize>(
-        &'a self,
-        column: DBCol,
-        key_prefix: &'a [u8],
-    ) -> Box<dyn Iterator<Item = Result<(Vec<u8>, T), io::Error>> + 'a> {
-        Box::new(
-            self.storage
-                .iter_prefix(column, key_prefix)
-                .map(|(key, value)| Ok((key.to_vec(), T::try_from_slice(value.as_ref())?))),
-        )
-    }
-
-    pub fn save_to_file(&self, column: DBCol, filename: &Path) -> Result<(), std::io::Error> {
-        let mut file = File::create(filename)?;
-        for (key, value) in self.storage.iter_without_rc_logic(column) {
-            file.write_u32::<LittleEndian>(key.len() as u32)?;
-            file.write_all(&key)?;
-            file.write_u32::<LittleEndian>(value.len() as u32)?;
-            file.write_all(&value)?;
-        }
-        Ok(())
-    }
-
-    pub fn load_from_file(&self, column: DBCol, filename: &Path) -> Result<(), std::io::Error> {
-        let file = File::open(filename)?;
-        let mut file = BufReader::new(file);
-        let mut transaction = self.storage.transaction();
-        let mut key = Vec::new();
-        let mut value = Vec::new();
-        loop {
-            let key_len = match file.read_u32::<LittleEndian>() {
-                Ok(key_len) => key_len as usize,
-                Err(ref err) if err.kind() == std::io::ErrorKind::UnexpectedEof => break,
-                Err(err) => return Err(err),
-            };
-            key.resize(key_len, 0);
-            file.read_exact(&mut key)?;
-
-            let value_len = file.read_u32::<LittleEndian>()? as usize;
-            value.resize(value_len, 0);
-            file.read_exact(&mut value)?;
-
-            transaction.put(column, &key, &value);
-        }
-        self.storage.write(transaction).map_err(|e| e.into())
-    }
-
-    pub fn get_rocksdb(&self) -> Option<&RocksDB> {
-        self.storage.as_rocksdb()
+        StoreUpdate { storage: self.0.clone(), transaction: StorageTxInner::new(), tries: None }
     }
 }
 
 /// Keeps track of current changes to the database and can commit all of them to the database.
 pub struct StoreUpdate {
-    storage: Arc<dyn Database>,
-    transaction: DBTransaction,
+    storage: Arc<StorageInner>,
+    transaction: StorageTxInner,
     /// Optionally has reference to the trie to clear cache on the commit.
     tries: Option<ShardTries>,
 }
 
 impl StoreUpdate {
-    pub fn new(storage: Arc<dyn Database>) -> Self {
-        let transaction = storage.transaction();
-        StoreUpdate { storage, transaction, tries: None }
-    }
-
     pub fn new_with_tries(tries: ShardTries) -> Self {
-        let storage = tries.get_store().storage.clone();
-        let transaction = storage.transaction();
-        StoreUpdate { storage, transaction, tries: Some(tries) }
-    }
-
-    pub fn update_refcount(&mut self, column: DBCol, key: &[u8], value: &[u8], rc_delta: i64) {
-        debug_assert!(column.is_rc());
-        let value = encode_value_with_rc(value, rc_delta);
-        self.transaction.update_refcount(column, key, value)
+        StoreUpdate {
+            storage: tries.get_store().0.clone(),
+            transaction: StorageTxInner::new(),
+            tries: Some(tries),
+        }
     }
 
     pub fn set(&mut self, column: DBCol, key: &[u8], value: &[u8]) {
-        self.transaction.put(column, key, value)
+        self.transaction.put(column, key.to_vec(), value.to_vec());
     }
 
     pub fn set_ser<T: BorshSerialize>(
@@ -189,19 +81,17 @@ impl StoreUpdate {
         column: DBCol,
         key: &[u8],
         value: &T,
-    ) -> Result<(), io::Error> {
-        debug_assert!(!column.is_rc());
-        let data = value.try_to_vec()?;
-        self.set(column, key, &data);
+    ) -> io::Result<()> {
+        self.transaction.put(column, key.to_vec(), value.try_to_vec()?);
         Ok(())
     }
 
     pub fn delete(&mut self, column: DBCol, key: &[u8]) {
-        self.transaction.delete(column, key);
+        self.transaction.delete(column, key.to_vec());
     }
 
-    pub fn delete_all(&mut self, column: DBCol) {
-        self.transaction.delete_all(column);
+    pub fn update_refcount(&mut self, column: DBCol, key: &[u8], value: &[u8], rc_delta: i64) {
+        self.transaction.update_rc(column, key.to_vec(), value.to_vec(), rc_delta);
     }
 
     /// Merge another store update into this one.
@@ -213,69 +103,20 @@ impl StoreUpdate {
                 debug_assert!(self.tries.as_ref().unwrap().is_same(&tries));
             }
         }
-
         self.merge_transaction(other.transaction);
     }
 
     /// Merge DB Transaction.
-    pub fn merge_transaction(&mut self, transaction: DBTransaction) {
-        for op in transaction.ops {
-            match op {
-                DBOp::Insert { col, key, value } => self.transaction.put(col, &key, &value),
-                DBOp::Delete { col, key } => self.transaction.delete(col, &key),
-                DBOp::UpdateRefcount { col, key, value } => {
-                    self.transaction.update_refcount(col, &key, &value)
-                }
-                DBOp::DeleteAll { col } => self.transaction.delete_all(col),
-            }
-        }
+    fn merge_transaction(&mut self, transaction: StorageTxInner) {
+        self.transaction.merge(transaction);
     }
 
-    pub fn commit(self) -> Result<(), io::Error> {
-        debug_assert!(
-            {
-                let non_refcount_keys = self
-                    .transaction
-                    .ops
-                    .iter()
-                    .filter_map(|op| match op {
-                        DBOp::Insert { col, key, .. } => Some((*col as u8, key)),
-                        DBOp::Delete { col, key } => Some((*col as u8, key)),
-                        DBOp::UpdateRefcount { .. } => None,
-                        DBOp::DeleteAll { .. } => None,
-                    })
-                    .collect::<Vec<_>>();
-                non_refcount_keys.len()
-                    == non_refcount_keys.iter().collect::<std::collections::HashSet<_>>().len()
-            },
-            "Transaction overwrites itself: {:?}",
-            self
-        );
+    pub fn commit(self) -> io::Result<()> {
         if let Some(tries) = self.tries {
-            assert_eq!(
-                tries.get_store().storage.deref() as *const _,
-                self.storage.deref() as *const _
-            );
+            assert_eq!(tries.get_store().0.deref() as *const _, self.storage.deref() as *const _);
             tries.update_cache(&self.transaction)?;
         }
-        self.storage.write(self.transaction).map_err(|e| e.into())
-    }
-}
-
-impl fmt::Debug for StoreUpdate {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "Store Update {{")?;
-        for op in self.transaction.ops.iter() {
-            match op {
-                DBOp::Insert { col, key, .. } => writeln!(f, "  + {:?} {}", col, to_base(key))?,
-                DBOp::UpdateRefcount { col, key, .. } => {
-                    writeln!(f, "  +- {:?} {}", col, to_base(key))?
-                }
-                DBOp::Delete { col, key } => writeln!(f, "  - {:?} {}", col, to_base(key))?,
-                DBOp::DeleteAll { col } => writeln!(f, "  delete all {:?}", col)?,
-            }
-        }
-        writeln!(f, "}}")
+        self.storage.write(self.transaction)
     }
 }
 
@@ -287,7 +128,7 @@ pub fn read_with_cache<'a, T: BorshDeserialize + 'a>(
 ) -> io::Result<Option<&'a T>> {
     let key_vec = key.to_vec();
     if cache.get(&key_vec).is_some() {
-        return Ok(Some(cache.get(&key_vec).unwrap()));
+        return Ok(cache.get(&key_vec));
     }
     if let Some(result) = storage.get_ser(col, key)? {
         cache.put(key.to_vec(), result);
@@ -297,8 +138,7 @@ pub fn read_with_cache<'a, T: BorshDeserialize + 'a>(
 }
 
 pub fn create_store(path: &Path) -> Store {
-    let db = Arc::new(newdb::WrappedRocksDB::new(path).unwrap());
-    Store::new(db)
+    Store(Arc::new(StorageInner::new(path).unwrap()))
 }
 
 /// Reads an object from Trie.
