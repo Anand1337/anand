@@ -50,10 +50,10 @@ impl TrieViewer {
 
     pub fn view_account(
         &self,
-        &mut state_update: TrieUpdate,
+        state_update: &mut TrieUpdate,
         account_id: &AccountId,
     ) -> Result<Account, errors::ViewAccountError> {
-        get_account(&mut state_update, account_id)?.ok_or_else(|| {
+        get_account(state_update, account_id)?.ok_or_else(|| {
             errors::ViewAccountError::AccountDoesNotExist {
                 requested_account_id: account_id.clone(),
             }
