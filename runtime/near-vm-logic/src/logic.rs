@@ -2283,10 +2283,17 @@ impl<'a> VMLogic<'a> {
         }
         self.gas_counter.pay_per(storage_read_key_byte, key.len() as u64)?;
         let nodes_before = self.ext.get_touched_nodes_count();
-        let read = self.ext.storage_get(&key);
+        // let read = self.ext.storage_get(&key);
+        // TODO: Return the commented logic because it changes the cost of charging fees.
+        // The previous version also doesn't work due to immutable borrow in get_touched_nodes_count and mutable borrow
+        // in storage_get.
+        let read = {
+            let read = self.ext.storage_get(&key);
+            Self::deref_value(&mut self.gas_counter, storage_read_value_byte, read?)?
+        };
         self.gas_counter
             .pay_per(touching_trie_node, self.ext.get_touched_nodes_count() - nodes_before)?;
-        let read = Self::deref_value(&mut self.gas_counter, storage_read_value_byte, read?)?;
+        // let read = Self::deref_value(&mut self.gas_counter, storage_read_value_byte, read?)?;
         match read {
             Some(value) => {
                 self.internal_write_register(register_id, value)?;
