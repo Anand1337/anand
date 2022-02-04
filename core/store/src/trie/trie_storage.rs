@@ -138,11 +138,12 @@ impl RetrieveRawBytes for SyncTrieCache {
                 guard.put(hash.clone(), value.clone());
                 value
             },
+            #[cfg(not(feature = "protocol_feature_chunk_nodes_cache"))]
             (Some(value), cost) => {
-                #[cfg(not(feature = "protocol_feature_chunk_nodes_cache"))]
                 guard.touched_nodes_count += 1;
-
-                #[cfg(feature = "protocol_feature_chunk_nodes_cache")]
+            }
+            #[cfg(feature = "protocol_feature_chunk_nodes_cache")]
+            (Some(value), cost) => {
                 match cost {
                     RetrievalCost::Full => {guard.touched_nodes_count += 1 },
                     RetrievalCost::Free => {},
