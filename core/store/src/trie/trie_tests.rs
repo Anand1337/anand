@@ -134,6 +134,7 @@ fn test_counter() {
     let shard_uid = ShardUId { version: 1, shard_id: 0 };
     let trie = tries.get_trie_for_shard(shard_uid);
     let trie = Rc::new(trie);
+    let mut state_root = Trie::empty_root();
     // let storage = match trie.storage.as_caching_storage() {
     //     Some(storage) => storage,
     //     None => assert!("TrieCachingStorage must be used as trie storage backend"),
