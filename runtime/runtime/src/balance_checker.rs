@@ -14,7 +14,7 @@ use near_primitives::transaction::SignedTransaction;
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::{AccountId, Balance};
 use near_primitives::version::ProtocolVersion;
-use near_store::{get, get_account, get_postponed_receipt, TrieUpdate};
+use near_store::{get, get_account, get_postponed_receipt, Trie, TrieUpdate};
 use std::collections::HashSet;
 
 pub(crate) fn check_balance(
@@ -33,7 +33,7 @@ pub(crate) fn check_balance(
         get(initial_state, &TrieKey::DelayedReceiptIndices)?.unwrap_or_default();
     let final_delayed_receipt_indices: DelayedReceiptIndices =
         get(final_state, &TrieKey::DelayedReceiptIndices)?.unwrap_or_default();
-    let get_delayed_receipts = |from_index, to_index, state| -> Result<Vec<Receipt>, StorageError> {
+    let get_delayed_receipts = |from_index: u64, to_index: u64, state: &mut TrieUpdate| -> Result<Vec<Receipt>, StorageError> {
         let mut receipts: Vec<Receipt> = vec![];
         for index in from_index..to_index.iter() {
             let result = get(state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
