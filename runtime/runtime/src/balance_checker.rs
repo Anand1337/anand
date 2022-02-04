@@ -33,7 +33,7 @@ pub(crate) fn check_balance(
         get(initial_state, &TrieKey::DelayedReceiptIndices)?.unwrap_or_default();
     let final_delayed_receipt_indices: DelayedReceiptIndices =
         get(final_state, &TrieKey::DelayedReceiptIndices)?.unwrap_or_default();
-    let get_delayed_receipts = |from_index, to_index, state: &mut TrieUpdate| {
+    let get_delayed_receipts = |from_index, to_index, mut state| {
         (from_index..to_index)
             .map(|index| {
                 get(&mut state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
@@ -49,13 +49,13 @@ pub(crate) fn check_balance(
     let processed_delayed_receipts = get_delayed_receipts(
         initial_delayed_receipt_indices.first_index,
         final_delayed_receipt_indices.first_index,
-        &mut initial_state,
+        initial_state,
     )?;
     // Receipts that were not processed this time and are delayed now.
     let new_delayed_receipts = get_delayed_receipts(
         initial_delayed_receipt_indices.next_available_index,
         final_delayed_receipt_indices.next_available_index,
-        &mut final_state,
+        final_state,
     )?;
 
     // Accounts
