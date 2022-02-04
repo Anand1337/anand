@@ -139,8 +139,8 @@ fn test_counter() {
     //     None => assert!("TrieCachingStorage must be used as trie storage backend"),
     // };
     let keys = vec![b"aaa", b"abb", b"baa"];
-    let changes: Vec<(Vec<u8>, Option<Vec<u8>>)> = keys.iter().cloned().enumerate().map(|(i, key)| (key.to_vec(), Some(vec![i]))).collect();
+    let changes = keys.iter().cloned().enumerate().map(|(i, key)| (key.to_vec(), Some(vec![i as u8]))).collect();
     let trie_changes = simplify_changes(&changes);
-    state_root = test_populate_trie(&tries, &state_root, shard_uid, trie_changes.clone());
-    trie.get(&state_root, key);
+    let state_root = test_populate_trie(&tries, &state_root, shard_uid, trie_changes.clone());
+    trie.get(&state_root, keys[0]);
 }
