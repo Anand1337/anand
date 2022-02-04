@@ -122,7 +122,7 @@ impl TrieViewer {
     ) -> Result<ViewStateResult, errors::ViewStateError> {
         match get_account(&mut state_update, account_id)? {
             Some(account) => {
-                let code_len = get_code(state_update, account_id, Some(account.code_hash()))?
+                let code_len = get_code(&mut state_update, account_id, Some(account.code_hash()))?
                     .map(|c| c.code().len() as u64)
                     .unwrap_or_default();
                 if let Some(limit) = self.state_size_limit {
