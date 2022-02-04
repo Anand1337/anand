@@ -33,17 +33,28 @@ pub(crate) fn check_balance(
         get(initial_state, &TrieKey::DelayedReceiptIndices)?.unwrap_or_default();
     let final_delayed_receipt_indices: DelayedReceiptIndices =
         get(final_state, &TrieKey::DelayedReceiptIndices)?.unwrap_or_default();
-    let get_delayed_receipts = |from_index, to_index, mut state| {
-        (from_index..to_index)
-            .map(|index| {
-                get(&mut state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
-                    StorageError::StorageInconsistentState(format!(
-                        "Delayed receipt #{} should be in the state",
-                        index
-                    ))
-                })
-            })
-            .collect::<Result<Vec<Receipt>, StorageError>>()
+    let get_delayed_receipts = |from_index, to_index, state| {
+        let mut receipts: Vec<Receipt> = vec![];
+        for index in from_index..to_index.iter() {
+            let result = get(state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
+                StorageError::StorageInconsistentState(format!(
+                    "Delayed receipt #{} should be in the state",
+                    index
+                ))
+            })?;
+            receipts.push(result);
+        }
+        receipts
+        // (from_index..to_index)
+        //     .map(|index| {
+        //         get(state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
+        //             StorageError::StorageInconsistentState(format!(
+        //                 "Delayed receipt #{} should be in the state",
+        //                 index
+        //             ))
+        //         })
+        //     })
+        //     .collect::<Result<Vec<Receipt>, StorageError>>()
     };
     // Previously delayed receipts that were processed this time.
     let processed_delayed_receipts = get_delayed_receipts(
