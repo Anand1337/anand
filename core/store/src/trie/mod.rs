@@ -699,7 +699,7 @@ impl Trie {
 
     pub fn get_with(&self, root: &CryptoHash, key: &[u8], r: &mut impl RetrieveRawBytes) -> Result<Option<Vec<u8>>, StorageError> {
         match self.get_ref(root, key, r)? {
-            Some((_length, hash)) => r.retrieve_raw_bytes(&hash).map(Some),
+            Some((_length, hash)) => r.retrieve_raw_bytes(&hash, |hash| self.storage.retrieve_raw_bytes(hash)).map(Some),
             None => Ok(None),
         }
     }
