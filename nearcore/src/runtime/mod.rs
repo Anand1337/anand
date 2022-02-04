@@ -1853,7 +1853,7 @@ impl node_runtime::adapter::ViewRuntimeAdapter for NightshadeRuntime {
         account_id: &AccountId,
     ) -> Result<Account, node_runtime::state_viewer::errors::ViewAccountError> {
         let state_update = self.tries.new_trie_update_view(*shard_uid, state_root);
-        self.trie_viewer.view_account(state_update, account_id)
+        self.trie_viewer.view_account(&mut state_update, account_id)
     }
 
     fn view_contract_code(
