@@ -16,6 +16,7 @@ use near_primitives::types::{AccountId, Balance};
 use near_primitives::version::ProtocolVersion;
 use near_store::{get, get_account, get_postponed_receipt, Trie, TrieUpdate};
 use std::collections::HashSet;
+use std::ops::DerefMut;
 
 pub(crate) fn check_balance(
     transaction_costs: &RuntimeFeesConfig,
@@ -92,7 +93,7 @@ pub(crate) fn check_balance(
         } else {
             0
         };
-    let total_accounts_balance = |state| -> Result<Balance, RuntimeError> {
+    let total_accounts_balance = |state: &mut TrieUpdate| -> Result<Balance, RuntimeError> {
         Ok(all_accounts_ids
             .iter()
             .map(|account_id| {
