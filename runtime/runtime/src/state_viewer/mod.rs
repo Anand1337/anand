@@ -92,7 +92,7 @@ impl TrieViewer {
         let prefix = trie_key_parsers::get_raw_prefix_for_access_keys(account_id);
         let raw_prefix: &[u8] = prefix.as_ref();
         let keys = state_update
-            .iter(&prefix)?.cloned().collect();
+            .iter(&prefix)?.collect();
         let access_keys =
             keys.map(|key| {
                     let key = key?;
