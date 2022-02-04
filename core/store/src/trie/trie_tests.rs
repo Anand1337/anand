@@ -10,6 +10,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::rc::Rc;
+use borsh::BorshSerialize;
 
 /// TrieMemoryPartialStorage, but contains only the first n requested nodes.
 pub struct IncompletePartialStorage {
@@ -125,4 +126,21 @@ fn test_reads_with_incomplete_storage() {
             test_incomplete_storage(Rc::clone(&trie), trie_update_keys);
         }
     }
+}
+
+#[test]
+fn test_counter() {
+    let tries = create_tries_complex(1, 2);
+    let shard_uid = ShardUId { version: 1, shard_id: 0 };
+    let trie = tries.get_trie_for_shard(shard_uid);
+    let trie = Rc::new(trie);
+    // let storage = match trie.storage.as_caching_storage() {
+    //     Some(storage) => storage,
+    //     None => assert!("TrieCachingStorage must be used as trie storage backend"),
+    // };
+    let keys = vec![b"aaa", b"abb", b"baa"];
+    let changes: Vec<(Vec<u8>, Option<Vec<u8>>)> = keys.iter().cloned().enumerate().map(|(i, key)| (key.to_vec(), Some(vec![i]))).collect();
+    let trie_changes = simplify_changes(&changes);
+    state_root = test_populate_trie(&tries, &state_root, shard_uid, trie_changes.clone());
+    trie.get(&state_root, key);
 }
