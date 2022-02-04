@@ -16,7 +16,6 @@ use near_primitives::types::{AccountId, Balance};
 use near_primitives::version::ProtocolVersion;
 use near_store::{get, get_account, get_postponed_receipt, Trie, TrieUpdate};
 use std::collections::HashSet;
-use std::ops::DerefMut;
 
 pub(crate) fn check_balance(
     transaction_costs: &RuntimeFeesConfig,
@@ -94,17 +93,27 @@ pub(crate) fn check_balance(
             0
         };
     let total_accounts_balance = |state: &mut TrieUpdate| -> Result<Balance, RuntimeError> {
-        Ok(all_accounts_ids
-            .iter()
-            .map(|account_id| {
-                get_account(state.deref_mut(), account_id)?.map_or(Ok(0), |a| {
-                    safe_add_balance(a.amount(), a.locked())
-                        .map_err(|_| RuntimeError::UnexpectedIntegerOverflow)
-                })
-            })
-            .collect::<Result<Vec<Balance>, RuntimeError>>()?
-            .into_iter()
-            .try_fold(0u128, safe_add_balance)?)
+        let mut balances: Vec<Balance> = vec![];
+        for account_id in all_accounts_ids.iter() {
+            balances.push(get_account(state, account_id)?.map_or(Ok(0), |a| {
+                safe_add_balance(a.amount(), a.locked())
+                    .map_err(|_| RuntimeError::UnexpectedIntegerOverflow)
+            })?);
+        }
+        Ok(balances
+        .into_iter()
+        .try_fold(0u128, safe_add_balance)?)
+        // Ok(all_accounts_ids
+        //     .iter()
+        //     .map(|account_id| {
+        //         get_account(state, account_id)?.map_or(Ok(0), |a| {
+        //             safe_add_balance(a.amount(), a.locked())
+        //                 .map_err(|_| RuntimeError::UnexpectedIntegerOverflow)
+        //         })
+        //     })
+        //     .collect::<Result<Vec<Balance>, RuntimeError>>()?
+        //     .into_iter()
+        //     .try_fold(0u128, safe_add_balance)?)
     };
     let initial_accounts_balance = total_accounts_balance(initial_state)?;
     let final_accounts_balance = total_accounts_balance(final_state)?;
