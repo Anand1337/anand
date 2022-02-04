@@ -143,5 +143,9 @@ fn test_counter() {
     let changes = keys.iter().cloned().enumerate().map(|(i, key)| (key.to_vec(), Some(vec![i as u8]))).collect();
     let trie_changes = simplify_changes(&changes);
     let state_root = test_populate_trie(&tries, &state_root, shard_uid, trie_changes.clone());
-    trie.get(&state_root, keys[0]);
+    eprintln!("{}", trie.counter.get());
+    for key in keys {
+        trie.get(&state_root, key);
+        eprintln!("{}", trie.counter.get());
+    }
 }
