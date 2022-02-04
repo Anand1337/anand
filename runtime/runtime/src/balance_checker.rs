@@ -33,10 +33,10 @@ pub(crate) fn check_balance(
         get(initial_state, &TrieKey::DelayedReceiptIndices)?.unwrap_or_default();
     let final_delayed_receipt_indices: DelayedReceiptIndices =
         get(final_state, &TrieKey::DelayedReceiptIndices)?.unwrap_or_default();
-    let get_delayed_receipts = |from_index, to_index, state| {
+    let get_delayed_receipts = |from_index, to_index, state: &mut TrieUpdate| {
         (from_index..to_index)
             .map(|index| {
-                get(state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
+                get(&mut state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
                     StorageError::StorageInconsistentState(format!(
                         "Delayed receipt #{} should be in the state",
                         index
@@ -49,13 +49,13 @@ pub(crate) fn check_balance(
     let processed_delayed_receipts = get_delayed_receipts(
         initial_delayed_receipt_indices.first_index,
         final_delayed_receipt_indices.first_index,
-        initial_state,
+        &mut initial_state,
     )?;
     // Receipts that were not processed this time and are delayed now.
     let new_delayed_receipts = get_delayed_receipts(
         initial_delayed_receipt_indices.next_available_index,
         final_delayed_receipt_indices.next_available_index,
-        final_state,
+        &mut final_state,
     )?;
 
     // Accounts
