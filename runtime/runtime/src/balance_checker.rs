@@ -44,7 +44,7 @@ pub(crate) fn check_balance(
             })?;
             receipts.push(result);
         }
-        receipts
+        Ok(receipts)
         // (from_index..to_index)
         //     .map(|index| {
         //         get(state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
