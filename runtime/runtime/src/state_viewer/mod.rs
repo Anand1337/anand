@@ -65,7 +65,7 @@ impl TrieViewer {
         mut state_update: TrieUpdate,
         account_id: &AccountId,
     ) -> Result<ContractCode, errors::ViewContractCodeError> {
-        let account = self.view_account(&mut state_update, account_id)?.clone();
+        let account = self.view_account(state_update, account_id)?.clone();
         get_code(&mut state_update, account_id, Some(account.code_hash()))?.ok_or_else(|| {
             errors::ViewContractCodeError::NoContractCode {
                 contract_account_id: account_id.clone(),

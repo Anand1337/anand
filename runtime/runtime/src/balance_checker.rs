@@ -36,7 +36,7 @@ pub(crate) fn check_balance(
     let get_delayed_receipts = |from_index, to_index, state| {
         (from_index..to_index)
             .map(|index| {
-                get(&mut state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
+                get(state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
                     StorageError::StorageInconsistentState(format!(
                         "Delayed receipt #{} should be in the state",
                         index
@@ -85,7 +85,7 @@ pub(crate) fn check_balance(
         Ok(all_accounts_ids
             .iter()
             .map(|account_id| {
-                get_account(&mut state, account_id)?.map_or(Ok(0), |a| {
+                get_account(state, account_id)?.map_or(Ok(0), |a| {
                     safe_add_balance(a.amount(), a.locked())
                         .map_err(|_| RuntimeError::UnexpectedIntegerOverflow)
                 })
