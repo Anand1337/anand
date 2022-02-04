@@ -168,7 +168,7 @@ pub(crate) fn check_balance(
         Ok(all_potential_postponed_receipt_ids
             .iter()
             .map(|(account_id, receipt_id)| {
-                Ok(get_postponed_receipt(&mut state, account_id, *receipt_id)?
+                Ok(get_postponed_receipt(state, account_id, *receipt_id)?
                     .map_or(Ok(0), |r| receipt_cost(&r))?)
             })
             .collect::<Result<Vec<Balance>, RuntimeError>>()?
