@@ -185,7 +185,7 @@ pub(crate) fn check_balance(
         .filter_map(|x| x)
         .collect::<HashSet<_>>();
 
-    let total_postponed_receipts_cost = |state| -> Result<Balance, RuntimeError> {
+    let total_postponed_receipts_cost = |state: &mut TrieUpdate| -> Result<Balance, RuntimeError> {
         let mut balances: Vec<Balance> = vec![];
         for (account_id, receipt_id) in all_potential_postponed_receipt_ids.iter() {
             balances.push(get_postponed_receipt(state, account_id, *receipt_id)?
