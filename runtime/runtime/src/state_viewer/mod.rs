@@ -94,7 +94,7 @@ impl TrieViewer {
         let keys: Vec<_>  = state_update
             .iter(&prefix)?.collect();
         let access_keys =
-            keys.map(|key| {
+            keys.iter().map(|key| {
                     let key = key?;
                     let public_key = &key[raw_prefix.len()..];
                     let access_key = near_store::get_access_key_raw(&mut state_update, &key)?
