@@ -2201,9 +2201,10 @@ impl<'a> VMLogic<'a> {
         self.gas_counter.pay_per(storage_write_key_byte, key.len() as u64)?;
         self.gas_counter.pay_per(storage_write_value_byte, value.len() as u64)?;
         let nodes_before = self.ext.get_touched_nodes_count();
-        let evicted_ptr = self.ext.storage_get(&key)?;
-        let evicted =
-            Self::deref_value(&mut self.gas_counter, storage_write_evicted_byte, evicted_ptr)?;
+        let evicted = {
+            let evicted_ptr = self.ext.storage_get(&key)?;
+            Self::deref_value(&mut self.gas_counter, storage_write_evicted_byte, evicted_ptr)?
+        };
         self.gas_counter
             .pay_per(touching_trie_node, self.ext.get_touched_nodes_count() - nodes_before)?;
         self.ext.storage_set(&key, &value)?;
