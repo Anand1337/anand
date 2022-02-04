@@ -290,7 +290,7 @@ fn apply_delayed_receipts_to_split_states_impl<'a>(
 /// Retrieve delayed receipts starting with `start_index` until `memory_limit` is hit
 /// return None if there is no delayed receipts with index >= start_index
 pub fn get_delayed_receipts(
-    state_update: &TrieUpdate,
+    state_update: &mut TrieUpdate,
     start_index: Option<u64>,
     memory_limit: ByteSize,
 ) -> Result<Option<(u64, Vec<Receipt>)>, StorageError> {
@@ -538,9 +538,9 @@ mod tests {
             );
             let mut start_index = 0;
 
-            let trie_update = tries.new_trie_update(ShardUId::single_shard(), state_root);
+            let mut trie_update = tries.new_trie_update(ShardUId::single_shard(), state_root);
             while let Some((next_index, receipts)) =
-                get_delayed_receipts(&trie_update, Some(start_index), memory_limit).unwrap()
+                get_delayed_receipts(&mut trie_update, Some(start_index), memory_limit).unwrap()
             {
                 assert_eq!(receipts, all_receipts[start_index as usize..next_index as usize]);
                 start_index = next_index;

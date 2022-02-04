@@ -75,7 +75,7 @@ where
     print!("Test touches {} nodes, expected result {:?}...", size, expected);
     for i in 0..(size + 1) {
         let storage = IncompletePartialStorage::new(storage.clone(), i);
-        let trie = Trie { storage: Box::new(storage), counter: Default::default() };
+        let trie = Trie { storage: Box::new(storage) };
         let expected_result =
             if i < size { Err(&StorageError::TrieNodeMissing) } else { Ok(&expected) };
         assert_eq!(test(Rc::new(trie)).as_ref(), expected_result);
@@ -143,9 +143,9 @@ fn test_counter() {
     let changes = keys.iter().cloned().enumerate().map(|(i, key)| (key.to_vec(), Some(vec![i as u8]))).collect();
     let trie_changes = simplify_changes(&changes);
     let state_root = test_populate_trie(&tries, &state_root, shard_uid, trie_changes.clone());
-    eprintln!("{}", trie.counter.get());
-    for key in keys {
-        trie.get(&state_root, key);
-        eprintln!("{}", trie.counter.get());
-    }
+    // eprintln!("{}", trie.counter.get());
+    // for key in keys {
+    //     trie.get(&state_root, key);
+    //     eprintln!("{}", trie.counter.get());
+    // }
 }

@@ -18,7 +18,7 @@ use crate::trie::iterator::TrieIterator;
 use crate::trie::nibble_slice::NibbleSlice;
 pub use crate::trie::shard_tries::{KeyForStateChanges, ShardTries, WrappedTrieChanges};
 pub(crate) use crate::trie::trie_storage::{SyncTrieCache, TrieCachingStorage};
-use crate::trie::trie_storage::{RetrievalCost, TouchedNodesCounter, TrieMemoryPartialStorage, TrieRecordingStorage, TrieStorage};
+use crate::trie::trie_storage::{RetrievalCost, RetrieveRawBytes, TrieMemoryPartialStorage, TrieRecordingStorage, TrieStorage};
 use crate::StorageError;
 
 mod insert_delete;
@@ -405,7 +405,6 @@ impl RawTrieNodeWithSize {
 
 pub struct Trie {
     pub(crate) storage: Box<dyn TrieStorage>,
-    pub counter: TouchedNodesCounter,
 }
 
 /// Stores reference count change for some key-value pair in DB.
@@ -469,7 +468,7 @@ pub struct ApplyStatePartResult {
 
 impl Trie {
     pub fn new(store: Box<dyn TrieStorage>, _shard_uid: ShardUId) -> Self {
-        Trie { storage: store, counter: TouchedNodesCounter::default() }
+        Trie { storage: store }
     }
 
     pub fn recording_reads(&self) -> Self {
@@ -480,7 +479,7 @@ impl Trie {
             shard_uid: storage.shard_uid,
             recorded: RefCell::new(Default::default()),
         };
-        Trie { storage: Box::new(storage), counter: TouchedNodesCounter::default() }
+        Trie { storage: Box::new(storage) }
     }
 
     pub fn empty_root() -> StateRoot {
@@ -503,7 +502,6 @@ impl Trie {
                 recorded_storage,
                 visited_nodes: Default::default(),
             }),
-            counter: TouchedNodesCounter::default(),
         }
     }
 
@@ -575,7 +573,6 @@ impl Trie {
         if *hash == Trie::empty_root() {
             Ok(memory.store(TrieNodeWithSize::empty()))
         } else {
-            self.counter.increment();
             let bytes = self.storage.retrieve_raw_bytes(hash)?;
             match RawTrieNodeWithSize::decode(&bytes) {
                 Ok(value) => {
@@ -610,19 +607,7 @@ impl Trie {
     }
 
     pub(crate) fn retrieve_raw_bytes(&self, hash: &CryptoHash) -> Result<Vec<u8>, StorageError> {
-        return self.storage.retrieve_raw_bytes_with_cost(hash).map(|(value, cost)| {
-            #[cfg(not(feature = "protocol_feature_chunk_nodes_cache"))]
-            self.counter.increment();
-
-            #[cfg(feature = "protocol_feature_chunk_nodes_cache")]
-            match cost {
-                RetrievalCost::Full => {
-                    self.counter.increment()
-                },
-                RetrievalCost::Free => {},
-            }
-            value
-        })
+        self.storage.retrieve_raw_bytes(hash)
     }
 
     pub fn retrieve_root_node(&self, root: &StateRoot) -> Result<StateRootNode, StorageError> {
@@ -646,6 +631,7 @@ impl Trie {
         &self,
         root: &CryptoHash,
         mut key: NibbleSlice<'_>,
+        r: &mut impl RetrieveRawBytes,
     ) -> Result<Option<(u32, CryptoHash)>, StorageError> {
         let mut hash = *root;
 
@@ -653,7 +639,7 @@ impl Trie {
             if hash == Trie::empty_root() {
                 return Ok(None);
             }
-            let bytes = self.retrieve_raw_bytes(&hash)?;
+            let bytes = r.retrieve_raw_bytes(&hash, |hash| self.storage.retrieve_raw_bytes(hash))?;
             let node = RawTrieNodeWithSize::decode(&bytes).map_err(|_| {
                 StorageError::StorageInconsistentState("RawTrieNode decode failed".to_string())
             })?;
@@ -701,14 +687,19 @@ impl Trie {
         &self,
         root: &CryptoHash,
         key: &[u8],
+        r: &mut impl RetrieveRawBytes,
     ) -> Result<Option<(u32, CryptoHash)>, StorageError> {
         let key = NibbleSlice::new(key);
-        self.lookup(root, key)
+        self.lookup(root, key, r)
     }
 
     pub fn get(&self, root: &CryptoHash, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
-        match self.get_ref(root, key)? {
-            Some((_length, hash)) => self.retrieve_raw_bytes(&hash).map(Some),
+        self.get_with(root, key, &mut ())
+    }
+
+    pub fn get_with(&self, root: &CryptoHash, key: &[u8], r: &mut impl RetrieveRawBytes) -> Result<Option<Vec<u8>>, StorageError> {
+        match self.get_ref(root, key, r)? {
+            Some((_length, hash)) => r.retrieve_raw_bytes(&hash).map(Some),
             None => Ok(None),
         }
     }

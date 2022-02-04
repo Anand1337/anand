@@ -79,7 +79,6 @@ impl<'a> RuntimeExt<'a> {
         epoch_info_provider: &'a dyn EpochInfoProvider,
         current_protocol_version: ProtocolVersion,
     ) -> Self {
-        trie_update.flip_caching_chunk_state();
         RuntimeExt {
             trie_update,
             account_id,
@@ -95,10 +94,6 @@ impl<'a> RuntimeExt<'a> {
             epoch_info_provider,
             current_protocol_version,
         }
-    }
-
-    pub fn stop(&mut self) {
-        self.trie_update.flip_caching_chunk_state();
     }
 
     #[inline]
@@ -380,7 +375,7 @@ impl<'a> External for RuntimeExt<'a> {
     }
 
     fn get_touched_nodes_count(&self) -> u64 {
-        self.trie_update.trie.counter.get()
+        self.trie_update.get_touched_nodes_count()
     }
 
     fn validator_stake(&self, account_id: &AccountId) -> ExtResult<Option<Balance>> {

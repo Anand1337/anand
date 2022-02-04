@@ -6,7 +6,7 @@ use near_primitives::types::{
     RawStateChange, RawStateChanges, RawStateChangesWithTrieKey, StateChangeCause,
 };
 
-use crate::trie::TrieChanges;
+use crate::trie::{POISONED_LOCK_ERR, SyncTrieCache, TrieChanges};
 use crate::StorageError;
 
 use super::{Trie, TrieIterator};
@@ -22,9 +22,11 @@ pub struct TrieKeyValueUpdate {
 /// key that was updated -> the update.
 pub type TrieUpdates = BTreeMap<Vec<u8>, TrieKeyValueUpdate>;
 
+
 /// Provides a way to access Storage and record changes with future commit.
 pub struct TrieUpdate {
     pub trie: Rc<Trie>,
+    trie_node_cache: SyncTrieCache,
     root: CryptoHash,
     committed: RawStateChanges,
     prospective: TrieUpdates,
@@ -53,17 +55,21 @@ impl<'a> TrieUpdateValuePtr<'a> {
 
 impl TrieUpdate {
     pub fn new(trie: Rc<Trie>, root: CryptoHash) -> Self {
-        if let Some(storage) = trie.storage.as_caching_storage() {
-            storage.prepare_trie_cache();
-        }
-        TrieUpdate { trie, root, committed: Default::default(), prospective: Default::default() }
+        let trie_node_cache = match trie.storage.as_caching_storage() {
+            Some(storage) => {
+                storage.prepare_trie_cache();
+                storage.cache.clone()
+            },
+            None => SyncTrieCache::new(),
+        };
+        TrieUpdate { trie, trie_node_cache, root, committed: Default::default(), prospective: Default::default() }
     }
 
     pub fn trie(&self) -> &Trie {
         self.trie.as_ref()
     }
 
-    pub fn get(&self, key: &TrieKey) -> Result<Option<Vec<u8>>, StorageError> {
+    pub fn get(&mut self, key: &TrieKey) -> Result<Option<Vec<u8>>, StorageError> {
         let key = key.to_vec();
         if let Some(key_value) = self.prospective.get(&key) {
             return Ok(key_value.value.as_ref().map(<Vec<u8>>::clone));
@@ -73,10 +79,10 @@ impl TrieUpdate {
             }
         }
 
-        self.trie.get(&self.root, &key)
+        self.trie.get_with(&self.root, &key, &mut self.trie_node_cache)
     }
 
-    pub fn get_ref(&self, key: &TrieKey) -> Result<Option<TrieUpdateValuePtr<'_>>, StorageError> {
+    pub fn get_ref(&mut self, key: &TrieKey) -> Result<Option<TrieUpdateValuePtr<'_>>, StorageError> {
         let key = key.to_vec();
         if let Some(key_value) = self.prospective.get(&key) {
             return Ok(key_value.value.as_ref().map(TrieUpdateValuePtr::MemoryRef));
@@ -85,7 +91,7 @@ impl TrieUpdate {
                 return Ok(data.as_ref().map(TrieUpdateValuePtr::MemoryRef));
             }
         }
-        self.trie.get_ref(&self.root, &key).map(|option| {
+        self.trie.get_ref(&self.root, &key, &mut self.trie_node_cache).map(|option| {
             option.map(|(length, hash)| TrieUpdateValuePtr::HashAndSize(&self.trie, length, hash))
         })
     }
@@ -173,10 +179,9 @@ impl TrieUpdate {
         self.root
     }
 
-    pub fn flip_caching_chunk_state(&self) {
-        if let Some(storage) = self.trie.storage.as_caching_storage() {
-            storage.cache.flip_caching_chunk_state();
-        }
+    pub fn get_touched_nodes_count(&self) -> u64 {
+        let mut guard = self.trie_node_cache.0.lock().expect(POISONED_LOCK_ERR);
+        guard.get_touched_nodes_count()
     }
 }
 
@@ -376,7 +381,7 @@ mod tests {
         let trie_changes = trie_update.finalize().unwrap().0;
         let (store_update, new_root) = tries.apply_all(&trie_changes, COMPLEX_SHARD_UID).unwrap();
         store_update.commit().unwrap();
-        let trie_update2 = tries.new_trie_update(COMPLEX_SHARD_UID, new_root);
+        let mut trie_update2 = tries.new_trie_update(COMPLEX_SHARD_UID, new_root);
         assert_eq!(trie_update2.get(&test_key(b"dog".to_vec())), Ok(Some(b"puppy".to_vec())));
         let values = trie_update2
             .iter(&test_key(b"dog".to_vec()).to_vec())

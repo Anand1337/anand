@@ -634,12 +634,12 @@ fn apply_delayed_receipts<'a>(
     state_roots: HashMap<ShardUId, StateRoot>,
     account_id_to_shard_id: &(dyn Fn(&AccountId) -> ShardUId + 'a),
 ) -> Result<HashMap<ShardUId, StateRoot>, Error> {
-    let orig_trie_update = tries.new_trie_update_view(orig_shard_uid, orig_state_root);
+    let mut orig_trie_update = tries.new_trie_update_view(orig_shard_uid, orig_state_root);
 
     let mut start_index = None;
     let mut new_state_roots = state_roots;
     while let Some((next_index, receipts)) =
-        get_delayed_receipts(&orig_trie_update, start_index, STATE_PART_MEMORY_LIMIT)?
+        get_delayed_receipts(&mut orig_trie_update, start_index, STATE_PART_MEMORY_LIMIT)?
     {
         let (store_update, updated_state_roots) = tries.apply_delayed_receipts_to_split_states(
             &new_state_roots,
