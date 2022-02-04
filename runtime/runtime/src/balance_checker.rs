@@ -35,7 +35,7 @@ pub(crate) fn check_balance(
         get(final_state, &TrieKey::DelayedReceiptIndices)?.unwrap_or_default();
     let get_delayed_receipts = |from_index: u64, to_index: u64, state: &mut TrieUpdate| -> Result<Vec<Receipt>, StorageError> {
         let mut receipts: Vec<Receipt> = vec![];
-        for index in (from_index..to_index).iter() {
+        for index in from_index..to_index {
             let result = get(state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
                 StorageError::StorageInconsistentState(format!(
                     "Delayed receipt #{} should be in the state",
