@@ -36,7 +36,7 @@ pub(crate) fn check_balance(
     let get_delayed_receipts = |from_index, to_index, state| {
         (from_index..to_index)
             .map(|index| {
-                get(state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
+                get(&mut state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
                     StorageError::StorageInconsistentState(format!(
                         "Delayed receipt #{} should be in the state",
                         index
@@ -85,7 +85,7 @@ pub(crate) fn check_balance(
         Ok(all_accounts_ids
             .iter()
             .map(|account_id| {
-                get_account(state, account_id)?.map_or(Ok(0), |a| {
+                get_account(&mut state, account_id)?.map_or(Ok(0), |a| {
                     safe_add_balance(a.amount(), a.locked())
                         .map_err(|_| RuntimeError::UnexpectedIntegerOverflow)
                 })
@@ -168,7 +168,7 @@ pub(crate) fn check_balance(
         Ok(all_potential_postponed_receipt_ids
             .iter()
             .map(|(account_id, receipt_id)| {
-                Ok(get_postponed_receipt(state, account_id, *receipt_id)?
+                Ok(get_postponed_receipt(&mut state, account_id, *receipt_id)?
                     .map_or(Ok(0), |r| receipt_cost(&r))?)
             })
             .collect::<Result<Vec<Balance>, RuntimeError>>()?
