@@ -186,15 +186,23 @@ pub(crate) fn check_balance(
         .collect::<HashSet<_>>();
 
     let total_postponed_receipts_cost = |state| -> Result<Balance, RuntimeError> {
-        Ok(all_potential_postponed_receipt_ids
-            .iter()
-            .map(|(account_id, receipt_id)| {
-                Ok(get_postponed_receipt(state, account_id, *receipt_id)?
-                    .map_or(Ok(0), |r| receipt_cost(&r))?)
-            })
-            .collect::<Result<Vec<Balance>, RuntimeError>>()?
-            .into_iter()
-            .try_fold(0u128, safe_add_balance)?)
+        let mut balances: Vec<Balance> = vec![];
+        for (account_id, receipt_id) in all_potential_postponed_receipt_ids.iter() {
+            balances.push(get_postponed_receipt(state, account_id, *receipt_id)?
+                .map_or(Ok(0), |r| receipt_cost(&r))?);
+        }
+        Ok(balances
+        .into_iter()
+        .try_fold(0u128, safe_add_balance)?)
+        // Ok(all_potential_postponed_receipt_ids
+        //     .iter()
+        //     .map(|(account_id, receipt_id)| {
+        //         Ok(get_postponed_receipt(state, account_id, *receipt_id)?
+        //             .map_or(Ok(0), |r| receipt_cost(&r))?)
+        //     })
+        //     .collect::<Result<Vec<Balance>, RuntimeError>>()?
+        //     .into_iter()
+        //     .try_fold(0u128, safe_add_balance)?)
     };
     let initial_postponed_receipts_balance = total_postponed_receipts_cost(initial_state)?;
     let final_postponed_receipts_balance = total_postponed_receipts_cost(final_state)?;
