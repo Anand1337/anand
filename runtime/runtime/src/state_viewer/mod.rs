@@ -91,10 +91,10 @@ impl TrieViewer {
     ) -> Result<Vec<(PublicKey, AccessKey)>, errors::ViewAccessKeyError> {
         let prefix = trie_key_parsers::get_raw_prefix_for_access_keys(account_id);
         let raw_prefix: &[u8] = prefix.as_ref();
+        let keys = state_update
+            .iter(&prefix)?.cloned().collect();
         let access_keys =
-            state_update
-                .iter(&prefix)?
-                .map(|key| {
+            keys.map(|key| {
                     let key = key?;
                     let public_key = &key[raw_prefix.len()..];
                     let access_key = near_store::get_access_key_raw(&mut state_update, &key)?
