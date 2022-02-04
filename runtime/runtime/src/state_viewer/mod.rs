@@ -50,10 +50,10 @@ impl TrieViewer {
 
     pub fn view_account(
         &self,
-        state_update: &TrieUpdate,
+        mut state_update: TrieUpdate,
         account_id: &AccountId,
     ) -> Result<Account, errors::ViewAccountError> {
-        get_account(state_update, account_id)?.ok_or_else(|| {
+        get_account(&mut state_update, account_id)?.ok_or_else(|| {
             errors::ViewAccountError::AccountDoesNotExist {
                 requested_account_id: account_id.clone(),
             }
@@ -62,11 +62,11 @@ impl TrieViewer {
 
     pub fn view_contract_code(
         &self,
-        state_update: &TrieUpdate,
+        mut state_update: TrieUpdate,
         account_id: &AccountId,
     ) -> Result<ContractCode, errors::ViewContractCodeError> {
         let account = self.view_account(state_update, account_id)?;
-        get_code(state_update, account_id, Some(account.code_hash()))?.ok_or_else(|| {
+        get_code(&mut state_update, account_id, Some(account.code_hash()))?.ok_or_else(|| {
             errors::ViewContractCodeError::NoContractCode {
                 contract_account_id: account_id.clone(),
             }
@@ -75,18 +75,18 @@ impl TrieViewer {
 
     pub fn view_access_key(
         &self,
-        state_update: &TrieUpdate,
+        mut state_update: TrieUpdate,
         account_id: &AccountId,
         public_key: &PublicKey,
     ) -> Result<AccessKey, errors::ViewAccessKeyError> {
-        get_access_key(state_update, account_id, public_key)?.ok_or_else(|| {
+        get_access_key(&mut state_update, account_id, public_key)?.ok_or_else(|| {
             errors::ViewAccessKeyError::AccessKeyDoesNotExist { public_key: public_key.clone() }
         })
     }
 
     pub fn view_access_keys(
         &self,
-        state_update: &TrieUpdate,
+        mut state_update: TrieUpdate,
         account_id: &AccountId,
     ) -> Result<Vec<(PublicKey, AccessKey)>, errors::ViewAccessKeyError> {
         let prefix = trie_key_parsers::get_raw_prefix_for_access_keys(account_id);
@@ -97,7 +97,7 @@ impl TrieViewer {
                 .map(|key| {
                     let key = key?;
                     let public_key = &key[raw_prefix.len()..];
-                    let access_key = near_store::get_access_key_raw(state_update, &key)?
+                    let access_key = near_store::get_access_key_raw(&mut state_update, &key)?
                         .ok_or_else(|| errors::ViewAccessKeyError::InternalError {
                             error_message: "Unexpected missing key from iterator".to_string(),
                         })?;
@@ -116,11 +116,11 @@ impl TrieViewer {
 
     pub fn view_state(
         &self,
-        state_update: &TrieUpdate,
+        mut state_update: TrieUpdate,
         account_id: &AccountId,
         prefix: &[u8],
     ) -> Result<ViewStateResult, errors::ViewStateError> {
-        match get_account(state_update, account_id)? {
+        match get_account(&mut state_update, account_id)? {
             Some(account) => {
                 let code_len = get_code(state_update, account_id, Some(account.code_hash()))?
                     .map(|c| c.code().len() as u64)
@@ -172,7 +172,7 @@ impl TrieViewer {
     ) -> Result<Vec<u8>, errors::CallFunctionError> {
         let now = Instant::now();
         let root = state_update.get_root();
-        let mut account = get_account(&state_update, contract_id)?.ok_or_else(|| {
+        let mut account = get_account(&mut state_update, contract_id)?.ok_or_else(|| {
             errors::CallFunctionError::AccountDoesNotExist {
                 requested_account_id: contract_id.clone(),
             }
@@ -241,7 +241,6 @@ impl TrieViewer {
             true,
             Some(ViewConfig { max_gas_burnt: self.max_gas_burnt_view }),
         );
-        runtime_ext.stop();
         let elapsed = now.elapsed();
         let time_ms =
             (elapsed.as_secs() as f64 / 1_000.0) + f64::from(elapsed.subsec_nanos()) / 1_000_000.0;

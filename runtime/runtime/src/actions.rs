@@ -159,7 +159,6 @@ pub(crate) fn action_function_call(
         is_last_action,
         None,
     );
-    runtime_ext.stop();
     let execution_succeeded = match err {
         Some(VMError::FunctionCallError(err)) => match err {
             FunctionCallError::Nondeterministic(msg) => {

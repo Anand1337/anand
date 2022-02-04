@@ -19,8 +19,8 @@ use std::collections::HashSet;
 
 pub(crate) fn check_balance(
     transaction_costs: &RuntimeFeesConfig,
-    initial_state: &TrieUpdate,
-    final_state: &TrieUpdate,
+    initial_state: &mut TrieUpdate,
+    final_state: &mut TrieUpdate,
     validator_accounts_update: &Option<ValidatorAccountsUpdate>,
     incoming_receipts: &[Receipt],
     transactions: &[SignedTransaction],
@@ -247,13 +247,13 @@ mod tests {
     fn test_check_balance_no_op() {
         let tries = create_tries();
         let root = MerkleHash::default();
-        let initial_state = tries.new_trie_update(ShardUId::single_shard(), root);
-        let final_state = tries.new_trie_update(ShardUId::single_shard(), root);
+        let mut initial_state = tries.new_trie_update(ShardUId::single_shard(), root);
+        let mut final_state = tries.new_trie_update(ShardUId::single_shard(), root);
         let transaction_costs = RuntimeFeesConfig::test();
         check_balance(
             &transaction_costs,
-            &initial_state,
-            &final_state,
+            &mut initial_state,
+            &mut final_state,
             &None,
             &[],
             &[],
@@ -268,13 +268,13 @@ mod tests {
     fn test_check_balance_unaccounted_refund() {
         let tries = create_tries();
         let root = MerkleHash::default();
-        let initial_state = tries.new_trie_update(ShardUId::single_shard(), root);
-        let final_state = tries.new_trie_update(ShardUId::single_shard(), root);
+        let mut initial_state = tries.new_trie_update(ShardUId::single_shard(), root);
+        let mut final_state = tries.new_trie_update(ShardUId::single_shard(), root);
         let transaction_costs = RuntimeFeesConfig::test();
         let err = check_balance(
             &transaction_costs,
-            &initial_state,
-            &final_state,
+            &mut initial_state,
+            &mut final_state,
             &None,
             &[Receipt::new_balance_refund(&alice_account(), 1000)],
             &[],
@@ -308,8 +308,8 @@ mod tests {
         let transaction_costs = RuntimeFeesConfig::test();
         check_balance(
             &transaction_costs,
-            &initial_state,
-            &final_state,
+            &mut initial_state,
+            &mut final_state,
             &None,
             &[Receipt::new_balance_refund(&account_id, refund_balance)],
             &[],
@@ -377,8 +377,8 @@ mod tests {
 
         check_balance(
             &cfg,
-            &initial_state,
-            &final_state,
+            &mut initial_state,
+            &mut final_state,
             &None,
             &[],
             &[tx],
@@ -435,8 +435,8 @@ mod tests {
         assert_eq!(
             check_balance(
                 &transaction_costs,
-                &initial_state,
-                &initial_state,
+                &mut initial_state,
+                &mut initial_state,
                 &None,
                 &[receipt],
                 &[tx],
