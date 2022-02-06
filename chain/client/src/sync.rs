@@ -42,7 +42,7 @@ pub const MAX_BLOCK_HEADERS: u64 = 512;
 pub const MAX_BLOCK_HEADER_HASHES: usize = 20;
 
 /// Maximum number of block requested at once in BlockSync
-const MAX_BLOCK_REQUESTS: usize = 3;
+const MAX_BLOCK_REQUESTS: usize = 5;
 
 const BLOCK_REQUEST_TIMEOUT: i64 = 2;
 
