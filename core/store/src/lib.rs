@@ -304,7 +304,7 @@ pub fn create_store(path: &Path) -> Store {
 /// # Errors
 /// see StorageError
 pub fn get<T: BorshDeserialize>(
-    state_update: &mut TrieUpdate,
+    state_update: &TrieUpdate,
     key: &TrieKey,
 ) -> Result<Option<T>, StorageError> {
     state_update.get(key).and_then(|opt| {
@@ -332,7 +332,7 @@ pub fn set_account(state_update: &mut TrieUpdate, account_id: AccountId, account
 }
 
 pub fn get_account(
-    state_update: &mut TrieUpdate,
+    state_update: &TrieUpdate,
     account_id: &AccountId,
 ) -> Result<Option<Account>, StorageError> {
     get(state_update, &TrieKey::Account { account_id: account_id.clone() })
@@ -348,7 +348,7 @@ pub fn set_received_data(
 }
 
 pub fn get_received_data(
-    state_update: &mut TrieUpdate,
+    state_update: &TrieUpdate,
     receiver_id: &AccountId,
     data_id: CryptoHash,
 ) -> Result<Option<ReceivedData>, StorageError> {
@@ -372,7 +372,7 @@ pub fn remove_postponed_receipt(
 }
 
 pub fn get_postponed_receipt(
-    state_update: &mut TrieUpdate,
+    state_update: &TrieUpdate,
     receiver_id: &AccountId,
     receipt_id: CryptoHash,
 ) -> Result<Option<Receipt>, StorageError> {
@@ -380,7 +380,7 @@ pub fn get_postponed_receipt(
 }
 
 pub fn get_delayed_receipt_indices(
-    state_update: &mut TrieUpdate,
+    state_update: &TrieUpdate,
 ) -> Result<DelayedReceiptIndices, StorageError> {
     Ok(get(state_update, &TrieKey::DelayedReceiptIndices)?.unwrap_or_default())
 }
@@ -403,7 +403,7 @@ pub fn remove_access_key(
 }
 
 pub fn get_access_key(
-    state_update: &mut TrieUpdate,
+    state_update: &TrieUpdate,
     account_id: &AccountId,
     public_key: &PublicKey,
 ) -> Result<Option<AccessKey>, StorageError> {
@@ -414,7 +414,7 @@ pub fn get_access_key(
 }
 
 pub fn get_access_key_raw(
-    state_update: &mut TrieUpdate,
+    state_update: &TrieUpdate,
     raw_key: &[u8],
 ) -> Result<Option<AccessKey>, StorageError> {
     get(
@@ -429,7 +429,7 @@ pub fn set_code(state_update: &mut TrieUpdate, account_id: AccountId, code: &Con
 }
 
 pub fn get_code(
-    state_update: &mut TrieUpdate,
+    state_update: &TrieUpdate,
     account_id: &AccountId,
     code_hash: Option<CryptoHash>,
 ) -> Result<Option<ContractCode>, StorageError> {

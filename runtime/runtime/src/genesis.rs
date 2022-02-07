@@ -121,7 +121,7 @@ impl GenesisStateApplier {
                     state_update.set(TrieKey::ContractData { key: data_key, account_id }, value);
                 }
                 StateRecord::Contract { account_id, code } => {
-                    let acc = get_account(&mut state_update, &account_id).expect("Failed to read state").expect("Code state record should be preceded by the corresponding account record");
+                    let acc = get_account(&state_update, &account_id).expect("Failed to read state").expect("Code state record should be preceded by the corresponding account record");
                     // Recompute contract code hash.
                     let code = ContractCode::new(code, None);
                     set_code(&mut state_update, account_id, &code);
@@ -154,7 +154,7 @@ impl GenesisStateApplier {
         });
 
         for (account_id, storage_usage) in storage_computer.finalize() {
-            let mut account = get_account(&mut state_update, &account_id)
+            let mut account = get_account(&state_update, &account_id)
                 .expect("Genesis storage error")
                 .expect("Account must exist");
             account.set_storage_usage(storage_usage);
@@ -171,7 +171,7 @@ impl GenesisStateApplier {
             // Logic similar to `apply_receipt`
             let mut pending_data_count: u32 = 0;
             for data_id in &action_receipt.input_data_ids {
-                if get_received_data(&mut state_update, account_id, *data_id)
+                if get_received_data(&state_update, account_id, *data_id)
                     .expect("Genesis storage error")
                     .is_none()
                 {
@@ -205,7 +205,7 @@ impl GenesisStateApplier {
             if !batch_account_ids.contains(account_id) {
                 continue;
             }
-            let mut account: Account = get_account(&mut state_update, account_id)
+            let mut account: Account = get_account(&state_update, account_id)
                 .expect("Genesis storage error")
                 .expect("account must exist");
             account.set_locked(*amount);

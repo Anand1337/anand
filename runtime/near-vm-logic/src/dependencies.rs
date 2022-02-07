@@ -85,7 +85,7 @@ pub trait External {
     /// // Returns Ok(None) if there is no value for a key
     /// assert_eq!(external.storage_get(b"no_key").unwrap().map(|ptr| ptr.deref().unwrap()), None);
     /// ```
-    fn storage_get<'a>(&'a mut self, key: &[u8]) -> Result<Option<Box<dyn ValuePtr + 'a>>>;
+    fn storage_get<'a>(&'a self, key: &[u8]) -> Result<Option<Box<dyn ValuePtr + 'a>>>;
 
     /// Removes the `key` from the storage trie associated with the current account.
     ///

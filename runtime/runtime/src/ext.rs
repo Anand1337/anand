@@ -102,11 +102,11 @@ impl<'a> RuntimeExt<'a> {
     }
 
     pub fn get_code(
-        &mut self,
+        &self,
         code_hash: CryptoHash,
     ) -> Result<Option<Arc<ContractCode>>, StorageError> {
         debug!(target:"runtime", "Calling the contract at account {}", self.account_id);
-        let code = || get_code(&mut self.trie_update, self.account_id, Some(code_hash));
+        let code = || get_code(self.trie_update, self.account_id, Some(code_hash));
         crate::cache::get_code(code_hash, code)
     }
 
@@ -168,7 +168,7 @@ impl<'a> External for RuntimeExt<'a> {
         Ok(())
     }
 
-    fn storage_get<'b>(&'b mut self, key: &[u8]) -> ExtResult<Option<Box<dyn ValuePtr + 'b>>> {
+    fn storage_get<'b>(&'b self, key: &[u8]) -> ExtResult<Option<Box<dyn ValuePtr + 'b>>> {
         let storage_key = self.create_storage_key(key);
         self.trie_update
             .get_ref(&storage_key)

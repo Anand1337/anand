@@ -180,7 +180,7 @@ impl TrieUpdate {
     }
 
     pub fn get_touched_nodes_count(&self) -> u64 {
-        let guard = self.trie_node_cache.0.lock().expect(POISONED_LOCK_ERR);
+        let mut guard = self.trie_node_cache.0.lock().expect(POISONED_LOCK_ERR);
         guard.get_touched_nodes_count()
     }
 }

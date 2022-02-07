@@ -216,9 +216,9 @@ impl RuntimeUser {
 
 impl User for RuntimeUser {
     fn view_account(&self, account_id: &AccountId) -> Result<AccountView, String> {
-        let mut state_update = self.client.read().expect(POISONED_LOCK_ERR).get_state_update();
+        let state_update = self.client.read().expect(POISONED_LOCK_ERR).get_state_update();
         self.trie_viewer
-            .view_account(&mut state_update, account_id)
+            .view_account(&state_update, account_id)
             .map(|account| account.into())
             .map_err(|err| err.to_string())
     }
@@ -226,7 +226,7 @@ impl User for RuntimeUser {
     fn view_contract_code(&self, account_id: &AccountId) -> Result<ContractCodeView, String> {
         let state_update = self.client.read().expect(POISONED_LOCK_ERR).get_state_update();
         self.trie_viewer
-            .view_contract_code(state_update, account_id)
+            .view_contract_code(&state_update, account_id)
             .map(|contract_code| contract_code.into())
             .map_err(|err| err.to_string())
     }
@@ -234,7 +234,7 @@ impl User for RuntimeUser {
     fn view_state(&self, account_id: &AccountId, prefix: &[u8]) -> Result<ViewStateResult, String> {
         let state_update = self.client.read().expect(POISONED_LOCK_ERR).get_state_update();
         self.trie_viewer
-            .view_state(state_update, account_id, prefix)
+            .view_state(&state_update, account_id, prefix)
             .map_err(|err| err.to_string())
     }
 

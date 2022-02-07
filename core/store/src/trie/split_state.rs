@@ -217,7 +217,7 @@ fn apply_delayed_receipts_to_split_states_impl<'a>(
     account_id_to_shard_id: &(dyn Fn(&AccountId) -> ShardUId + 'a),
 ) -> Result<(), StorageError> {
     let mut delayed_receipts_indices_by_shard = HashMap::new();
-    for (shard_uid, update) in trie_updates.iter_mut() {
+    for (shard_uid, update) in trie_updates.iter() {
         delayed_receipts_indices_by_shard.insert(*shard_uid, get_delayed_receipt_indices(update)?);
     }
 

@@ -14,13 +14,13 @@ use near_primitives::transaction::SignedTransaction;
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::{AccountId, Balance};
 use near_primitives::version::ProtocolVersion;
-use near_store::{get, get_account, get_postponed_receipt, Trie, TrieUpdate};
+use near_store::{get, get_account, get_postponed_receipt, TrieUpdate};
 use std::collections::HashSet;
 
 pub(crate) fn check_balance(
     transaction_costs: &RuntimeFeesConfig,
-    initial_state: &mut TrieUpdate,
-    final_state: &mut TrieUpdate,
+    initial_state: &TrieUpdate,
+    final_state: &TrieUpdate,
     validator_accounts_update: &Option<ValidatorAccountsUpdate>,
     incoming_receipts: &[Receipt],
     transactions: &[SignedTransaction],
@@ -33,28 +33,17 @@ pub(crate) fn check_balance(
         get(initial_state, &TrieKey::DelayedReceiptIndices)?.unwrap_or_default();
     let final_delayed_receipt_indices: DelayedReceiptIndices =
         get(final_state, &TrieKey::DelayedReceiptIndices)?.unwrap_or_default();
-    let get_delayed_receipts = |from_index: u64, to_index: u64, state: &mut TrieUpdate| -> Result<Vec<Receipt>, StorageError> {
-        let mut receipts: Vec<Receipt> = vec![];
-        for index in from_index..to_index {
-            let result = get(state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
-                StorageError::StorageInconsistentState(format!(
-                    "Delayed receipt #{} should be in the state",
-                    index
-                ))
-            })?;
-            receipts.push(result);
-        }
-        Ok(receipts)
-        // (from_index..to_index)
-        //     .map(|index| {
-        //         get(state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
-        //             StorageError::StorageInconsistentState(format!(
-        //                 "Delayed receipt #{} should be in the state",
-        //                 index
-        //             ))
-        //         })
-        //     })
-        //     .collect::<Result<Vec<Receipt>, StorageError>>()
+    let get_delayed_receipts = |from_index, to_index, state| {
+        (from_index..to_index)
+            .map(|index| {
+                get(state, &TrieKey::DelayedReceipt { index })?.ok_or_else(|| {
+                    StorageError::StorageInconsistentState(format!(
+                        "Delayed receipt #{} should be in the state",
+                        index
+                    ))
+                })
+            })
+            .collect::<Result<Vec<Receipt>, StorageError>>()
     };
     // Previously delayed receipts that were processed this time.
     let processed_delayed_receipts = get_delayed_receipts(
@@ -92,28 +81,18 @@ pub(crate) fn check_balance(
         } else {
             0
         };
-    let total_accounts_balance = |state: &mut TrieUpdate| -> Result<Balance, RuntimeError> {
-        let mut balances: Vec<Balance> = vec![];
-        for account_id in all_accounts_ids.iter() {
-            balances.push(get_account(state, account_id)?.map_or(Ok(0), |a| {
-                safe_add_balance(a.amount(), a.locked())
-                    .map_err(|_| RuntimeError::UnexpectedIntegerOverflow)
-            })?);
-        }
-        Ok(balances
-        .into_iter()
-        .try_fold(0u128, safe_add_balance)?)
-        // Ok(all_accounts_ids
-        //     .iter()
-        //     .map(|account_id| {
-        //         get_account(state, account_id)?.map_or(Ok(0), |a| {
-        //             safe_add_balance(a.amount(), a.locked())
-        //                 .map_err(|_| RuntimeError::UnexpectedIntegerOverflow)
-        //         })
-        //     })
-        //     .collect::<Result<Vec<Balance>, RuntimeError>>()?
-        //     .into_iter()
-        //     .try_fold(0u128, safe_add_balance)?)
+    let total_accounts_balance = |state| -> Result<Balance, RuntimeError> {
+        Ok(all_accounts_ids
+            .iter()
+            .map(|account_id| {
+                get_account(state, account_id)?.map_or(Ok(0), |a| {
+                    safe_add_balance(a.amount(), a.locked())
+                        .map_err(|_| RuntimeError::UnexpectedIntegerOverflow)
+                })
+            })
+            .collect::<Result<Vec<Balance>, RuntimeError>>()?
+            .into_iter()
+            .try_fold(0u128, safe_add_balance)?)
     };
     let initial_accounts_balance = total_accounts_balance(initial_state)?;
     let final_accounts_balance = total_accounts_balance(final_state)?;
@@ -185,24 +164,16 @@ pub(crate) fn check_balance(
         .filter_map(|x| x)
         .collect::<HashSet<_>>();
 
-    let total_postponed_receipts_cost = |state: &mut TrieUpdate| -> Result<Balance, RuntimeError> {
-        let mut balances: Vec<Balance> = vec![];
-        for (account_id, receipt_id) in all_potential_postponed_receipt_ids.iter() {
-            balances.push(get_postponed_receipt(state, account_id, *receipt_id)?
-                .map_or(Ok(0), |r| receipt_cost(&r))?);
-        }
-        Ok(balances
-        .into_iter()
-        .try_fold(0u128, safe_add_balance)?)
-        // Ok(all_potential_postponed_receipt_ids
-        //     .iter()
-        //     .map(|(account_id, receipt_id)| {
-        //         Ok(get_postponed_receipt(state, account_id, *receipt_id)?
-        //             .map_or(Ok(0), |r| receipt_cost(&r))?)
-        //     })
-        //     .collect::<Result<Vec<Balance>, RuntimeError>>()?
-        //     .into_iter()
-        //     .try_fold(0u128, safe_add_balance)?)
+    let total_postponed_receipts_cost = |state| -> Result<Balance, RuntimeError> {
+        Ok(all_potential_postponed_receipt_ids
+            .iter()
+            .map(|(account_id, receipt_id)| {
+                Ok(get_postponed_receipt(state, account_id, *receipt_id)?
+                    .map_or(Ok(0), |r| receipt_cost(&r))?)
+            })
+            .collect::<Result<Vec<Balance>, RuntimeError>>()?
+            .into_iter()
+            .try_fold(0u128, safe_add_balance)?)
     };
     let initial_postponed_receipts_balance = total_postponed_receipts_cost(initial_state)?;
     let final_postponed_receipts_balance = total_postponed_receipts_cost(final_state)?;
@@ -276,13 +247,13 @@ mod tests {
     fn test_check_balance_no_op() {
         let tries = create_tries();
         let root = MerkleHash::default();
-        let mut initial_state = tries.new_trie_update(ShardUId::single_shard(), root);
-        let mut final_state = tries.new_trie_update(ShardUId::single_shard(), root);
+        let initial_state = tries.new_trie_update(ShardUId::single_shard(), root);
+        let final_state = tries.new_trie_update(ShardUId::single_shard(), root);
         let transaction_costs = RuntimeFeesConfig::test();
         check_balance(
             &transaction_costs,
-            &mut initial_state,
-            &mut final_state,
+            &initial_state,
+            &final_state,
             &None,
             &[],
             &[],
@@ -297,13 +268,13 @@ mod tests {
     fn test_check_balance_unaccounted_refund() {
         let tries = create_tries();
         let root = MerkleHash::default();
-        let mut initial_state = tries.new_trie_update(ShardUId::single_shard(), root);
-        let mut final_state = tries.new_trie_update(ShardUId::single_shard(), root);
+        let initial_state = tries.new_trie_update(ShardUId::single_shard(), root);
+        let final_state = tries.new_trie_update(ShardUId::single_shard(), root);
         let transaction_costs = RuntimeFeesConfig::test();
         let err = check_balance(
             &transaction_costs,
-            &mut initial_state,
-            &mut final_state,
+            &initial_state,
+            &final_state,
             &None,
             &[Receipt::new_balance_refund(&alice_account(), 1000)],
             &[],
@@ -337,8 +308,8 @@ mod tests {
         let transaction_costs = RuntimeFeesConfig::test();
         check_balance(
             &transaction_costs,
-            &mut initial_state,
-            &mut final_state,
+            &initial_state,
+            &final_state,
             &None,
             &[Receipt::new_balance_refund(&account_id, refund_balance)],
             &[],
@@ -406,8 +377,8 @@ mod tests {
 
         check_balance(
             &cfg,
-            &mut initial_state,
-            &mut final_state,
+            &initial_state,
+            &final_state,
             &None,
             &[],
             &[tx],
@@ -464,8 +435,8 @@ mod tests {
         assert_eq!(
             check_balance(
                 &transaction_costs,
-                &mut initial_state,
-                &mut initial_state,
+                &initial_state,
+                &initial_state,
                 &None,
                 &[receipt],
                 &[tx],

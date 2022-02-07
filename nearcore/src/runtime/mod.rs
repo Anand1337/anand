@@ -1852,8 +1852,8 @@ impl node_runtime::adapter::ViewRuntimeAdapter for NightshadeRuntime {
         state_root: MerkleHash,
         account_id: &AccountId,
     ) -> Result<Account, node_runtime::state_viewer::errors::ViewAccountError> {
-        let mut state_update = self.tries.new_trie_update_view(*shard_uid, state_root);
-        self.trie_viewer.view_account(&mut state_update, account_id)
+        let state_update = self.tries.new_trie_update_view(*shard_uid, state_root);
+        self.trie_viewer.view_account(&state_update, account_id)
     }
 
     fn view_contract_code(
@@ -1863,7 +1863,7 @@ impl node_runtime::adapter::ViewRuntimeAdapter for NightshadeRuntime {
         account_id: &AccountId,
     ) -> Result<ContractCode, node_runtime::state_viewer::errors::ViewContractCodeError> {
         let state_update = self.tries.new_trie_update_view(*shard_uid, state_root);
-        self.trie_viewer.view_contract_code(state_update, account_id)
+        self.trie_viewer.view_contract_code(&state_update, account_id)
     }
 
     fn call_function(
@@ -1913,7 +1913,7 @@ impl node_runtime::adapter::ViewRuntimeAdapter for NightshadeRuntime {
         public_key: &PublicKey,
     ) -> Result<AccessKey, node_runtime::state_viewer::errors::ViewAccessKeyError> {
         let state_update = self.tries.new_trie_update_view(*shard_uid, state_root);
-        self.trie_viewer.view_access_key(state_update, account_id, public_key)
+        self.trie_viewer.view_access_key(&state_update, account_id, public_key)
     }
 
     fn view_access_keys(
@@ -1923,8 +1923,8 @@ impl node_runtime::adapter::ViewRuntimeAdapter for NightshadeRuntime {
         account_id: &AccountId,
     ) -> Result<Vec<(PublicKey, AccessKey)>, node_runtime::state_viewer::errors::ViewAccessKeyError>
     {
-        let mut state_update = self.tries.new_trie_update_view(*shard_uid, state_root);
-        self.trie_viewer.view_access_keys(state_update, account_id)
+        let state_update = self.tries.new_trie_update_view(*shard_uid, state_root);
+        self.trie_viewer.view_access_keys(&state_update, account_id)
     }
 
     fn view_state(
@@ -1935,7 +1935,7 @@ impl node_runtime::adapter::ViewRuntimeAdapter for NightshadeRuntime {
         prefix: &[u8],
     ) -> Result<ViewStateResult, node_runtime::state_viewer::errors::ViewStateError> {
         let state_update = self.tries.new_trie_update_view(*shard_uid, state_root);
-        self.trie_viewer.view_state(state_update, account_id, prefix)
+        self.trie_viewer.view_state(&state_update, account_id, prefix)
     }
 }
 
