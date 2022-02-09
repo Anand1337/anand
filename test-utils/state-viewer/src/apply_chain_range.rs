@@ -57,7 +57,7 @@ impl ProgressReporter {
 }
 
 fn old_outcomes(
-    store: Store,
+    store: Arc<Store>,
     new_outcomes: &Vec<ExecutionOutcomeWithId>,
 ) -> Vec<ExecutionOutcomeWithId> {
     new_outcomes
@@ -86,7 +86,7 @@ fn maybe_add_to_csv(csv_file_mutex: &Mutex<Option<&mut File>>, s: &str) {
 fn apply_block_from_range(
     height: BlockHeight,
     shard_id: Option<ShardId>,
-    store: Store,
+    store: Arc<Store>,
     genesis: &Genesis,
     runtime_adapter: Arc<dyn RuntimeAdapter>,
     progress_reporter: &ProgressReporter,
@@ -308,7 +308,7 @@ fn apply_block_from_range(
 }
 
 pub fn apply_chain_range(
-    store: Store,
+    store: Arc<Store>,
     genesis: &Genesis,
     start_height: Option<BlockHeight>,
     end_height: Option<BlockHeight>,
@@ -328,10 +328,7 @@ pub fn apply_chain_range(
         Some(id) => format!("shard_id {}", id),
         None => "all shards".to_string(),
     };
-    println!(
-        "Applying chunks in the range {}..={} for {}",
-        start_height, end_height, shards_msg
-    );
+    println!("Applying chunks in the range {}..={} for {}", start_height, end_height, shards_msg);
 
     println!("Printing results including outcomes of applying receipts");
     let csv_file_mutex = Arc::new(Mutex::new(csv_file));
@@ -420,7 +417,7 @@ mod test {
 
     use crate::apply_chain_range::apply_chain_range;
 
-    fn setup(epoch_length: NumBlocks) -> (Store, Genesis, TestEnv) {
+    fn setup(epoch_length: NumBlocks) -> (Arc<Store>, Genesis, TestEnv) {
         let mut genesis =
             Genesis::test(vec!["test0".parse().unwrap(), "test1".parse().unwrap()], 1);
         genesis.config.num_block_producer_seats = 2;

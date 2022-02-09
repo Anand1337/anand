@@ -13,6 +13,7 @@ use near_primitives::block::BlockHeader;
 use near_primitives::hash::CryptoHash;
 use near_primitives::serialize::to_base;
 use near_primitives::shard_layout::ShardUId;
+use near_primitives::sharding::ChunkHash;
 use near_primitives::state_record::StateRecord;
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::chunk_extra::ChunkExtra;
@@ -90,6 +91,7 @@ pub(crate) fn apply_range(
     near_config: NearConfig,
     store: Arc<Store>,
     only_contracts: bool,
+    sequential: bool,
 ) {
     let mut csv_file = csv_file.map(|filename| std::fs::File::create(filename).unwrap());
 
@@ -110,6 +112,7 @@ pub(crate) fn apply_range(
         verbose_output,
         csv_file.as_mut(),
         only_contracts,
+        sequential,
     );
 }
 
@@ -522,6 +525,28 @@ pub(crate) fn print_epoch_info(
         &mut epoch_manager,
         runtime_adapter,
     );
+}
+
+pub(crate) fn get_receipt(receipt_id: CryptoHash, near_config: NearConfig, store: Arc<Store>) {
+    let mut chain_store = ChainStore::new(store.clone(), near_config.genesis.config.genesis_height);
+    let receipt = chain_store.get_receipt(&receipt_id);
+    println!("Receipt: {:#?}", receipt);
+}
+
+pub(crate) fn get_chunk(chunk_hash: ChunkHash, near_config: NearConfig, store: Arc<Store>) {
+    let mut chain_store = ChainStore::new(store.clone(), near_config.genesis.config.genesis_height);
+    let chunk = chain_store.get_chunk(&chunk_hash);
+    println!("Chunk: {:#?}", chunk);
+}
+
+pub(crate) fn get_partial_chunk(
+    partial_chunk_hash: ChunkHash,
+    near_config: NearConfig,
+    store: Arc<Store>,
+) {
+    let mut chain_store = ChainStore::new(store, near_config.genesis.config.genesis_height);
+    let partial_chunk = chain_store.get_partial_chunk(&partial_chunk_hash);
+    println!("Partial chunk: {:#?}", partial_chunk);
 }
 
 #[allow(unused)]
