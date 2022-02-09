@@ -527,6 +527,7 @@ pub(crate) fn print_epoch_info(
     );
 }
 
+/*
 pub(crate) fn get_receipt(receipt_id: CryptoHash, near_config: NearConfig, store: Arc<Store>) {
     let mut chain_store = ChainStore::new(store.clone(), near_config.genesis.config.genesis_height);
     let receipt = chain_store.get_receipt(&receipt_id);
@@ -548,6 +549,7 @@ pub(crate) fn get_partial_chunk(
     let partial_chunk = chain_store.get_partial_chunk(&partial_chunk_hash);
     println!("Partial chunk: {:#?}", partial_chunk);
 }
+ */
 
 #[allow(unused)]
 enum LoadTrieMode {

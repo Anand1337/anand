@@ -37,16 +37,18 @@ struct ProgressReporter {
 impl ProgressReporter {
     pub fn inc_and_report_progress(&self) {
         let ProgressReporter { cnt, ts, all, skipped } = self;
-        const PRINT_PER: u64 = 10000;
+        const PRINT_PER: u64 = 1000;
         let prev = cnt.fetch_add(1, Ordering::Relaxed);
         if (prev + 1) % PRINT_PER == 0 {
             let prev_ts = ts.load(Ordering::Relaxed);
             let new_ts = timestamp();
-            let per_second = PRINT_PER / (new_ts - prev_ts);
+            let per_second =
+                if new_ts > prev_ts { (PRINT_PER as f64) / (new_ts - prev_ts) as f64 } else { 0.0 };
             ts.store(new_ts, Ordering::Relaxed);
-            let secs_remaining = (all - prev) / per_second;
+            let secs_remaining =
+                if *all > prev { (*all - prev) as f64 / per_second as f64 } else { 0.0 };
             println!(
-                "Processed {} blocks, {} blocks per second ({} skipped), {} secs remaining",
+                "Processed {} blocks, {:.3} blocks per second ({} skipped), {:.2} secs remaining",
                 prev + 1,
                 per_second,
                 skipped.load(Ordering::Relaxed),
@@ -109,9 +111,11 @@ fn apply_block_from_range(
     assert!(num_chunks > 0);
 
     let process_block = |shard_id| {
-        let mut chain_store = ChainStore::new(store.as_ref().clone(), genesis.config.genesis_height);
+        let mut chain_store =
+            ChainStore::new(store.as_ref().clone(), genesis.config.genesis_height);
 
-        let shard_uid = runtime_adapter.shard_id_to_uid(shard_id, block.header().epoch_id()).unwrap();
+        let shard_uid =
+            runtime_adapter.shard_id_to_uid(shard_id, block.header().epoch_id()).unwrap();
         let mut existing_chunk_extra = None;
         let mut prev_chunk_extra = None;
         let mut num_tx = 0;
@@ -137,8 +141,10 @@ fn apply_block_from_range(
                 height
             );
             existing_chunk_extra = Some(res_existing_chunk_extra.unwrap().clone());
-            let chunk =
-                chain_store.get_chunk(&block.chunks()[shard_id as usize].chunk_hash()).unwrap().clone();
+            let chunk = chain_store
+                .get_chunk(&block.chunks()[shard_id as usize].chunk_hash())
+                .unwrap()
+                .clone();
 
             let prev_block = match chain_store.get_block(block.header().prev_hash()) {
                 Ok(prev_block) => prev_block.clone(),
@@ -174,12 +180,13 @@ fn apply_block_from_range(
             let receipts = collect_receipts_from_response(&receipt_proof_response);
 
             let chunk_inner = chunk.cloned_header().take_inner();
-            let is_first_block_with_chunk_of_version = check_if_block_is_first_with_chunk_of_version(
-                &mut chain_store,
-                runtime_adapter.as_ref(),
-                block.header().prev_hash(),
-                shard_id,
-            )
+            let is_first_block_with_chunk_of_version =
+                check_if_block_is_first_with_chunk_of_version(
+                    &mut chain_store,
+                    runtime_adapter.as_ref(),
+                    block.header().prev_hash(),
+                    shard_id,
+                )
                 .unwrap();
 
             num_receipt = receipts.len();
@@ -190,9 +197,9 @@ fn apply_block_from_range(
                     for action in &tx.transaction.actions {
                         has_contracts = has_contracts
                             || match action {
-                            Action::FunctionCall(_) | Action::DeployContract(_) => true,
-                            _ => false,
-                        }
+                                Action::FunctionCall(_) | Action::DeployContract(_) => true,
+                                _ => false,
+                            }
                     }
                 }
                 if !has_contracts {
@@ -222,8 +229,10 @@ fn apply_block_from_range(
                 .unwrap()
         } else {
             chunk_present = false;
-            let chunk_extra =
-                chain_store.get_chunk_extra(block.header().prev_hash(), &shard_uid).unwrap().clone();
+            let chunk_extra = chain_store
+                .get_chunk_extra(block.header().prev_hash(), &shard_uid)
+                .unwrap()
+                .clone();
             prev_chunk_extra = Some(chunk_extra.clone());
 
             runtime_adapter
@@ -248,7 +257,8 @@ fn apply_block_from_range(
                 .unwrap()
         };
 
-        let (outcome_root, _) = ApplyTransactionResult::compute_outcomes_proof(&apply_result.outcomes);
+        let (outcome_root, _) =
+            ApplyTransactionResult::compute_outcomes_proof(&apply_result.outcomes);
         let chunk_extra = ChunkExtra::new(
             &apply_result.new_root,
             outcome_root,
@@ -302,8 +312,12 @@ fn apply_block_from_range(
     };
 
     match shard_id {
-        Some(shard_id) => { process_block(shard_id); }
-        None => { (0..num_chunks).into_par_iter().for_each(process_block); }
+        Some(shard_id) => {
+            process_block(shard_id);
+        }
+        None => {
+            (0..num_chunks).into_par_iter().for_each(process_block);
+        }
     };
 }
 
