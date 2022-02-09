@@ -1,8 +1,10 @@
 export CARGO_PROFILE_RELEASE_CODEGEN_UNITS = 1
 export CARGO_PROFILE_RELEASE_LTO = fat
 export DOCKER_BUILDKIT = 1
-export RUSTFLAGS = 
 export NEAR_RELEASE_BUILD = no
+export RUSTFLAGS = -Ctarget-cpu=native
+export CFLAGS = -mcpu=native
+export CXXFLAGS = -mcpu=native
 
 
 # By default, build a regular release
