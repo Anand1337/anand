@@ -3,8 +3,8 @@ export CARGO_PROFILE_RELEASE_LTO = fat
 export DOCKER_BUILDKIT = 1
 export NEAR_RELEASE_BUILD = no
 export RUSTFLAGS = -Ctarget-cpu=native
-export CFLAGS = -mcpu=native
-export CXXFLAGS = -mcpu=native
+export CFLAGS = -march=native
+export CXXFLAGS = -march=native
 
 
 # By default, build a regular release
