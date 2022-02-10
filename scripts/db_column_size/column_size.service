@@ -1,0 +1,13 @@
+[Unit]
+Description=Calculate DB Column Size
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+ExecStart=sudo /usr/bin/python3 /home/ubuntu/calculate_size.py --data-dir /home/ubuntu/.near/data --res-dir /home/ubuntu/.column_size --script /home/ubuntu/calculate_size.sh
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
