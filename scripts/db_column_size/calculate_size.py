@@ -12,7 +12,7 @@ METRICS_PORT = 4404
 
 
 def compute_dump(args):
-    subprocess.call(('sudo', 'bash', '-x',
+    subprocess.call(('bash', '-x',
                      args.script, args.data_dir, args.res_dir))
 
 
