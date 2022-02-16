@@ -109,17 +109,7 @@ if __name__ == '__main__':
                                          base_block_hash,
                                          rpc_info=rpc_server)
 
-    tasks = []
     with ThreadPoolExecutor() as executor:
-        tasks.append(executor.submit(lambda: watcher(master_account)))
-        tasks.append(
-            executor.submit(lambda: pinger(accounts[
-                0], interval_sec, master_account.key.account_id, rpc_server)))
-        tasks.append(
-            executor.submit(lambda: pinger(accounts[
-                1], interval_sec, master_account.key.account_id, rpc_server)))
-        tasks.append(
-            executor.submit(lambda: pinger(accounts[
-                2], interval_sec, master_account.key.account_id, rpc_server)))
-        for task in tasks:
-            logger.info(f'unreachable: {task.result}')
+        executor.submit(lambda: watcher(master_account))
+        for account in accounts:
+            executor.submit(lambda: pinger(account, interval_sec, master_account.key.account_id, rpc_server))

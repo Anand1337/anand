@@ -129,6 +129,6 @@ class Account:
                 'method_name': method_name,
                 'args_base64': args_base64
             })
-        return (j.get('result', {}).get('result',
-                                        []), j.get('result',
-                                                   {}).get('logs', []))
+        return (bytes(j.get('result', {}).get('result',
+                                              [])), j.get('result',
+                                                          {}).get('logs', []))
