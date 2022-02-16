@@ -3,7 +3,6 @@ import argparse
 import random
 import sys
 import time
-from rc import pmap
 import pathlib
 
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[2] / 'lib'))
@@ -12,6 +11,7 @@ import account as account_mod
 import key as key_mod
 import mocknet
 import mocknet_helpers
+from concurrent.futures import ThreadPoolExecutor
 
 from configured_logger import logger
 
@@ -25,7 +25,7 @@ def watcher(master_account):
         time.sleep(10)
 
 
-def pinger(account, interval, master_account, rpc_server):
+def pinger(account, interval, master_account_id, rpc_server):
     time.sleep(random.random() * interval)
     while True:
         base_block_hash = mocknet_helpers.get_latest_block_hash(
@@ -33,17 +33,25 @@ def pinger(account, interval, master_account, rpc_server):
         timestamp = int(time.time())
         args = f'{{"value": {timestamp} }}'
         logger.info(
-            f'Calling function "set" with arguments {args} on account {account.key.account_id} contract {master_account}'
+            f'Calling function "set" with arguments {args} on account {account.key.account_id} contract {master_account_id}'
         )
         tx_res = mocknet_helpers.retry_and_ignore_errors(
-            lambda: account.send_call_contract_tx(master_account,
-                                                  'set',
-                                                  args.encode('utf-8'),
-                                                  base_block_hash=
-                                                  base_block_hash))
+            lambda: account.send_call_contract_raw_tx(master_account_id,
+                                                      'set',
+                                                      args.encode('utf-8'),
+                                                      0,
+                                                      base_block_hash=
+                                                      base_block_hash))
         logger.info(f'{account.key.account_id} set {timestamp}: {tx_res}')
 
         time.sleep(interval)
+
+
+def run_tasks_in_parallel(tasks):
+    with ThreadPoolExecutor() as executor:
+        running_tasks = [executor.submit(task) for task in tasks]
+        for running_task in running_tasks:
+            running_task.result()
 
 
 if __name__ == '__main__':
@@ -85,14 +93,14 @@ if __name__ == '__main__':
     base_block_hash = mocknet_helpers.get_latest_block_hash(addr=rpc_server[0],
                                                             port=rpc_server[1])
     accounts = [
-        account_mod.Account(keys[i],
-                            mocknet_helpers.get_nonce_for_pk(
-                                key.account_id,
-                                key.pk,
-                                addr=rpc_server[0],
-                                port=rpc_server[1]),
-                            base_block_hash,
-                            rpc_info=(ips[i], port)) for i in range(len(keys))
+        account_mod.Account(
+            keys[i],
+            mocknet_helpers.get_nonce_for_pk(keys[i].account_id,
+                                             keys[i].pk,
+                                             addr=rpc_server[0],
+                                             port=rpc_server[1]),
+            base_block_hash,
+            rpc_infos=[(ips[i], port)]) for i in range(len(keys))
     ]
 
     master_key = key_mod.Key(master_account_id, pk, sk)
@@ -105,8 +113,9 @@ if __name__ == '__main__':
                                          base_block_hash,
                                          rpc_info=rpc_server)
 
-    processes = [lambda: watcher(master_account)]
-    for i in range(len(accounts)):
-        processes.append(lambda: pinger(accounts[i], interval_sec,
-                                        master_account, rpc_server))
-    unreachable = pmap(lambda x: x(), processes)
+    tasks = [
+        lambda: pinger(account, interval_sec, master_account.key.account_id,
+                       rpc_server) for account in accounts
+    ]
+    tasks.append(lambda: watcher(master_account))
+    unreachable = run_tasks_in_parallel(tasks)

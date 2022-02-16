@@ -32,6 +32,7 @@ class Account:
         assert rpc_info or rpc_infos
         if rpc_info:
             assert not rpc_infos
+            rpc_infos = [rpc_info]
         self.rpc_infos = rpc_infos
         assert key.account_id
         self.tx_timestamps = []
