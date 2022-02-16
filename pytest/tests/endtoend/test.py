@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+import argparse
+import random
+import sys
+import time
+from rc import pmap
+import pathlib
+
+print("adding path ",str(pathlib.Path(__file__).resolve().parents[2] / 'lib'))
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[2] / 'lib'))
+
+import account
+import key
+import mocknet
+import mocknet_helpers
+
+from configured_logger import logger
+
+
+def watcher(master_account):
+    while True:
+        res = master_account.view_function_call('minimum','')
+        logger.info(f'Result of calling {master_account.key.account_id} method "minimum" is {res}')
+        time.sleep(10)
+
+
+def pinger(account, interval, master_account, rpc_server):
+    time.sleep(random.random() * interval)
+    while True:
+        base_block_hash = mocknet_helpers.get_latest_block_hash(
+            addr=rpc_server[0], port=rpc_server[1])
+        timestamp = int(time.time())
+        args = f'{{"value": {timestamp} }}'
+        logger.info(
+            f'Calling function "set" with arguments {args} on account {account.key.account_id} contract {master_account}'
+        )
+        tx_res = mocknet_helpers.retry_and_ignore_errors(
+            lambda: account.send_call_contract_tx(master_account,
+                                                  'set',
+                                                  args.encode('utf-8'),
+                                                  base_block_hash=
+                                                  base_block_hash))
+        logger.info(f'{account.key.account_id} set {timestamp}: {tx_res}')
+
+        time.sleep(interval)
+
+
+if __name__ == '__main__':
+    logger.info('Starting end-to-end test.')
+    parser = argparse.ArgumentParser(description='Run an end-to-end test')
+    parser.add_argument('--chain-id', required=True)
+    parser.add_argument('--project', required=True)
+    parser.add_argument('--nodes', type=list, required=True)
+    parser.add_argument('--accounts', type=list, required=True)
+    parser.add_argument('--master-account', required=True)
+    parser.add_argument('--interval_sec', type=float, required=True)
+    parser.add_argument('--port', type=int, required=True)
+    parser.add_argument('--public-key', type=str, required=True)
+    parser.add_argument('--private-key', type=str, required=True)
+    parser.add_argument('--rpc-server-addr', type=str, required=True)
+    parser.add_argument('--rpc-server-port', type=int, required=True)
+
+    args = parser.parse_args()
+
+    chain_id = args.chain_id
+    project = args.project
+    nodes = args.nodes
+    assert nodes, 'Need at least one node'
+    account_ids = args.accounts
+    assert len(account_ids) == len(
+        nodes), 'List of test accounts must match the list of nodes'
+    master_account_id = args.master_account
+    interval_sec = args.interval_sec
+    assert interval_sec > 1, 'Need at least 1 second between pings'
+    port = args.port
+    pk, sk = args.public_key, args.private_key
+    rpc_server = (args.rpc_server_addr, args.rpc_server_port)
+
+    nodes = [mocknet.get_node(node, project=project) for node in nodes]
+    ips = [node.machine.ip for node in nodes]
+
+    keys = [key.Key(account_id, pk, sk) for account_id in account_ids]
+    base_block_hash = mocknet_helpers.get_latest_block_hash(addr=rpc_server[0],
+                                                            port=rpc_server[1])
+    accounts = [
+        account.Account(keys[i],
+                        mocknet_helpers.get_nonce_for_pk(key.account_id,
+                                                         key.pk,
+                                                         addr=rpc_server[0],
+                                                         port=rpc_server[1]),
+                        base_block_hash,
+                        rpc_info=(ips[i], port)) for i in range(len(keys))
+    ]
+
+    master_key = key.Key(master_account_id, pk, sk)
+    master_account = account.Account(master_key,
+                                     mocknet_helpers.get_nonce_for_pk(
+                                         master_key.account_id,
+                                         master_key.pk,
+                                         addr=rpc_server[0],
+                                         port=rpc_server[1]),
+                                     base_block_hash,
+                                     rpc_info=rpc_server)
+
+    processes = [lambda: watcher(master_account)]
+    for i in range(len(accounts)):
+        processes.append(lambda: pinger(accounts[i], interval_sec,
+                                        master_account, rpc_server))
+    unreachable = pmap(lambda x: x(), processes)

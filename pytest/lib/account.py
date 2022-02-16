@@ -118,3 +118,16 @@ class Account:
                 'account_id': self.key.account_id
             })
         return int(j.get('result', {}).get('amount', 0))
+
+    def view_function_call(self, method_name, args_base64):
+        j = self.json_rpc(
+            'query', {
+                'request_type': 'call_function',
+                'finality': 'optimistic',
+                'account_id': self.key.account_id,
+                'method_name': method_name,
+                'args_base64': args_base64
+            })
+        return (j.get('result', {}).get('result',
+                                        []), j.get('result',
+                                                   {}).get('logs', []))

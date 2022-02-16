@@ -74,11 +74,11 @@ MAINNET_STAKES = [
 ]
 
 
-def get_node(hostname):
+def get_node(hostname, project=PROJECT):
     instance_name = hostname
     n = GCloudNode(instance_name,
                    username=NODE_USERNAME,
-                   project=PROJECT,
+                   project=project,
                    ssh_key_path=NODE_SSH_KEY_PATH)
     return n
 
