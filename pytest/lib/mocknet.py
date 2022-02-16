@@ -74,24 +74,24 @@ MAINNET_STAKES = [
 ]
 
 
-def get_node(hostname, project=PROJECT):
+def get_node(hostname):
     instance_name = hostname
     n = GCloudNode(instance_name,
                    username=NODE_USERNAME,
-                   project=project,
+                   project=PROJECT,
                    ssh_key_path=NODE_SSH_KEY_PATH)
     return n
 
 
-def get_nodes(pattern=None):
+def get_nodes(pattern=None, project=PROJECT):
     machines = gcloud.list(pattern=pattern,
-                           project=PROJECT,
+                           project=project,
                            username=NODE_USERNAME,
                            ssh_key_path=NODE_SSH_KEY_PATH)
     nodes = pmap(
         lambda machine: GCloudNode(machine.name,
                                    username=NODE_USERNAME,
-                                   project=PROJECT,
+                                   project=project,
                                    ssh_key_path=NODE_SSH_KEY_PATH), machines)
     return nodes
 

@@ -48,27 +48,26 @@ def pinger(account, interval, master_account, rpc_server):
 if __name__ == '__main__':
     logger.info('Starting end-to-end test.')
     parser = argparse.ArgumentParser(description='Run an end-to-end test')
-    parser.add_argument('--chain-id', required=True)
     parser.add_argument('--project', required=True)
-    parser.add_argument('--nodes', type=list, required=True)
-    parser.add_argument('--accounts', type=list, required=True)
+    parser.add_argument('--nodes', required=True)
+    parser.add_argument('--accounts', required=True)
     parser.add_argument('--master-account', required=True)
-    parser.add_argument('--interval_sec', type=float, required=True)
+    parser.add_argument('--interval-sec', type=float, required=True)
     parser.add_argument('--port', type=int, required=True)
-    parser.add_argument('--public-key', type=str, required=True)
-    parser.add_argument('--private-key', type=str, required=True)
-    parser.add_argument('--rpc-server-addr', type=str, required=True)
-    parser.add_argument('--rpc-server-port', type=int, required=True)
+    parser.add_argument('--public-key', required=True)
+    parser.add_argument('--private-key', required=True)
+    parser.add_argument('--rpc-server-addr', required=True)
+    parser.add_argument('--rpc-server-port', required=True)
 
     args = parser.parse_args()
 
-    chain_id = args.chain_id
     project = args.project
-    nodes = args.nodes
+    assert args.nodes
+    nodes = args.nodes.split(',')
     assert nodes, 'Need at least one node'
-    account_ids = args.accounts
-    assert len(account_ids) == len(
-        nodes), 'List of test accounts must match the list of nodes'
+    assert args.accounts
+    account_ids = args.accounts.split(',')
+    assert len(account_ids) == len(nodes), 'List of test accounts must match the list of nodes'
     master_account_id = args.master_account
     interval_sec = args.interval_sec
     assert interval_sec > 1, 'Need at least 1 second between pings'
@@ -76,8 +75,7 @@ if __name__ == '__main__':
     pk, sk = args.public_key, args.private_key
     rpc_server = (args.rpc_server_addr, args.rpc_server_port)
 
-    nodes = [mocknet.get_node(node, project=project) for node in nodes]
-    ips = [node.machine.ip for node in nodes]
+    ips = [mocknet.get_nodes(pattern=node, project=project)[0].ip for node in nodes]
 
     keys = [key.Key(account_id, pk, sk) for account_id in account_ids]
     base_block_hash = mocknet_helpers.get_latest_block_hash(addr=rpc_server[0],
