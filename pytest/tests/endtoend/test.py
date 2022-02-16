@@ -50,13 +50,6 @@ def pinger(account, interval, master_account_id, rpc_server):
         time.sleep(interval)
 
 
-def run_tasks_in_parallel(tasks):
-    with ThreadPoolExecutor() as executor:
-        running_tasks = [executor.submit(task) for task in tasks]
-        for running_task in running_tasks:
-            running_task.result()
-
-
 if __name__ == '__main__':
     logger.info('Starting end-to-end test.')
     parser = argparse.ArgumentParser(description='Run an end-to-end test')
@@ -116,9 +109,17 @@ if __name__ == '__main__':
                                          base_block_hash,
                                          rpc_info=rpc_server)
 
-    tasks = [
-        lambda: pinger(account, interval_sec, master_account.key.account_id,
-                       rpc_server) for account in accounts
-    ]
-    tasks.append(lambda: watcher(master_account))
-    unreachable = run_tasks_in_parallel(tasks)
+    tasks = []
+    with ThreadPoolExecutor() as executor:
+        tasks.append(executor.submit(lambda: watcher(master_account)))
+        tasks.append(
+            executor.submit(lambda: pinger(accounts[
+                0], interval_sec, master_account.key.account_id, rpc_server)))
+        tasks.append(
+            executor.submit(lambda: pinger(accounts[
+                1], interval_sec, master_account.key.account_id, rpc_server)))
+        tasks.append(
+            executor.submit(lambda: pinger(accounts[
+                2], interval_sec, master_account.key.account_id, rpc_server)))
+        for task in tasks:
+            logger.info(f'unreachable: {task.result}')
