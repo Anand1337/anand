@@ -762,6 +762,14 @@ impl Database for TestDB {
 fn rocksdb_options() -> Options {
     let mut opts = Options::default();
 
+    opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
+    opts.set_bottommost_compression_type(rocksdb::DBCompressionType::Zstd);
+    let dict_size = 16384;  // 16KB
+    // https://github.com/facebook/rocksdb/blob/main/include/rocksdb/advanced_options.h#L176
+    opts.set_bottommost_compression_options(-15, 32767, 0, dict_size, true);
+    // https://rocksdb.org/blog/2021/05/31/dictionary-compression.html?utm_source=dbplatz
+    opts.set_bottommost_zstd_max_train_bytes(dict_size * 100, true);
+
     opts.create_missing_column_families(true);
     opts.create_if_missing(true);
     opts.set_use_fsync(false);
@@ -816,6 +824,15 @@ fn choose_cache_size(col: DBCol) -> usize {
 
 fn rocksdb_column_options(col: DBCol) -> Options {
     let mut opts = Options::default();
+
+    opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
+    opts.set_bottommost_compression_type(rocksdb::DBCompressionType::Zstd);
+    let dict_size = 16384;  // 16KB
+    // https://github.com/facebook/rocksdb/blob/main/include/rocksdb/advanced_options.h#L176
+    opts.set_bottommost_compression_options(-15, 32767, 0, dict_size, true);
+    // https://rocksdb.org/blog/2021/05/31/dictionary-compression.html?utm_source=dbplatz
+    opts.set_bottommost_zstd_max_train_bytes(dict_size * 100, true);
+
     opts.set_level_compaction_dynamic_level_bytes(true);
     let cache_size = choose_cache_size(col);
     opts.set_block_based_table_factory(&rocksdb_block_based_options(cache_size));
