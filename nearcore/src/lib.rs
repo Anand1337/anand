@@ -37,6 +37,7 @@ use crate::migrations::{
 };
 pub use crate::runtime::NightshadeRuntime;
 pub use crate::shard_tracker::TrackedConfig;
+use near_store::{ColBlockMisc, CompactOptions};
 
 pub mod append_only_map;
 pub mod config;
@@ -74,8 +75,34 @@ pub fn get_default_home() -> PathBuf {
     PathBuf::default()
 }
 
+fn get_bool_flag_from_db(store: &Store, key: &[u8]) -> bool {
+    match store.get_ser::<bool>(ColBlockMisc, &key) {
+        Ok(Some(x)) => x,
+        Ok(None) => false,
+        Err(e) => panic!("Can't read DB, {:?}", e),
+    }
+}
+
+fn set_bool_flag_in_db(store: &Store, key: &[u8], value: bool) {
+    let mut store_update = store.store_update();
+    store_update.set_ser(ColBlockMisc, &key, &value).unwrap();
+    store_update.commit().unwrap();
+}
+
 /// Function checks current version of the database and applies migrations to the database.
 pub fn apply_store_migrations(path: &Path, near_config: &NearConfig) {
+    let lz4_zstd_compression_key = b"lz4_zstd_compression";
+	let store = create_store(path);
+    if !get_bool_flag_from_db(&store, lz4_zstd_compression_key) {
+        set_bool_flag_in_db(&store, lz4_zstd_compression_key, true);
+        info!("Started: full compaction of the store");
+        let mut opts = CompactOptions::default();
+        opts.set_exclusive_manual_compaction(true);
+        let db = &store.get_rocksdb().expect("Can't get rocksdb from Store").db;
+        db.compact_range_opt(None::<&[u8]>, None::<&[u8]>, &opts);
+        info!("Finished: full compaction of the store");
+    }
+
     let db_version = get_store_version(path);
     if db_version > near_primitives::version::DB_VERSION {
         error!(target: "near", "DB version {} is created by a newer version of neard, please update neard or delete data", db_version);
