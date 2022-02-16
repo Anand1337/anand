@@ -83,15 +83,15 @@ def get_node(hostname):
     return n
 
 
-def get_nodes(pattern=None, project=PROJECT):
+def get_nodes(pattern=None):
     machines = gcloud.list(pattern=pattern,
-                           project=project,
+                           project=PROJECT,
                            username=NODE_USERNAME,
                            ssh_key_path=NODE_SSH_KEY_PATH)
     nodes = pmap(
         lambda machine: GCloudNode(machine.name,
                                    username=NODE_USERNAME,
-                                   project=project,
+                                   project=PROJECT,
                                    ssh_key_path=NODE_SSH_KEY_PATH), machines)
     return nodes
 

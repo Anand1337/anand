@@ -54,7 +54,7 @@ if __name__ == '__main__':
     logger.info('Starting end-to-end test.')
     parser = argparse.ArgumentParser(description='Run an end-to-end test')
     parser.add_argument('--project', required=True)
-    parser.add_argument('--nodes', required=True)
+    parser.add_argument('--ips', required=True)
     parser.add_argument('--accounts', required=True)
     parser.add_argument('--master-account', required=True)
     parser.add_argument('--interval-sec', type=float, required=True)
@@ -67,9 +67,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     project = args.project
-    assert args.nodes
-    nodes = args.nodes.split(',')
-    assert nodes, 'Need at least one node'
+    assert args.ips
+    ips = args.ips.split(',')
     assert args.accounts
     account_ids = args.accounts.split(',')
     assert len(account_ids) == len(
@@ -80,10 +79,6 @@ if __name__ == '__main__':
     port = args.port
     pk, sk = args.public_key, args.private_key
     rpc_server = (args.rpc_server_addr, args.rpc_server_port)
-
-    ips = [
-        mocknet.get_nodes(pattern=node, project=project)[0].ip for node in nodes
-    ]
 
     keys = [key_mod.Key(account_id, pk, sk) for account_id in account_ids]
     base_block_hash = mocknet_helpers.get_latest_block_hash(addr=rpc_server[0],
