@@ -17,6 +17,7 @@ from configured_logger import logger
 
 
 def watcher(master_account):
+    logger.info('watcher')
     while True:
         res = master_account.view_function_call('minimum', '')
         logger.info(
@@ -26,7 +27,9 @@ def watcher(master_account):
 
 
 def pinger(account, interval, master_account_id, rpc_server):
+    logger.info(f'pinger {account.key.account_id}')
     time.sleep(random.random() * interval)
+    logger.info(f'pinger {account.key.account_id} woke up')
     while True:
         base_block_hash = mocknet_helpers.get_latest_block_hash(
             addr=rpc_server[0], port=rpc_server[1])
