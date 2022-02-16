@@ -6,11 +6,10 @@ import time
 from rc import pmap
 import pathlib
 
-print("adding path ",str(pathlib.Path(__file__).resolve().parents[2] / 'lib'))
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[2] / 'lib'))
 
-import account
-import key
+import account as account_mod
+import key as key_mod
 import mocknet
 import mocknet_helpers
 
@@ -19,8 +18,10 @@ from configured_logger import logger
 
 def watcher(master_account):
     while True:
-        res = master_account.view_function_call('minimum','')
-        logger.info(f'Result of calling {master_account.key.account_id} method "minimum" is {res}')
+        res = master_account.view_function_call('minimum', '')
+        logger.info(
+            f'Result of calling {master_account.key.account_id} method "minimum" is {res}'
+        )
         time.sleep(10)
 
 
@@ -67,7 +68,8 @@ if __name__ == '__main__':
     assert nodes, 'Need at least one node'
     assert args.accounts
     account_ids = args.accounts.split(',')
-    assert len(account_ids) == len(nodes), 'List of test accounts must match the list of nodes'
+    assert len(account_ids) == len(
+        nodes), 'List of test accounts must match the list of nodes'
     master_account_id = args.master_account
     interval_sec = args.interval_sec
     assert interval_sec > 1, 'Need at least 1 second between pings'
@@ -75,30 +77,33 @@ if __name__ == '__main__':
     pk, sk = args.public_key, args.private_key
     rpc_server = (args.rpc_server_addr, args.rpc_server_port)
 
-    ips = [mocknet.get_nodes(pattern=node, project=project)[0].ip for node in nodes]
+    ips = [
+        mocknet.get_nodes(pattern=node, project=project)[0].ip for node in nodes
+    ]
 
-    keys = [key.Key(account_id, pk, sk) for account_id in account_ids]
+    keys = [key_mod.Key(account_id, pk, sk) for account_id in account_ids]
     base_block_hash = mocknet_helpers.get_latest_block_hash(addr=rpc_server[0],
                                                             port=rpc_server[1])
     accounts = [
-        account.Account(keys[i],
-                        mocknet_helpers.get_nonce_for_pk(key.account_id,
-                                                         key.pk,
-                                                         addr=rpc_server[0],
-                                                         port=rpc_server[1]),
-                        base_block_hash,
-                        rpc_info=(ips[i], port)) for i in range(len(keys))
+        account_mod.Account(keys[i],
+                            mocknet_helpers.get_nonce_for_pk(
+                                key.account_id,
+                                key.pk,
+                                addr=rpc_server[0],
+                                port=rpc_server[1]),
+                            base_block_hash,
+                            rpc_info=(ips[i], port)) for i in range(len(keys))
     ]
 
-    master_key = key.Key(master_account_id, pk, sk)
-    master_account = account.Account(master_key,
-                                     mocknet_helpers.get_nonce_for_pk(
-                                         master_key.account_id,
-                                         master_key.pk,
-                                         addr=rpc_server[0],
-                                         port=rpc_server[1]),
-                                     base_block_hash,
-                                     rpc_info=rpc_server)
+    master_key = key_mod.Key(master_account_id, pk, sk)
+    master_account = account_mod.Account(master_key,
+                                         mocknet_helpers.get_nonce_for_pk(
+                                             master_key.account_id,
+                                             master_key.pk,
+                                             addr=rpc_server[0],
+                                             port=rpc_server[1]),
+                                         base_block_hash,
+                                         rpc_info=rpc_server)
 
     processes = [lambda: watcher(master_account)]
     for i in range(len(accounts)):
