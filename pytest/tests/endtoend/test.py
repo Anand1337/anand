@@ -71,8 +71,7 @@ if __name__ == '__main__':
     ips = args.ips.split(',')
     assert args.accounts
     account_ids = args.accounts.split(',')
-    assert len(account_ids) == len(
-        nodes), 'List of test accounts must match the list of nodes'
+    assert len(account_ids) == len(ips), 'List of test accounts must match the list of node IP addresses'
     master_account_id = args.master_account
     interval_sec = args.interval_sec
     assert interval_sec > 1, 'Need at least 1 second between pings'
