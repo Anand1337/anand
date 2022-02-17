@@ -91,7 +91,7 @@ fn set_bool_flag_in_db(store: &Store, key: &[u8], value: bool) {
 
 /// Function checks current version of the database and applies migrations to the database.
 pub fn apply_store_migrations(path: &Path, near_config: &NearConfig) {
-    let lz4_zstd_compression_key = b"lz4_zstd_compression";
+    /*let lz4_zstd_compression_key = b"lz4_zstd_compression";
 	let store = create_store(path);
     if !get_bool_flag_from_db(&store, lz4_zstd_compression_key) {
         set_bool_flag_in_db(&store, lz4_zstd_compression_key, true);
@@ -102,7 +102,7 @@ pub fn apply_store_migrations(path: &Path, near_config: &NearConfig) {
         let db = &store.get_rocksdb().expect("Can't get rocksdb from Store").db;
         db.compact_range_opt(None::<&[u8]>, None::<&[u8]>, &opts);
         info!("Finished: full compaction of the store");
-    }
+    }*/
 
     let db_version = get_store_version(path);
     if db_version > near_primitives::version::DB_VERSION {
