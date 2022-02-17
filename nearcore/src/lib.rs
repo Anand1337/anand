@@ -37,7 +37,7 @@ use crate::migrations::{
 };
 pub use crate::runtime::NightshadeRuntime;
 pub use crate::shard_tracker::TrackedConfig;
-use near_store::{ColBlockMisc, CompactOptions};
+use near_store::{ColBlockMisc, CompactOptions, BottommostLevelCompaction};
 
 pub mod append_only_map;
 pub mod config;
@@ -98,6 +98,7 @@ pub fn apply_store_migrations(path: &Path, near_config: &NearConfig) {
         info!("Started: full compaction of the store");
         let mut opts = CompactOptions::default();
         opts.set_exclusive_manual_compaction(true);
+        opts.set_bottommost_level_compaction(BottommostLevelCompaction::Force);
         let db = &store.get_rocksdb().expect("Can't get rocksdb from Store").db;
         db.compact_range_opt(None::<&[u8]>, None::<&[u8]>, &opts);
         info!("Finished: full compaction of the store");

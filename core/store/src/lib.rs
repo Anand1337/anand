@@ -40,7 +40,7 @@ pub use crate::trie::{
 pub mod db;
 pub mod migrations;
 pub mod test_utils;
-pub use rocksdb::CompactOptions;
+pub use rocksdb::{CompactOptions, BottommostLevelCompaction};
 mod trie;
 
 #[derive(Clone)]
