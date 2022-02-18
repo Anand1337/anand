@@ -28,6 +28,7 @@ use near_store::migrations::{
     migrate_6_to_7, migrate_7_to_8, migrate_8_to_9, migrate_9_to_10, set_store_version,
 };
 use near_store::{create_store, Store};
+use near_store::db::DBCol;
 use near_telemetry::TelemetryActor;
 
 pub use crate::config::{init_configs, load_config, load_test_config, NearConfig, NEAR_BASE};
@@ -37,7 +38,7 @@ use crate::migrations::{
 };
 pub use crate::runtime::NightshadeRuntime;
 pub use crate::shard_tracker::TrackedConfig;
-use near_store::{ColBlockMisc, CompactOptions, BottommostLevelCompaction};
+// use near_store::ColBlockMisc;
 
 pub mod append_only_map;
 pub mod config;
@@ -75,7 +76,7 @@ pub fn get_default_home() -> PathBuf {
     PathBuf::default()
 }
 
-fn get_bool_flag_from_db(store: &Store, key: &[u8]) -> bool {
+/*fn get_bool_flag_from_db(store: &Store, key: &[u8]) -> bool {
     match store.get_ser::<bool>(ColBlockMisc, &key) {
         Ok(Some(x)) => x,
         Ok(None) => false,
@@ -87,12 +88,12 @@ fn set_bool_flag_in_db(store: &Store, key: &[u8], value: bool) {
     let mut store_update = store.store_update();
     store_update.set_ser(ColBlockMisc, &key, &value).unwrap();
     store_update.commit().unwrap();
-}
+}*/
 
 /// Function checks current version of the database and applies migrations to the database.
 pub fn apply_store_migrations(path: &Path, near_config: &NearConfig) {
     /*let lz4_zstd_compression_key = b"lz4_zstd_compression";
-	let store = create_store(path);
+    let store = create_store(path);
     if !get_bool_flag_from_db(&store, lz4_zstd_compression_key) {
         set_bool_flag_in_db(&store, lz4_zstd_compression_key, true);
         info!("Started: full compaction of the store");
@@ -325,6 +326,32 @@ pub struct NearNode {
 }
 
 pub fn start_with_config(home_dir: &Path, config: NearConfig) -> Result<NearNode, anyhow::Error> {
+    {
+        use strum::IntoEnumIterator;
+        let path = home_dir;
+        let store = create_store(path);
+        let snappy_store = create_store(Path::new("/home/edvard/.snappy_near"));
+        let lz4_zstd_store = create_store(Path::new("/home/edvard/.lz4_zstd_near"));
+
+        println!("PATH: {:?}", path);
+        for column in DBCol::iter() {
+            println!("{}", column);
+            let mut snappy_store_update = snappy_store.store_update();
+            let mut lz4_zstd_store_update = lz4_zstd_store.store_update();
+            for (key, value) in store.iter_without_rc_logic(column) {
+                snappy_store_update .set_ser(column, &key, &value).unwrap();
+                lz4_zstd_store_update.set_ser(column, &key, &value).unwrap();
+            }
+            snappy_store_update.commit().unwrap();
+            lz4_zstd_store_update.commit().unwrap();
+            break;
+        }
+
+        if 2 + 2 == 4 {
+            panic!("IN");
+        }
+    }
+
     let store = init_and_migrate_store(home_dir, &config);
 
     let runtime = Arc::new(NightshadeRuntime::with_config(

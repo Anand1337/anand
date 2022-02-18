@@ -36,6 +36,7 @@ lazy-static-include = "3"
 tempfile = "3"
 indicatif = "0.15.0"
 xz2 = "0.1.6"
+strum = "0.20"
 
 near-crypto = { path = "../core/crypto" }
 near-primitives = { path = "../core/primitives" }
