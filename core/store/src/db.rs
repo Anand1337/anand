@@ -541,7 +541,8 @@ impl RocksDBOptions {
     /// Opens the database in read/write mode.
     pub fn read_write<P: AsRef<std::path::Path>>(self, path: P) -> Result<RocksDB, DBError> {
         use strum::IntoEnumIterator;
-        let options = self.rocksdb_options.unwrap_or_else(rocksdb_options);
+        let zstd_enabled = path.as_ref().to_str().expect("").contains("lz4_zstd");
+        let options = self.rocksdb_options.unwrap_or_else(|| { rocksdb_options(zstd_enabled) });
         let cf_names = self
             .cf_names
             .unwrap_or_else(|| DBCol::iter().map(|col| format!("col{}", col as usize)).collect());
@@ -550,7 +551,7 @@ impl RocksDBOptions {
                 .map(|col| {
                     ColumnFamilyDescriptor::new(
                         format!("col{}", col as usize),
-                        rocksdb_column_options(col),
+                        rocksdb_column_options(col, zstd_enabled),
                     )
                 })
                 .collect()
@@ -759,16 +760,23 @@ impl Database for TestDB {
 }
 
 /// DB level options
-fn rocksdb_options() -> Options {
+fn rocksdb_options(zstd_enabled: bool) -> Options {
     let mut opts = Options::default();
 
-    opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
-    opts.set_bottommost_compression_type(rocksdb::DBCompressionType::Zstd);
-    let dict_size = 16384;  // 16KB
-    // https://github.com/facebook/rocksdb/blob/main/include/rocksdb/advanced_options.h#L176
-    opts.set_bottommost_compression_options(-15, 32767, 0, dict_size, true);
-    // https://rocksdb.org/blog/2021/05/31/dictionary-compression.html?utm_source=dbplatz
-    opts.set_bottommost_zstd_max_train_bytes(dict_size * 100, true);
+    if zstd_enabled {
+        opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
+        opts.set_compression_per_level(&[
+            rocksdb::DBCompressionType::None,
+            rocksdb::DBCompressionType::None,
+            rocksdb::DBCompressionType::Lz4,
+        ]);
+        opts.set_bottommost_compression_type(rocksdb::DBCompressionType::Zstd);
+        let dict_size = 2 * 16384;  // 32KB
+        // https://github.com/facebook/rocksdb/blob/main/include/rocksdb/advanced_options.h#L176
+        opts.set_bottommost_compression_options(-15, 32767, 0, dict_size, true);
+        // https://rocksdb.org/blog/2021/05/31/dictionary-compression.html?utm_source=dbplatz
+        opts.set_bottommost_zstd_max_train_bytes(dict_size * 100, true);
+    }
 
     opts.create_missing_column_families(true);
     opts.create_if_missing(true);
@@ -822,16 +830,23 @@ fn choose_cache_size(col: DBCol) -> usize {
     }
 }
 
-fn rocksdb_column_options(col: DBCol) -> Options {
+fn rocksdb_column_options(col: DBCol, zstd_enabled: bool) -> Options {
     let mut opts = Options::default();
 
-    opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
-    opts.set_bottommost_compression_type(rocksdb::DBCompressionType::Zstd);
-    let dict_size = 16384;  // 16KB
-    // https://github.com/facebook/rocksdb/blob/main/include/rocksdb/advanced_options.h#L176
-    opts.set_bottommost_compression_options(-15, 32767, 0, dict_size, true);
-    // https://rocksdb.org/blog/2021/05/31/dictionary-compression.html?utm_source=dbplatz
-    opts.set_bottommost_zstd_max_train_bytes(dict_size * 100, true);
+    if zstd_enabled {
+        opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
+        opts.set_compression_per_level(&[
+            rocksdb::DBCompressionType::None,
+            rocksdb::DBCompressionType::None,
+            rocksdb::DBCompressionType::Lz4,
+        ]);
+        opts.set_bottommost_compression_type(rocksdb::DBCompressionType::Zstd);
+        let dict_size = 2 * 16384;  // 32KB
+        // https://github.com/facebook/rocksdb/blob/main/include/rocksdb/advanced_options.h#L176
+        opts.set_bottommost_compression_options(-15, 32767, 0, dict_size, true);
+        // https://rocksdb.org/blog/2021/05/31/dictionary-compression.html?utm_source=dbplatz
+        opts.set_bottommost_zstd_max_train_bytes(dict_size * 100, true);
+    }
 
     opts.set_level_compaction_dynamic_level_bytes(true);
     let cache_size = choose_cache_size(col);
