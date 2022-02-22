@@ -331,13 +331,13 @@ pub fn start_with_config(home_dir: &Path, config: NearConfig) -> Result<NearNode
         let mut path = home_dir.to_owned();
         path.push("data");
         let store = create_store(&path);
-        let snappy_store = create_store(Path::new("/home/edvard/.snappy_near"));
-        let lz4_zstd_store = create_store(Path::new("/home/edvard/.lz4_zstd_near"));
+        // let snappy_store = create_store(Path::new("/home/edvard/.snappy_near"));
+        let lz4_zstd_store = create_store(Path::new("/home/edvard/.lz4_zstd_near2"));
 
         info!("PATH: {:?}", path);
         for column in DBCol::iter() {
             info!("COLUMN: {} {}", column, column as usize);
-            let mut snappy_store_update = snappy_store.store_update();
+            // let mut snappy_store_update = snappy_store.store_update();
             let mut lz4_zstd_store_update = lz4_zstd_store.store_update();
             let mut i = 0;
             for (key, value) in store.iter(column) {
@@ -349,15 +349,15 @@ pub fn start_with_config(home_dir: &Path, config: NearConfig) -> Result<NearNode
                 }
                 if i % batch_size == 0 {
                     println!("Processed {} keys in column {} ({})", i, column, column as usize);
-                    snappy_store_update.commit().unwrap();
+                    // snappy_store_update.commit().unwrap();
                     lz4_zstd_store_update.commit().unwrap();
-                    snappy_store_update = snappy_store.store_update();
+                    // snappy_store_update = snappy_store.store_update();
                     lz4_zstd_store_update = lz4_zstd_store.store_update();
                 }
-                snappy_store_update .set_ser(column, &key, &value).unwrap();
+                // snappy_store_update .set_ser(column, &key, &value).unwrap();
                 lz4_zstd_store_update.set_ser(column, &key, &value).unwrap();
             }
-            snappy_store_update.commit().unwrap();
+            // snappy_store_update.commit().unwrap();
             lz4_zstd_store_update.commit().unwrap();
         }
 

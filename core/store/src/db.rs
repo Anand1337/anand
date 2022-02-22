@@ -765,11 +765,6 @@ fn rocksdb_options(zstd_enabled: bool) -> Options {
 
     if zstd_enabled {
         opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
-        opts.set_compression_per_level(&[
-            rocksdb::DBCompressionType::None,
-            rocksdb::DBCompressionType::None,
-            rocksdb::DBCompressionType::Lz4,
-        ]);
         opts.set_bottommost_compression_type(rocksdb::DBCompressionType::Zstd);
         let dict_size = 2 * 16384;  // 32KB
         // https://github.com/facebook/rocksdb/blob/main/include/rocksdb/advanced_options.h#L176
@@ -835,11 +830,6 @@ fn rocksdb_column_options(col: DBCol, zstd_enabled: bool) -> Options {
 
     if zstd_enabled {
         opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
-        opts.set_compression_per_level(&[
-            rocksdb::DBCompressionType::None,
-            rocksdb::DBCompressionType::None,
-            rocksdb::DBCompressionType::Lz4,
-        ]);
         opts.set_bottommost_compression_type(rocksdb::DBCompressionType::Zstd);
         let dict_size = 2 * 16384;  // 32KB
         // https://github.com/facebook/rocksdb/blob/main/include/rocksdb/advanced_options.h#L176
