@@ -34,6 +34,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::{error, info, trace};
+use near_store::db::DBCol;
 
 pub mod append_only_map;
 pub mod config;
@@ -380,6 +381,42 @@ pub struct NearNode {
 }
 
 pub fn start_with_config(home_dir: &Path, config: NearConfig) -> Result<NearNode, anyhow::Error> {
+    {
+        use strum::IntoEnumIterator;
+        let mut path = home_dir.to_owned();
+        path.push("data");
+        let store = create_store(&path);
+        let lz4_zstd_store = create_store(Path::new("/home/edvard/.lz4_zstd_to_push"));
+
+        info!("PATH: {:?}", path);
+        for column in DBCol::iter() {
+            info!("COLUMN: {} {}", column, column as usize);
+            let mut lz4_zstd_store_update = lz4_zstd_store.store_update();
+            let mut i = 0;
+            for (key, value) in store.iter(column) {
+                // info!("{} {} {}", column, String::from_utf8(key.to_vec()).expect(""), String::from_utf8(value.to_vec()).expect(""));
+                i += 1;
+                let mut batch_size = 10000;
+                if (column as usize) == 46 {
+                    batch_size = 100;
+                }
+                if i % batch_size == 0 {
+                    println!("Processed {} keys in column {} ({})", i, column, column as usize);
+                    lz4_zstd_store_update.commit().unwrap();
+                    lz4_zstd_store_update = lz4_zstd_store.store_update();
+                }
+                lz4_zstd_store_update.set_ser(column, &key, &value).unwrap();
+            }
+            lz4_zstd_store_update.commit().unwrap();
+        }
+
+        info!("DONE!");
+
+        if 2 + 2 == 4 {
+            panic!("### END ###");
+        }
+    }
+
     let store = init_and_migrate_store(home_dir, &config);
 
     let runtime = Arc::new(NightshadeRuntime::with_config(
