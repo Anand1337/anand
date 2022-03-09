@@ -1,6 +1,7 @@
 mod concurrency;
 mod fetch_chain;
 mod network;
+mod peer_manager;
 
 use std::io;
 use std::sync::Arc;
@@ -17,9 +18,9 @@ use concurrency::{Ctx, Scope};
 use network::{FakeClientActor, Network};
 
 use near_chain_configs::Genesis;
-use near_network::routing::start_routing_table_actor;
-use near_network::test_utils::NetworkRecipient;
-use near_network::PeerManagerActor;
+use crate::peer_manager::routing::start_routing_table_actor;
+use crate::peer_manager::test_utils::NetworkRecipient;
+use crate::peer_manager::PeerManagerActor;
 use near_primitives::hash::CryptoHash;
 use near_primitives::network::PeerId;
 use near_store::{db, Store};

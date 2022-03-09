@@ -26,12 +26,28 @@ dirs = "3"
 tokio = "1.16.1"
 log = "0.4"
 
+bytes = "1"
+tokio-util = { version = "0.6", features = ["codec"] }
+bytesize = "1.1"
+borsh = { version = "0.9", features = ["rc"] }
+lru = "0.7.2"
+strum = { version = "0.20", features = ["derive"] }
+tokio-stream = { version = "0.1.2", features = ["net"] }
+conqueue = "0.4.0"
+itertools = "0.10.3"
+once_cell = "1.5.2"
+delay-detector = { path = "../../tools/delay_detector" }
+near-metrics = { path = "../../core/metrics" }
+near-performance-metrics = { path = "../../utils/near-performance-metrics" }
+near-performance-metrics-macros = { path = "../../utils/near-performance-metrics-macros" }
+near-rate-limiter = { path = "../../utils/near-rate-limiter" }
+
 near-chain-configs = { path = "../../core/chain-configs" }
 near-crypto = { path = "../../core/crypto" }
 near-primitives = { path = "../../core/primitives" }
 near-store = { path = "../../core/store" }
 nearcore = { path = "../../nearcore" }
-near-network = { path = "../../chain/network" }
+# near-network = { path = "../../chain/network" }
 near-network-primitives = { path = "../../chain/network-primitives" }
 
 [features]

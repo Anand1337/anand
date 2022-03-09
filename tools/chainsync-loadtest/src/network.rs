@@ -9,7 +9,7 @@ use near_network_primitives::types::{
 
 use actix::{Actor, Context, Handler};
 use log::info;
-use near_network::types::{
+use crate::peer_manager::types::{
     FullPeerInfo, NetworkClientMessages, NetworkClientResponses, NetworkInfo, NetworkRequests,
     PeerManagerAdapter, PeerManagerMessageRequest,
 };
