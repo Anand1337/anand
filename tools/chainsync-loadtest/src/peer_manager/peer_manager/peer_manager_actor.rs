@@ -28,7 +28,7 @@ use near_network_primitives::types::{
     KnownProducer, NetworkConfig, NetworkViewClientMessages, NetworkViewClientResponses,
     OutboundTcpConnect, PeerIdOrHash, PeerInfo, PeerManagerRequest, PeerType, Ping, Pong,
     QueryPeerStats, RawRoutedMessage, ReasonForBan, RoutedMessage, RoutedMessageBody,
-    RoutedMessageFrom, StateResponseInfo,
+    RoutedMessageFrom, 
 };
 use near_network_primitives::types::{EdgeState, PartialEdgeInfo};
 use near_performance_metrics::framed_write::FramedWrite;
@@ -1269,21 +1269,6 @@ impl PeerManagerActor {
         });
     }
 
-    fn announce_account(&mut self, announce_account: AnnounceAccount) {
-        debug!(target: "network", account_id = ?self.config.account_id, ?announce_account, "Account announce");
-        if !self.routing_table_view.contains_account(&announce_account) {
-            self.routing_table_view.add_account(announce_account.clone());
-            Self::broadcast_message(
-                &self.connected_peers,
-                SendMessage {
-                    message: PeerMessage::SyncRoutingTable(RoutingTableUpdate::from_accounts(
-                        vec![announce_account],
-                    )),
-                },
-            );
-        }
-    }
-
     /// Send message to peer that belong to our active set
     /// Return whether the message is sent or not.
     fn send_message(
@@ -1304,22 +1289,6 @@ impl PeerManagerActor {
                    "Failed sending message"
             );
             false
-        }
-    }
-
-    /// Return whether the message is sent or not.
-    fn send_message_to_account_or_peer_or_hash(
-        &mut self,
-        target: &AccountOrPeerIdOrHash,
-        msg: RoutedMessageBody,
-    ) -> bool {
-        match target {
-            AccountOrPeerIdOrHash::AccountId(account_id) => {
-                self.send_message_to_account(account_id, msg)
-            }
-            peer_or_hash @ AccountOrPeerIdOrHash::PeerId(_)
-            | peer_or_hash @ AccountOrPeerIdOrHash::Hash(_) => self
-                .send_message_to_peer(RawRoutedMessage { target: peer_or_hash.clone(), body: msg }),
         }
     }
 
@@ -1422,15 +1391,6 @@ impl PeerManagerActor {
 
     // Ping pong useful functions.
 
-    // for unit tests
-    fn send_ping(&mut self, nonce: usize, target: PeerId) {
-        let body =
-            RoutedMessageBody::Ping(Ping { nonce: nonce as u64, source: self.my_peer_id.clone() });
-        self.routing_table_view.sending_ping(nonce, target.clone());
-        let msg = RawRoutedMessage { target: AccountOrPeerIdOrHash::PeerId(target), body };
-        self.send_message_to_peer(msg);
-    }
-
     fn send_pong(&mut self, nonce: usize, target: CryptoHash) {
         let body =
             RoutedMessageBody::Pong(Pong { nonce: nonce as u64, source: self.my_peer_id.clone() });
@@ -1495,20 +1455,8 @@ impl PeerManagerActor {
             format!("network request {}", msg.as_ref()).into()
         });
         match msg {
-            NetworkRequests::Block { block } => {
-                Self::broadcast_message(
-                    &self.connected_peers,
-                    SendMessage { message: PeerMessage::Block(block) },
-                );
-                NetworkResponses::NoResponse
-            }
-            NetworkRequests::Approval { approval_message } => {
-                self.send_message_to_account(
-                    &approval_message.target,
-                    RoutedMessageBody::BlockApproval(approval_message.approval),
-                );
-                NetworkResponses::NoResponse
-            }
+            NetworkRequests::Block {.. } => panic!("NetworkRequest::Block"),
+            NetworkRequests::Approval {..} => panic!("NetworkRequest::Approval"),
             NetworkRequests::BlockRequest { hash, peer_id } => {
                 if Self::send_message(
                     &self.connected_peers,
@@ -1531,72 +1479,13 @@ impl PeerManagerActor {
                     NetworkResponses::RouteNotFound
                 }
             }
-            NetworkRequests::StateRequestHeader { shard_id, sync_hash, target } => {
-                if self.send_message_to_account_or_peer_or_hash(
-                    &target,
-                    RoutedMessageBody::StateRequestHeader(shard_id, sync_hash),
-                ) {
-                    NetworkResponses::NoResponse
-                } else {
-                    NetworkResponses::RouteNotFound
-                }
-            }
-            NetworkRequests::StateRequestPart { shard_id, sync_hash, part_id, target } => {
-                if self.send_message_to_account_or_peer_or_hash(
-                    &target,
-                    RoutedMessageBody::StateRequestPart(shard_id, sync_hash, part_id),
-                ) {
-                    NetworkResponses::NoResponse
-                } else {
-                    NetworkResponses::RouteNotFound
-                }
-            }
-            NetworkRequests::StateResponse { route_back, response } => {
-                let body = match response {
-                    StateResponseInfo::V1(response) => RoutedMessageBody::StateResponse(response),
-                    response @ StateResponseInfo::V2(_) => {
-                        RoutedMessageBody::VersionedStateResponse(response)
-                    }
-                };
-                if self.send_message_to_peer(RawRoutedMessage {
-                    target: AccountOrPeerIdOrHash::Hash(route_back),
-                    body,
-                }) {
-                    NetworkResponses::NoResponse
-                } else {
-                    NetworkResponses::RouteNotFound
-                }
-            }
-            NetworkRequests::EpochSyncRequest { peer_id, epoch_id } => {
-                if Self::send_message(
-                    &self.connected_peers,
-                    peer_id,
-                    PeerMessage::EpochSyncRequest(epoch_id),
-                ) {
-                    NetworkResponses::NoResponse
-                } else {
-                    NetworkResponses::RouteNotFound
-                }
-            }
-            NetworkRequests::EpochSyncFinalizationRequest { peer_id, epoch_id } => {
-                if Self::send_message(
-                    &self.connected_peers,
-                    peer_id,
-                    PeerMessage::EpochSyncFinalizationRequest(epoch_id),
-                ) {
-                    NetworkResponses::NoResponse
-                } else {
-                    NetworkResponses::RouteNotFound
-                }
-            }
-            NetworkRequests::BanPeer { peer_id, ban_reason } => {
-                self.try_ban_peer(&peer_id, ban_reason);
-                NetworkResponses::NoResponse
-            }
-            NetworkRequests::AnnounceAccount(announce_account) => {
-                self.announce_account(announce_account);
-                NetworkResponses::NoResponse
-            }
+            NetworkRequests::StateRequestHeader { .. } => panic!("StateRequestHeader"), 
+            NetworkRequests::StateRequestPart { ..} => panic!("StateRequestPart"),
+            NetworkRequests::StateResponse {..} => panic!("StateResponse"),
+            NetworkRequests::EpochSyncRequest { .. } => panic!("EpochSyncRequest"),
+            NetworkRequests::EpochSyncFinalizationRequest { .. } => panic!("EpochSyncFinalizationRequest"),
+            NetworkRequests::BanPeer {..} => panic!("BanPeer"),
+            NetworkRequests::AnnounceAccount(_) => panic!("AnnounceAccount"),
             NetworkRequests::PartialEncodedChunkRequest { target, request } => {
                 let mut success = false;
 
@@ -1651,74 +1540,14 @@ impl PeerManagerActor {
                     NetworkResponses::RouteNotFound
                 }
             }
-            NetworkRequests::PartialEncodedChunkResponse { route_back, response } => {
-                if self.send_message_to_peer(RawRoutedMessage {
-                    target: AccountOrPeerIdOrHash::Hash(route_back),
-                    body: RoutedMessageBody::PartialEncodedChunkResponse(response),
-                }) {
-                    NetworkResponses::NoResponse
-                } else {
-                    NetworkResponses::RouteNotFound
-                }
-            }
-            NetworkRequests::PartialEncodedChunkMessage { account_id, partial_encoded_chunk } => {
-                if self.send_message_to_account(&account_id, partial_encoded_chunk.into()) {
-                    NetworkResponses::NoResponse
-                } else {
-                    NetworkResponses::RouteNotFound
-                }
-            }
-            NetworkRequests::PartialEncodedChunkForward { account_id, forward } => {
-                if self.send_message_to_account(
-                    &account_id,
-                    RoutedMessageBody::PartialEncodedChunkForward(forward),
-                ) {
-                    NetworkResponses::NoResponse
-                } else {
-                    NetworkResponses::RouteNotFound
-                }
-            }
-            NetworkRequests::ForwardTx(account_id, tx) => {
-                if self.send_message_to_account(&account_id, RoutedMessageBody::ForwardTx(tx)) {
-                    NetworkResponses::NoResponse
-                } else {
-                    NetworkResponses::RouteNotFound
-                }
-            }
-            NetworkRequests::TxStatus(account_id, signer_account_id, tx_hash) => {
-                if self.send_message_to_account(
-                    &account_id,
-                    RoutedMessageBody::TxStatusRequest(signer_account_id, tx_hash),
-                ) {
-                    NetworkResponses::NoResponse
-                } else {
-                    NetworkResponses::RouteNotFound
-                }
-            }
-            NetworkRequests::Query { query_id, account_id, block_reference, request } => {
-                if self.send_message_to_account(
-                    &account_id,
-                    RoutedMessageBody::QueryRequest { query_id, block_reference, request },
-                ) {
-                    NetworkResponses::NoResponse
-                } else {
-                    NetworkResponses::RouteNotFound
-                }
-            }
-            NetworkRequests::ReceiptOutComeRequest(account_id, receipt_id) => {
-                if self.send_message_to_account(
-                    &account_id,
-                    RoutedMessageBody::ReceiptOutcomeRequest(receipt_id),
-                ) {
-                    NetworkResponses::NoResponse
-                } else {
-                    NetworkResponses::RouteNotFound
-                }
-            }
-            // For unit tests
-            NetworkRequests::FetchRoutingTable => {
-                NetworkResponses::RoutingTableInfo(self.routing_table_view.info())
-            }
+            NetworkRequests::PartialEncodedChunkResponse {..} => panic!("PartialEncodedChunkResponse"),
+            NetworkRequests::PartialEncodedChunkMessage { .. } => panic!("PartialEncodedChunkMessage"),
+            NetworkRequests::PartialEncodedChunkForward { .. } => panic!("PartialEncodedChunkForward"),
+            NetworkRequests::ForwardTx(_,_) => panic!("ForwardTx"),
+            NetworkRequests::TxStatus(_,_,_) => panic!("TxStatus"),
+            NetworkRequests::Query{..} => panic!("Query"),
+            NetworkRequests::ReceiptOutComeRequest(_,_) => panic!("ReceiptOutComeRequest"), 
+            NetworkRequests::FetchRoutingTable => panic!("FetchRoutingTable"),
             NetworkRequests::SyncRoutingTable { peer_id, routing_table_update } => {
                 // Process edges and add new edges to the routing table. Also broadcast new edges.
                 let edges = routing_table_update.edges;
@@ -1766,23 +1595,16 @@ impl PeerManagerActor {
 
                 NetworkResponses::NoResponse
             }
-            #[cfg(feature = "protocol_feature_routing_exchange_algorithm")]
-            NetworkRequests::IbfMessage { peer_id, ibf_msg } => match ibf_msg {
+            // #[cfg(feature = "protocol_feature_routing_exchange_algorithm")]
+            /*NetworkRequests::IbfMessage { peer_id, ibf_msg } => match ibf_msg {
                 crate::peer_manager::network_protocol::RoutingSyncV2::Version2(ibf_msg) => {
                     if let Some(addr) = self.connected_peers.get(&peer_id).map(|p| p.addr.clone()) {
                         self.process_ibf_msg(&peer_id, ibf_msg, addr, throttle_controller)
                     }
                     NetworkResponses::NoResponse
                 }
-            },
-            NetworkRequests::Challenge(challenge) => {
-                // TODO(illia): smarter routing?
-                Self::broadcast_message(
-                    &self.connected_peers,
-                    SendMessage { message: PeerMessage::Challenge(challenge) },
-                );
-                NetworkResponses::NoResponse
-            }
+            },*/
+            NetworkRequests::Challenge(_) => panic!("Challenge"),
             NetworkRequests::RequestUpdateNonce(peer_id, edge_info) => {
                 if Edge::partial_verify(&self.my_peer_id, &peer_id, &edge_info) {
                     if let Some(cur_edge) = self.routing_table_view.get_local_edge(&peer_id) {
@@ -1834,19 +1656,8 @@ impl PeerManagerActor {
                     NetworkResponses::BanPeer(ReasonForBan::InvalidEdge)
                 }
             }
-            // For unit tests
-            NetworkRequests::PingTo(nonce, target) => {
-                self.send_ping(nonce, target);
-                NetworkResponses::NoResponse
-            }
-            // For unit tests
-            NetworkRequests::FetchPingPongInfo => {
-                let (pings, pongs) = self.routing_table_view.fetch_ping_pong();
-                NetworkResponses::PingPongInfo {
-                    pings: pings.map(|(k, v)| (*k, v.clone())).collect(),
-                    pongs: pongs.map(|(k, v)| (*k, v.clone())).collect(),
-                }
-            }
+            NetworkRequests::PingTo(_,_) => panic!("PingTo"),
+            NetworkRequests::FetchPingPongInfo => panic!("FetchPingPongInfo"),
         }
     }
 

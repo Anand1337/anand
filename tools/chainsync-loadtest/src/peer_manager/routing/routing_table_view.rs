@@ -145,13 +145,6 @@ impl RoutingTableView {
         }
     }
 
-    // TODO(MarX, #1694): Allow one account id to be routed to several peer id.
-    pub(crate) fn contains_account(&mut self, announce_account: &AnnounceAccount) -> bool {
-        self.get_announce(&announce_account.account_id).map_or(false, |current_announce_account| {
-            current_announce_account.epoch_id == announce_account.epoch_id
-        })
-    }
-
     pub fn remove_local_edges<'a>(&mut self, peers: impl Iterator<Item = &'a PeerId>) {
         for other_peer in peers {
             self.local_edges_info.remove(other_peer);
@@ -192,38 +185,6 @@ impl RoutingTableView {
         self.pong_info.put(pong.nonce as usize, (pong, (cnt + 1)));
 
         res
-    }
-
-    // for unit tests
-    pub(crate) fn sending_ping(&mut self, nonce: usize, target: PeerId) {
-        let entry = if let Some(entry) = self.waiting_pong.get_mut(&target) {
-            entry
-        } else {
-            self.waiting_pong.put(target.clone(), LruCache::new(10));
-            self.waiting_pong.get_mut(&target).unwrap()
-        };
-
-        entry.put(nonce, Clock::instant());
-    }
-
-    /// Fetch `ping_info` and `pong_info` for units tests.
-    pub(crate) fn fetch_ping_pong(
-        &self,
-    ) -> (
-        impl Iterator<Item = (&usize, &(Ping, usize))> + ExactSizeIterator,
-        impl Iterator<Item = (&usize, &(Pong, usize))> + ExactSizeIterator,
-    ) {
-        (self.ping_info.iter(), self.pong_info.iter())
-    }
-
-    pub(crate) fn info(&self) -> RoutingTableInfo {
-        let account_peers = self
-            .get_announce_accounts()
-            .map(|announce_account| {
-                (announce_account.account_id.clone(), announce_account.peer_id.clone())
-            })
-            .collect();
-        RoutingTableInfo { account_peers, peer_forwarding: self.peer_forwarding.clone() }
     }
 
     /// Public interface for `account_peers`.
