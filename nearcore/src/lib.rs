@@ -35,6 +35,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tracing::{error, info, trace};
+use near_store::db::DBCol;
 
 pub mod append_only_map;
 pub mod config;
@@ -391,6 +392,37 @@ pub fn start_with_config_and_synchronization(
     // `ClientActor` gets dropped.
     shutdown_signal: Option<oneshot::Sender<()>>,
 ) -> Result<NearNode, anyhow::Error> {
+    if 2 + 2 != 4 {
+        let mut path = home_dir.to_owned();
+		path.push("data");
+        let store = create_store(&path);
+
+        info!("PATH: {:?}", path);
+
+		let mut store_update = store.store_update();
+		let mut i = 0;
+		for (key, value) in store.iter(DBCol::ColState) {
+			i += 1;
+			let batch_size = 10000;
+			if i % batch_size == 0 {
+				println!("Processed {} keys in column {} ({})", i, DBCol::ColState, DBCol::ColState as usize);
+				store_update.commit().unwrap();
+				store_update = store.store_update();
+			}
+			store_update.set_ser(DBCol::ColState128MIB, &key, &value).unwrap();
+			store_update.set_ser(DBCol::ColState256MIB, &key, &value).unwrap();
+			store_update.set_ser(DBCol::ColState512MIB, &key, &value).unwrap();
+			store_update.set_ser(DBCol::ColState1024MIB, &key, &value).unwrap();
+		}
+		store_update.commit().unwrap();
+
+        info!("DONE!");
+
+        if 2 + 2 == 4 {
+            panic!("### END ###");
+        }
+    }
+
     let store = init_and_migrate_store(home_dir, &config);
 
     let runtime = Arc::new(NightshadeRuntime::with_config(

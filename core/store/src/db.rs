@@ -264,6 +264,11 @@ pub enum DBCol {
     /// - *Rows*: BlockShardId (BlockHash || ShardId) - 40 bytes
     /// - *Column type*: StateChangesForSplitStates
     ColStateChangesForSplitStates = 49,
+
+    ColState128MIB = 50,
+    ColState256MIB = 51,
+    ColState512MIB = 52,
+    ColState1024MIB = 53,
 }
 
 // Do not move this line from enum DBCol
@@ -324,6 +329,10 @@ impl std::fmt::Display for DBCol {
             Self::ColStateChangesForSplitStates => {
                 "state changes indexed by block hash and shard id"
             }
+            Self::ColState128MIB => "blockchain state (128MB)",
+            Self::ColState256MIB => "blockchain state (256MB)",
+            Self::ColState512MIB => "blockchain state (512MB)",
+            Self::ColState1024MIB => "blockchain state (1024MB)",
         };
         write!(formatter, "{}", desc)
     }
@@ -846,7 +855,23 @@ fn rocksdb_column_options(col: DBCol) -> Options {
     let cache_size = choose_cache_size(col);
     opts.set_block_based_table_factory(&rocksdb_block_based_options(cache_size));
     opts.optimize_level_style_compaction(128 * bytesize::MIB as usize);
-    opts.set_target_file_size_base(64 * bytesize::MIB);
+    match col {
+        DBCol::ColState128MIB => {
+            opts.set_target_file_size_base(128 * bytesize::MIB);
+        }
+        DBCol::ColState256MIB => {
+            opts.set_target_file_size_base(256 * bytesize::MIB);
+        }
+        DBCol::ColState512MIB => {
+            opts.set_target_file_size_base(512 * bytesize::MIB);
+        }
+        DBCol::ColState1024MIB => {
+            opts.set_target_file_size_base(1024 * bytesize::MIB);
+        }
+        _ => {
+            opts.set_target_file_size_base(64 * bytesize::MIB);
+        }
+    }
     if col.is_rc() {
         opts.set_merge_operator("refcount merge", RocksDB::refcount_merge, RocksDB::refcount_merge);
         opts.set_compaction_filter("empty value filter", RocksDB::empty_value_compaction_filter);
