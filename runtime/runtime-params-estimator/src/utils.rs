@@ -8,12 +8,25 @@ use std::collections::HashMap;
 use near_primitives::transaction::SignedTransaction;
 use near_primitives::types::AccountId;
 use near_vm_logic::ExtCosts;
+use rand::distributions::Alphanumeric;
+use rand::Rng;
+use rand_xorshift::XorShiftRng;
 
 pub fn read_resource(path: &str) -> Vec<u8> {
     let dir = env!("CARGO_MANIFEST_DIR");
     let path = std::path::Path::new(dir).join(path);
     std::fs::read(&path)
         .unwrap_or_else(|err| panic!("failed to load test resource: {}, {}", path.display(), err))
+}
+
+/// Attempts to clear OS page cache on Linux based system. Will fail on
+/// other systems. Requires write access to /proc/sys/vm/drop_caches
+#[cfg(target_os = "linux")]
+pub fn clear_linux_page_cache() -> std::io::Result<()> {
+    unsafe {
+        libc::sync();
+    }
+    std::fs::write("/proc/sys/vm/drop_caches", b"1")
 }
 
 pub(crate) fn transaction_cost(
@@ -222,4 +235,13 @@ pub(crate) fn generate_fn_name(index: usize, len: usize) -> Vec<u8> {
         name.push((b'A'..=b'Z').chain(b'a'..=b'z').nth(index % 52).unwrap());
     }
     name
+}
+
+/// Create a WASM module that is empty except for a main method and a single data entry with n characters
+pub(crate) fn generate_data_only_contract(data_size: usize) -> Vec<u8> {
+    // Using pseudo-random stream with fixed seed to create deterministic, incompressable payload.
+    let prng: XorShiftRng = rand::SeedableRng::seed_from_u64(0xdeadbeef);
+    let payload = prng.sample_iter(&Alphanumeric).take(data_size).collect::<String>();
+    let wat_code = format!("(module (data \"{payload}\") (func (export \"main\")))");
+    wat::parse_str(wat_code).unwrap()
 }

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use borsh::BorshDeserialize;
-use log::debug;
+use tracing::debug;
 
 use near_crypto::PublicKey;
 use near_primitives::account::{AccessKey, AccessKeyPermission, FunctionCallPermission};
@@ -375,7 +375,7 @@ impl<'a> External for RuntimeExt<'a> {
     }
 
     fn get_touched_nodes_count(&self) -> u64 {
-        self.trie_update.trie.counter.get()
+        self.trie_update.trie.get_touched_nodes_count()
     }
 
     fn validator_stake(&self, account_id: &AccountId) -> ExtResult<Option<Balance>> {
