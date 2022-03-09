@@ -332,15 +332,19 @@ pub fn start_with_config(home_dir: &Path, config: NearConfig) -> Result<NearNode
         path.push("data");
         let store = create_store(&path);
         // let snappy_store = create_store(Path::new("/home/edvard/.snappy_near"));
-        let lz4_zstd_store = create_store(Path::new("/home/edvard/.lz4_zstd_near2"));
+        // let lz4_zstd_store = create_store(Path::new("/home/edvard/.lz4_zstd_near"));
+        let keys_only_store = create_store(Path::new("/home/ubuntu/.near/data/.keys_only_near"));
 
         info!("PATH: {:?}", path);
+        let mut dist: Vec<u32> = Vec::new();
         for column in DBCol::iter() {
             info!("COLUMN: {} {}", column, column as usize);
             // let mut snappy_store_update = snappy_store.store_update();
-            let mut lz4_zstd_store_update = lz4_zstd_store.store_update();
+            // let mut lz4_zstd_store_update = lz4_zstd_store.store_update();
+            let mut keys_only_store_update = keys_only_store.store_update();
             let mut i = 0;
-            for (key, value) in store.iter(column) {
+            for (key, _value) in store.iter(column) {
+                dist.push(key.len().try_into().unwrap());
                 // info!("{} {} {}", column, String::from_utf8(key.to_vec()).expect(""), String::from_utf8(value.to_vec()).expect(""));
                 i += 1;
                 let mut batch_size = 10000;
@@ -350,17 +354,30 @@ pub fn start_with_config(home_dir: &Path, config: NearConfig) -> Result<NearNode
                 if i % batch_size == 0 {
                     println!("Processed {} keys in column {} ({})", i, column, column as usize);
                     // snappy_store_update.commit().unwrap();
-                    lz4_zstd_store_update.commit().unwrap();
+                    // lz4_zstd_store_update.commit().unwrap();
+                    keys_only_store_update.commit().unwrap();
                     // snappy_store_update = snappy_store.store_update();
-                    lz4_zstd_store_update = lz4_zstd_store.store_update();
+                    // lz4_zstd_store_update = lz4_zstd_store.store_update();
+                    keys_only_store_update = keys_only_store.store_update();
                 }
                 // snappy_store_update .set_ser(column, &key, &value).unwrap();
-                lz4_zstd_store_update.set_ser(column, &key, &value).unwrap();
+                // lz4_zstd_store_update.set_ser(column, &key, &value).unwrap();
+                keys_only_store_update.set_ser(column, &key, &true).unwrap();
             }
             // snappy_store_update.commit().unwrap();
-            lz4_zstd_store_update.commit().unwrap();
+            // lz4_zstd_store_update.commit().unwrap();
+            keys_only_store_update.commit().unwrap();
         }
 
+        dist.sort();
+
+        info!("number of keys: {}", dist.len());
+        info!("key length distribution");
+        for percentile in vec![1, 5, 10, 50, 90, 95, 99] {
+            let mut index = percentile * dist.len() / 100;
+            index = std::cmp::min(index, dist.len() - 1);
+            info!("percentile: {} length: {}", percentile, dist[index]);
+        }
         info!("DONE!");
 
         if 2 + 2 == 4 {
