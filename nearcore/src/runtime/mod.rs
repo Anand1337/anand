@@ -141,6 +141,9 @@ pub struct NightshadeRuntime {
     shard_tracker: ShardTracker,
     genesis_state_roots: Vec<StateRoot>,
     migration_data: Arc<MigrationData>,
+
+    #[cfg(feature = "sandbox")]
+    epoch_height: std::sync::atomic::AtomicU64,
 }
 
 impl NightshadeRuntime {
@@ -209,6 +212,9 @@ impl NightshadeRuntime {
             shard_tracker,
             genesis_state_roots: state_roots,
             migration_data: Arc::new(load_migration_data(&genesis.config.chain_id)),
+
+            #[cfg(feature = "sandbox")]
+            epoch_height: std::sync::atomic::AtomicU64::new(1),
         }
     }
 
@@ -505,7 +511,23 @@ impl NightshadeRuntime {
             }
         };
 
-        let epoch_height = self.get_epoch_height_from_prev_block(prev_block_hash)?;
+        let epoch_height = if cfg!(feature = "sandbox") {
+            // explaination on calculation:
+            // (block_height / length) gives us epoch_height, but we index from 1, so +1 at the end.
+            // Note, this is a retroactive update for sandbox since we can receive fast-forward
+            // requests in the middle of an epoch. block_height is different based on when it gets
+            // called. When fast-forwarded, we need to retroactively adjust the epoch height, but
+            // with a normal `finalize_epoch`, it's the start of the epoch's next block height, so
+            // (height - 1) is needed after adding +1 at the end.
+            ((block_height - 1) / self.genesis_config.epoch_length) + 1
+        }
+        else {
+            self.get_epoch_height_from_prev_block(prev_block_hash)?
+        };
+
+        #[cfg(feature = "sandbox")]
+        self.epoch_height.store(epoch_height, std::sync::atomic::Ordering::Relaxed);
+
         let prev_block_epoch_id = self.get_epoch_id(prev_block_hash)?;
         let current_protocol_version = self.get_epoch_protocol_version(&epoch_id)?;
         let prev_block_protocol_version = self.get_epoch_protocol_version(&prev_block_epoch_id)?;
@@ -1564,7 +1586,14 @@ impl RuntimeAdapter for NightshadeRuntime {
         epoch_id: ValidatorInfoIdentifier,
     ) -> Result<EpochValidatorInfo, Error> {
         let mut epoch_manager = self.epoch_manager.as_ref().write().expect(POISONED_LOCK_ERR);
-        epoch_manager.get_validator_info(epoch_id).map_err(|e| e.into())
+        #[allow(unused_mut)]
+        let mut validator_info = epoch_manager.get_validator_info(epoch_id)?;
+        #[cfg(feature = "sandbox")]
+        {
+            validator_info.epoch_height = self.epoch_height.load(std::sync::atomic::Ordering::Relaxed);
+        }
+
+        Ok(validator_info)
     }
 
     /// Returns StorageError when storage is inconsistent.
