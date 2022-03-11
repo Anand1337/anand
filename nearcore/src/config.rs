@@ -1093,44 +1093,58 @@ pub fn init_configs(
                 ShardLayout::v0_single_shard()
             };
 
-            let genesis_config = GenesisConfig {
-                protocol_version: PROTOCOL_VERSION,
-                genesis_time: Clock::utc(),
-                chain_id,
-                genesis_height: 0,
-                num_block_producer_seats: NUM_BLOCK_PRODUCER_SEATS,
-                num_block_producer_seats_per_shard: get_num_seats_per_shard(
-                    num_shards,
-                    NUM_BLOCK_PRODUCER_SEATS,
-                ),
-                avg_hidden_validator_seats_per_shard: (0..num_shards).map(|_| 0).collect(),
-                dynamic_resharding: false,
-                protocol_upgrade_stake_threshold: PROTOCOL_UPGRADE_STAKE_THRESHOLD,
-                protocol_upgrade_num_epochs: PROTOCOL_UPGRADE_NUM_EPOCHS,
-                epoch_length: if fast { FAST_EPOCH_LENGTH } else { EXPECTED_EPOCH_LENGTH },
-                gas_limit: INITIAL_GAS_LIMIT,
-                gas_price_adjustment_rate: GAS_PRICE_ADJUSTMENT_RATE,
-                block_producer_kickout_threshold: BLOCK_PRODUCER_KICKOUT_THRESHOLD,
-                chunk_producer_kickout_threshold: CHUNK_PRODUCER_KICKOUT_THRESHOLD,
-                online_max_threshold: Rational::new(99, 100),
-                online_min_threshold: Rational::new(BLOCK_PRODUCER_KICKOUT_THRESHOLD as isize, 100),
-                validators: vec![AccountInfo {
-                    account_id: signer.account_id.clone(),
-                    public_key: signer.public_key(),
-                    amount: TESTING_INIT_STAKE,
-                }],
-                transaction_validity_period: TRANSACTION_VALIDITY_PERIOD,
-                protocol_reward_rate: PROTOCOL_REWARD_RATE,
-                max_inflation_rate: MAX_INFLATION_RATE,
-                total_supply: get_initial_supply(&records),
-                num_blocks_per_year: NUM_BLOCKS_PER_YEAR,
-                protocol_treasury_account: signer.account_id.clone(),
-                fishermen_threshold: FISHERMEN_THRESHOLD,
-                shard_layout: shards,
-                min_gas_price: MIN_GAS_PRICE,
-                ..Default::default()
+            let validator = AccountInfo {
+                account_id: signer.account_id.clone(),
+                public_key: signer.public_key(),
+                amount: TESTING_INIT_STAKE,
             };
-            let genesis = Genesis::new(genesis_config, records.into());
+
+            let genesis = if let Some(genesis_path) = genesis {
+                let mut genesis = Genesis::from_file(genesis_path, GenesisValidationMode::Full);
+                genesis.config.chain_id = chain_id;
+                genesis.config.validators = vec![validator];
+                genesis.config.protocol_treasury_account = signer.account_id.clone();
+                genesis.records = records.into();
+                genesis
+            } else {
+                let genesis_config = GenesisConfig {
+                    protocol_version: PROTOCOL_VERSION,
+                    genesis_time: Clock::utc(),
+                    chain_id,
+                    genesis_height: 0,
+                    num_block_producer_seats: NUM_BLOCK_PRODUCER_SEATS,
+                    num_block_producer_seats_per_shard: get_num_seats_per_shard(
+                        num_shards,
+                        NUM_BLOCK_PRODUCER_SEATS,
+                    ),
+                    avg_hidden_validator_seats_per_shard: (0..num_shards).map(|_| 0).collect(),
+                    dynamic_resharding: false,
+                    protocol_upgrade_stake_threshold: PROTOCOL_UPGRADE_STAKE_THRESHOLD,
+                    protocol_upgrade_num_epochs: PROTOCOL_UPGRADE_NUM_EPOCHS,
+                    epoch_length: if fast { FAST_EPOCH_LENGTH } else { EXPECTED_EPOCH_LENGTH },
+                    gas_limit: INITIAL_GAS_LIMIT,
+                    gas_price_adjustment_rate: GAS_PRICE_ADJUSTMENT_RATE,
+                    block_producer_kickout_threshold: BLOCK_PRODUCER_KICKOUT_THRESHOLD,
+                    chunk_producer_kickout_threshold: CHUNK_PRODUCER_KICKOUT_THRESHOLD,
+                    online_max_threshold: Rational::new(99, 100),
+                    online_min_threshold: Rational::new(
+                        BLOCK_PRODUCER_KICKOUT_THRESHOLD as isize,
+                        100,
+                    ),
+                    validators: vec![validator],
+                    transaction_validity_period: TRANSACTION_VALIDITY_PERIOD,
+                    protocol_reward_rate: PROTOCOL_REWARD_RATE,
+                    max_inflation_rate: MAX_INFLATION_RATE,
+                    total_supply: get_initial_supply(&records),
+                    num_blocks_per_year: NUM_BLOCKS_PER_YEAR,
+                    protocol_treasury_account: signer.account_id.clone(),
+                    fishermen_threshold: FISHERMEN_THRESHOLD,
+                    shard_layout: shards,
+                    min_gas_price: MIN_GAS_PRICE,
+                    ..Default::default()
+                };
+                Genesis::new(genesis_config, records.into())
+            };
             genesis.to_file(&dir.join(config.genesis_file));
             info!(target: "near", "Generated node key, validator key, genesis file in {}", dir.display());
         }
