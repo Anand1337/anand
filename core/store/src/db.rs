@@ -272,7 +272,7 @@ pub enum DBCol {
 }
 
 // Do not move this line from enum DBCol
-pub const NUM_COLS: usize = 50;
+pub const NUM_COLS: usize = 54;
 
 impl std::fmt::Display for DBCol {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
