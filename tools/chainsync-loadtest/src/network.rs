@@ -73,11 +73,14 @@ impl PeerStatsMap {
             for p in send_times.get_peers() {
                 ps.entry(p).or_default().requests += 1;
             }
-            send_times.latency(peer_id).map(|l| {
+            if let Some(l) = send_times.latency(peer_id) {
                 let mut stats = ps.entry(peer_id.clone()).or_default();
                 stats.responses += 1;
                 stats.total_latency += l;
-            });
+            } else {
+                // Response without request. THESE ARE SUSPICIOUS AND SHOULD BE DEBUGGED.
+                ps.entry(peer_id.clone()).or_default().responses += 1;
+            }
         }
     }
 }
@@ -344,7 +347,7 @@ impl Network {
                         move |peer| NetworkRequests::PartialEncodedChunkRequest {
                             target: AccountIdOrPeerTrackingShard {
                                 account_id: peer.peer_info.account_id,
-                                prefer_peer: true,
+                                prefer_peer: false,
                                 shard_id: ch.shard_id(),
                                 only_archival: false,
                                 min_height: ch.height_included(),
