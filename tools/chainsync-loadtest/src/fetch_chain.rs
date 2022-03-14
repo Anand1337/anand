@@ -88,8 +88,13 @@ pub async fn run(
     let headers = network.stats.header_done.load(Ordering::Relaxed);
     let blocks = network.stats.block_done.load(Ordering::Relaxed);
     let chunks = network.stats.chunk_done.load(Ordering::Relaxed);
+    let reqs = network.stats.peers.requests.lock().unwrap();
+    let avg_latency = reqs.total_latency.as_secs_f64() / reqs.requests as f64;
+    let avg_sends = (reqs.total_sends as f64) / (reqs.requests as f64);
     info!("running time: {:.2}s", t);
     info!("average QPS: {:.2}", (sent as f64) / t);
+    info!("average latency: {:.2}s",avg_latency); 
+    info!("average sends: {:.2}",avg_sends);
     info!("fetched {} header batches ({:.2} per second)", headers, headers as f64 / t);
     info!("fetched {} blocks ({:.2} per second)", blocks, blocks as f64 / t);
     info!("fetched {} chunks ({:.2} per second)", chunks, chunks as f64 / t);

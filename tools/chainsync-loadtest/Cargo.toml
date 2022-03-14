@@ -27,6 +27,7 @@ tokio = "1.16.1"
 log = "0.4"
 
 bytes = "1"
+tempfile = "3"
 tokio-util = { version = "0.6", features = ["codec"] }
 bytesize = "1.1"
 borsh = { version = "0.9", features = ["rc"] }

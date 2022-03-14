@@ -88,7 +88,7 @@ impl Cmd {
     fn parse_and_run() -> anyhow::Result<()> {
         let cmd = Self::parse();
         let start_block_hash =
-            cmd.start_block_hash.parse::<CryptoHash>().map_err(|x| anyhow!(x.to_string()))?;
+            cmd.start_block_hash.parse::<CryptoHash>().map_err(|x| anyhow!(x.to_string())).context("start_block_hash.parse")?;
 
         let mut cache_dir = dirs::cache_dir().context("dirs::cache_dir() = None")?;
         cache_dir.push("near_configs");
@@ -97,7 +97,7 @@ impl Cmd {
         info!("downloading configs for chain {}", cmd.chain_id);
         let home_dir = cache_dir.as_path();
         let near_config =
-            download_configs(&cmd.chain_id, home_dir).context("Failed to initialize configs")?;
+            download_configs(&cmd.chain_id, home_dir).context("download_configs")?;
 
         info!("#boot nodes = {}", near_config.network_config.boot_nodes.len());
         // Dropping Runtime is blocking, while futures should never be blocking.

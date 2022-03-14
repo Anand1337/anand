@@ -48,19 +48,37 @@ pub struct PeerStats {
 }
 
 #[derive(Default)]
-pub struct PeerStatsMap(Mutex<HashMap<PeerId,PeerStats>>);
+pub struct RequestStats {
+    pub requests: u64,
+    pub total_sends: u64,
+    pub total_latency: time::Duration,
+}
+
+#[derive(Default)]
+pub struct PeerStatsMap {
+    pub requests: Mutex<RequestStats>,
+    pub peers: Mutex<HashMap<PeerId,PeerStats>>,
+}
 
 impl PeerStatsMap {
     fn add_response_time(&self, send_times: &SendTimes, peer_id: &PeerId) {
-        let mut ps = self.0.lock().unwrap();
-        for p in send_times.get_peers() {
-            ps.entry(p).or_default().requests += 1;
+        {
+            let mut rs = self.requests.lock().unwrap();
+            rs.requests += 1;
+            rs.total_sends += send_times.sends.load(Ordering::Relaxed);
+            rs.total_latency += time::Instant::now()-*send_times.times.lock().unwrap().values().min().unwrap();
         }
-        send_times.latency(peer_id).map(|l| {
-            let mut stats = ps.entry(peer_id.clone()).or_default();
-            stats.responses += 1;
-            stats.total_latency += l;
-        });
+        {
+            let mut ps = self.peers.lock().unwrap();
+            for p in send_times.get_peers() {
+                ps.entry(p).or_default().requests += 1;
+            }
+            send_times.latency(peer_id).map(|l| {
+                let mut stats = ps.entry(peer_id.clone()).or_default();
+                stats.responses += 1;
+                stats.total_latency += l;
+            });
+        }
     }
 }
 
@@ -75,7 +93,7 @@ impl fmt::Debug for PeerStats {
 impl fmt::Debug for PeerStatsMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(),fmt::Error> {
         let mut m = f.debug_map();
-        for (_k,v) in self.0.lock().unwrap().iter() {
+        for (_k,v) in self.peers.lock().unwrap().iter() {
             m.entry(&0,v);
         }
         m.finish()
@@ -98,18 +116,22 @@ pub struct Stats {
 }
 
 #[derive(Default)]
-struct SendTimes(Mutex<HashMap<PeerId,time::Instant>>);
+struct SendTimes {
+    sends: AtomicU64,
+    times: Mutex<HashMap<PeerId,time::Instant>>,
+}
 
 impl SendTimes {
     fn register(&self, peer_id :&PeerId) {
-        let mut st = self.0.lock().unwrap();
+        self.sends.fetch_add(1,Ordering::Relaxed);
+        let mut st = self.times.lock().unwrap();
         st.entry(peer_id.clone()).or_insert_with(time::Instant::now);
     }
     fn get_peers(&self) -> Vec<PeerId> {
-        self.0.lock().unwrap().keys().map(|p|p.clone()).collect()
+        self.times.lock().unwrap().keys().map(|p|p.clone()).collect()
     }
     fn latency(&self, peer_id :&PeerId) -> Option<time::Duration> {
-        self.0.lock().unwrap().get(peer_id).map(|t|time::Instant::now()-*t)
+        self.times.lock().unwrap().get(peer_id).map(|t|time::Instant::now()-*t)
     }
 }
 
