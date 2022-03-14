@@ -45,7 +45,7 @@ pub async fn run(
             let mut blocks_count = 0;
             while last_height < target_height {
                 // Fetch the next batch of headers.
-                let mut headers = network.fetch_block_headers(&ctx, &last_hash).await?;
+                let mut headers = network.fetch_block_headers(&ctx, &last_hash).await.context("fetch_block_headers()")?;
                 headers.sort_by_key(|h| h.height());
                 let last_header = headers.last().context("no headers")?;
                 last_hash = last_header.hash().clone();
@@ -63,12 +63,12 @@ pub async fn run(
                     s.spawn({
                         let network = network.clone();
                         |ctx, s| async move {
-                            let block = network.fetch_block(&ctx, h.hash()).await?;
+                            let block = network.fetch_block(&ctx, h.hash()).await.context("fetch_block()")?;
                             for ch in block.chunks().iter() {
                                 let ch = ch.clone();
                                 let network = network.clone();
                                 s.spawn(|ctx, _s| async move {
-                                    network.fetch_chunk(&ctx, &ch).await?;
+                                    network.fetch_chunk(&ctx, &ch).await.context("fetch_chunk()")?;
                                     anyhow::Ok(())
                                 });
                             }

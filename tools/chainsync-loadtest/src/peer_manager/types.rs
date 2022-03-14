@@ -12,7 +12,7 @@ use crate::peer_manager::routing::routing_table_view::RoutingTableInfo;
 use actix::{MailboxError, Message};
 use futures::future::BoxFuture;
 use near_network_primitives::types::{
-    AccountIdOrPeerTrackingShard, AccountOrPeerIdOrHash, Ban, Edge, InboundTcpConnect,
+    AccountOrPeerIdOrHash, Ban, Edge, InboundTcpConnect,
     KnownProducer, OutboundTcpConnect, PartialEdgeInfo, PartialEncodedChunkForwardMsg,
     PartialEncodedChunkRequestMsg, PartialEncodedChunkResponseMsg, PeerChainInfoV2, PeerInfo, Ping,
     Pong, ReasonForBan, RoutedMessageBody, RoutedMessageFrom, StateResponseInfo,
@@ -259,7 +259,7 @@ pub enum NetworkRequests {
 
     /// Request chunk parts and/or receipts
     PartialEncodedChunkRequest {
-        target: AccountIdOrPeerTrackingShard,
+        target: PeerId,
         request: PartialEncodedChunkRequestMsg,
     },
     /// Information about chunk such as its header, some subset of parts and/or incoming receipts

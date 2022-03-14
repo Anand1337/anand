@@ -1,18 +1,19 @@
 use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
+use anyhow::{anyhow};
 
 use crate::concurrency::{Ctx, Once, RateLimiter, Scope, WeakMap};
 
 use near_network_primitives::types::{
-    AccountIdOrPeerTrackingShard, NetworkViewClientMessages, NetworkViewClientResponses,
+    NetworkViewClientMessages, NetworkViewClientResponses,
     PartialEncodedChunkRequestMsg, PartialEncodedChunkResponseMsg,
 };
 
 use actix::{Actor, Context, Handler};
 use log::info;
 use crate::peer_manager::types::{
-    FullPeerInfo, NetworkClientMessages, NetworkClientResponses, NetworkInfo, NetworkRequests,
-    PeerManagerAdapter, PeerManagerMessageRequest,
+    FullPeerInfo, NetworkClientMessages, NetworkClientResponses, NetworkInfo, NetworkRequests, NetworkResponses,
+    PeerManagerAdapter, PeerManagerMessageRequest, PeerManagerMessageResponse,
 };
 use near_primitives::block::{Block, BlockHeader, GenesisId};
 use near_primitives::hash::CryptoHash;
@@ -241,9 +242,12 @@ impl Network {
                     // TODO: rate limit per peer.
                     self_.rate_limiter.allow(&ctx).await?;
                     send_times.register(&peer.peer_info.id);
-                    self_
+                    let send = self_
                         .network_adapter
-                        .do_send(PeerManagerMessageRequest::NetworkRequests(new_req(peer.clone())));
+                        .send(PeerManagerMessageRequest::NetworkRequests(new_req(peer.clone())));
+                    let resp = send.await?;
+                    let resp = if let PeerManagerMessageResponse::NetworkResponses(resp) = resp { resp } else { Err(anyhow!("unexpected response"))? };
+                    if let NetworkResponses::NoResponse = resp {} else { return Err(anyhow!("{:?}",resp)); }
                     self_.stats.msgs_sent.fetch_add(1, Ordering::Relaxed);
                     ctx.wait(self_.request_timeout).await?;
                 }
@@ -345,13 +349,7 @@ impl Network {
                     move |ctx| self_.keep_sending(&ctx, send_times, {
                         let ppc = self_.parts_per_chunk;
                         move |peer| NetworkRequests::PartialEncodedChunkRequest {
-                            target: AccountIdOrPeerTrackingShard {
-                                account_id: peer.peer_info.account_id,
-                                prefer_peer: false,
-                                shard_id: ch.shard_id(),
-                                only_archival: false,
-                                min_height: ch.height_included(),
-                            },
+                            target: peer.peer_info.id.clone(),
                             request: PartialEncodedChunkRequestMsg {
                                 chunk_hash: ch.chunk_hash(),
                                 part_ords: (0..ppc).collect(),

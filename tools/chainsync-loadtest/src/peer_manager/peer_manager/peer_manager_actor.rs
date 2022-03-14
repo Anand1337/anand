@@ -10,7 +10,6 @@ use crate::peer_manager::routing::routing_table_actor::{
     Prune, RoutingTableActor, RoutingTableMessages, RoutingTableMessagesResponse,
 };
 use crate::peer_manager::routing::routing_table_view::{RoutingTableView, DELETE_PEERS_AFTER_TIME};
-use crate::peer_manager::stats::metrics;
 use crate::peer_manager::stats::metrics::NetworkMetrics;
 use crate::peer_manager::types::{
     FullPeerInfo, NetworkClientMessages, NetworkInfo, NetworkRequests, NetworkResponses,
@@ -37,15 +36,13 @@ use near_primitives::checked_feature;
 use near_primitives::hash::CryptoHash;
 use near_primitives::network::{AnnounceAccount, PeerId};
 use near_primitives::time::Clock;
-use near_primitives::types::{AccountId, ProtocolVersion};
+use near_primitives::types::{ProtocolVersion};
 use near_primitives::utils::from_timestamp;
 use near_rate_limiter::{
-    ActixMessageResponse, ActixMessageWrapper, ThrottleController, ThrottleFramedRead,
-    ThrottleToken,
+    ActixMessageWrapper, ThrottleController, ThrottleFramedRead,
 };
 use near_store::Store;
 use rand::seq::IteratorRandom;
-use rand::thread_rng;
 use std::cmp::{max, min};
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
@@ -1340,29 +1337,6 @@ impl PeerManagerActor {
         self.send_signed_message_to_peer(msg)
     }
 
-    /// Send message to specific account.
-    /// Return whether the message is sent or not.
-    fn send_message_to_account(&mut self, account_id: &AccountId, msg: RoutedMessageBody) -> bool {
-        let target = match self.routing_table_view.account_owner(account_id) {
-            Ok(peer_id) => peer_id,
-            Err(find_route_error) => {
-                // TODO(MarX, #1369): Message is dropped here. Define policy for this case.
-                metrics::DROP_MESSAGE_UNKNOWN_ACCOUNT.inc();
-                debug!(target: "network",
-                       account_id = ?self.config.account_id,
-                       to = ?account_id,
-                       reason = ?find_route_error,
-                       ?msg,"Drop message",
-                );
-                trace!(target: "network", known_peers = ?self.routing_table_view.get_accounts_keys().collect::<Vec<_>>(), "Known peers");
-                return false;
-            }
-        };
-
-        let msg = RawRoutedMessage { target: AccountOrPeerIdOrHash::PeerId(target), body: msg };
-        self.send_message_to_peer(msg)
-    }
-
     fn sign_routed_message(&self, msg: RawRoutedMessage, my_peer_id: PeerId) -> Box<RoutedMessage> {
         msg.sign(my_peer_id, &self.config.secret_key, self.config.routed_message_ttl)
     }
@@ -1487,58 +1461,13 @@ impl PeerManagerActor {
             NetworkRequests::BanPeer {..} => panic!("BanPeer"),
             NetworkRequests::AnnounceAccount(_) => panic!("AnnounceAccount"),
             NetworkRequests::PartialEncodedChunkRequest { target, request } => {
-                let mut success = false;
-
-                // Make two attempts to send the message. First following the preference of `prefer_peer`,
-                // and if it fails, against the preference.
-                for prefer_peer in &[target.prefer_peer, !target.prefer_peer] {
-                    if !prefer_peer {
-                        if let Some(account_id) = target.account_id.as_ref() {
-                            if self.send_message_to_account(
-                                account_id,
-                                RoutedMessageBody::PartialEncodedChunkRequest(request.clone()),
-                            ) {
-                                success = true;
-                                break;
-                            }
-                        }
-                    } else {
-                        let mut matching_peers = vec![];
-                        for (peer_id, connected_peer) in self.connected_peers.iter() {
-                            if (connected_peer.full_peer_info.chain_info.archival
-                                || !target.only_archival)
-                                && connected_peer.full_peer_info.chain_info.height
-                                    >= target.min_height
-                                && connected_peer
-                                    .full_peer_info
-                                    .chain_info
-                                    .tracked_shards
-                                    .contains(&target.shard_id)
-                            {
-                                matching_peers.push(peer_id.clone());
-                            }
-                        }
-
-                        if let Some(matching_peer) = matching_peers.iter().choose(&mut thread_rng())
-                        {
-                            if self.send_message_to_peer(RawRoutedMessage {
-                                target: AccountOrPeerIdOrHash::PeerId(matching_peer.clone()),
-                                body: RoutedMessageBody::PartialEncodedChunkRequest(
-                                    request.clone(),
-                                ),
-                            }) {
-                                success = true;
-                                break;
-                            }
-                        }
-                    }
+                if !self.send_message_to_peer(RawRoutedMessage {
+                    target: AccountOrPeerIdOrHash::PeerId(target),
+                    body: RoutedMessageBody::PartialEncodedChunkRequest(request.clone()),
+                }) {
+                    return NetworkResponses::RouteNotFound;
                 }
-
-                if success {
-                    NetworkResponses::NoResponse
-                } else {
-                    NetworkResponses::RouteNotFound
-                }
+                NetworkResponses::NoResponse
             }
             NetworkRequests::PartialEncodedChunkResponse {..} => panic!("PartialEncodedChunkResponse"),
             NetworkRequests::PartialEncodedChunkMessage { .. } => panic!("PartialEncodedChunkMessage"),
@@ -2089,28 +2018,6 @@ impl PeerManagerActor {
                     futures::future::ready(())
                 }),
         );
-    }
-}
-
-impl Handler<ActixMessageWrapper<PeerManagerMessageRequest>> for PeerManagerActor {
-    type Result = ActixMessageResponse<PeerManagerMessageResponse>;
-
-    fn handle(
-        &mut self,
-        msg: ActixMessageWrapper<PeerManagerMessageRequest>,
-        ctx: &mut Self::Context,
-    ) -> Self::Result {
-        // Unpack throttle controller
-        let (msg, throttle_token) = msg.take();
-
-        let throttle_controller = throttle_token.throttle_controller().cloned();
-        let result = self.handle_peer_manager_message(msg, ctx, throttle_controller);
-
-        // TODO(#5155) Add support for DeepSizeOf to result
-        ActixMessageResponse::new(
-            result,
-            ThrottleToken::new_without_size(throttle_token.throttle_controller().cloned()),
-        )
     }
 }
 

@@ -37,7 +37,7 @@ use near_primitives::utils::DisplayOption;
 use near_primitives::version::{
     ProtocolVersion, PEER_MIN_ALLOWED_PROTOCOL_VERSION, PROTOCOL_VERSION,
 };
-use near_rate_limiter::{ActixMessageWrapper, ThrottleController};
+use near_rate_limiter::{ThrottleController};
 use std::cmp::max;
 use std::fmt::Debug;
 use std::io;
@@ -727,12 +727,9 @@ impl StreamHandler<Result<Vec<u8>, ReasonForBan>> for PeerActor {
                     }
                     HandshakeFailureReason::InvalidTarget => {
                         debug!(target: "network", "Peer found was not what expected. Updating peer info with {:?}", peer_info);
-                        self.peer_manager_addr.do_send(ActixMessageWrapper::new_without_size(
-                            PeerManagerMessageRequest::PeerRequest(PeerRequest::UpdatePeerInfo(
-                                peer_info,
-                            )),
-                            Some(self.throttle_controller.clone()),
-                        ));
+                        self.peer_manager_addr.do_send(
+                            PeerManagerMessageRequest::PeerRequest(PeerRequest::UpdatePeerInfo(peer_info)),
+                        );
                     }
                 }
                 ctx.stop();
@@ -807,7 +804,7 @@ impl StreamHandler<Result<Vec<u8>, ReasonForBan>> for PeerActor {
                 };
                 self.chain_info = handshake.sender_chain_info.clone();
                 self.peer_manager_addr
-                    .send(ActixMessageWrapper::new_without_size(PeerManagerMessageRequest::RegisterPeer(RegisterPeer {
+                    .send(PeerManagerMessageRequest::RegisterPeer(RegisterPeer {
                         actor: ctx.address(),
                         peer_info: peer_info.clone(),
                         peer_type: self.peer_type,
@@ -816,10 +813,10 @@ impl StreamHandler<Result<Vec<u8>, ReasonForBan>> for PeerActor {
                         other_edge_info: handshake.partial_edge_info.clone(),
                         peer_protocol_version: self.protocol_version,
                         throttle_controller: self.throttle_controller.clone(),
-                    }), Some(self.throttle_controller.clone())))
+                    }))
                     .into_actor(self)
                     .then(move |res, act, ctx| {
-                        match res.map(|f|f.into_inner().as_consolidate_response()) {
+                        match res.map(|f|f.as_consolidate_response()) {
                             Ok(RegisterPeerResponse::Accept(edge_info)) => {
                                 act.peer_info = Some(peer_info).into();
                                 act.peer_status = PeerStatus::Ready;
@@ -860,17 +857,16 @@ impl StreamHandler<Result<Vec<u8>, ReasonForBan>> for PeerActor {
                 }
 
                 self.peer_manager_addr
-                    .send(ActixMessageWrapper::new_without_size(
+                    .send(
                         PeerManagerMessageRequest::PeerRequest(PeerRequest::UpdateEdge((
                             self.other_peer_id().unwrap().clone(),
                             edge.next(),
-                        ))),
-                        Some(self.throttle_controller.clone()),
-                    ))
+                        )))
+                    )
                     .into_actor(self)
                     .then(|res, act, ctx| {
                         if let Ok(PeerResponse::UpdatedEdge(edge_info)) =
-                            res.map(|f| f.into_inner().as_peer_response())
+                            res.map(|f| f.as_peer_response())
                         {
                             act.partial_edge_info = Some(edge_info);
                             act.send_handshake(ctx);
@@ -888,11 +884,10 @@ impl StreamHandler<Result<Vec<u8>, ReasonForBan>> for PeerActor {
                 debug!(target: "network", "Duplicate handshake from {}", self.peer_info);
             }
             (PeerStatus::Ready, PeerMessage::PeersRequest) => {
-                self.peer_manager_addr.send(ActixMessageWrapper::new_without_size(PeerManagerMessageRequest::PeersRequest(PeersRequest {}),
-                                                                     Some(self.throttle_controller.clone()),
-
-                )).into_actor(self).then(|res, act, _ctx| {
-                    if let Ok(peers) = res.map(|f|f.into_inner().as_peers_request_result()) {
+                self.peer_manager_addr.send(
+                    PeerManagerMessageRequest::PeersRequest(PeersRequest {})
+                ).into_actor(self).then(|res, act, _ctx| {
+                    if let Ok(peers) = res.map(|f|f.as_peers_request_result()) {
                         if !peers.peers.is_empty() {
                             debug!(target: "network", "Peers request from {}: sending {} peers.", act.peer_info, peers.peers.len());
                             act.send_message(&PeerMessage::PeersResponse(peers.peers));
@@ -903,10 +898,9 @@ impl StreamHandler<Result<Vec<u8>, ReasonForBan>> for PeerActor {
             }
             (PeerStatus::Ready, PeerMessage::PeersResponse(peers)) => {
                 debug!(target: "network", "Received peers from {}: {} peers.", self.peer_info, peers.len());
-                self.peer_manager_addr.do_send(ActixMessageWrapper::new_without_size(
+                self.peer_manager_addr.do_send(
                     PeerManagerMessageRequest::PeersResponse(PeersResponse { peers }),
-                    Some(self.throttle_controller.clone()),
-                ));
+                );
             }
             (PeerStatus::Ready, PeerMessage::RequestUpdateNonce(edge_info)) => self
                 .peer_manager_addr
@@ -946,13 +940,12 @@ impl StreamHandler<Result<Vec<u8>, ReasonForBan>> for PeerActor {
                 })
                 .spawn(ctx),
             (PeerStatus::Ready, PeerMessage::SyncRoutingTable(routing_table_update)) => {
-                self.peer_manager_addr.do_send(ActixMessageWrapper::new_without_size(
+                self.peer_manager_addr.do_send(
                     PeerManagerMessageRequest::NetworkRequests(NetworkRequests::SyncRoutingTable {
                         peer_id: self.other_peer_id().unwrap().clone(),
                         routing_table_update,
                     }),
-                    Some(self.throttle_controller.clone()),
-                ));
+                );
             }
             #[cfg(feature = "protocol_feature_routing_exchange_algorithm")]
             (PeerStatus::Ready, PeerMessage::RoutingTableSyncV2(ibf_message)) => {
@@ -977,16 +970,15 @@ impl StreamHandler<Result<Vec<u8>, ReasonForBan>> for PeerActor {
                     self.ban_peer(ctx, ReasonForBan::InvalidSignature);
                 } else {
                     self.peer_manager_addr
-                        .send(ActixMessageWrapper::new_without_size(
+                        .send(
                             PeerManagerMessageRequest::RoutedMessageFrom(RoutedMessageFrom {
                                 msg: routed_message.clone(),
                                 from: self.other_peer_id().unwrap().clone(),
                             }),
-                            Some(self.throttle_controller.clone()),
-                        ))
+                        )
                         .into_actor(self)
                         .then(move |res, act, ctx| {
-                            if res.map(|f| f.into_inner().as_routed_message_from()).unwrap_or(false)
+                            if res.map(|f| f.as_routed_message_from()).unwrap_or(false)
                             {
                                 act.receive_message(ctx, PeerMessage::Routed(routed_message));
                             }

@@ -49,7 +49,6 @@ pub struct RoutingTableView {
 pub(crate) enum FindRouteError {
     Disconnected,
     PeerNotFound,
-    AccountNotFound,
     RouteBackNotFound,
 }
 
@@ -119,16 +118,6 @@ impl RoutingTableView {
         }
     }
 
-    /// Find peer that owns this AccountId.
-    pub(crate) fn account_owner(
-        &mut self,
-        account_id: &AccountId,
-    ) -> Result<PeerId, FindRouteError> {
-        self.get_announce(account_id)
-            .map(|announce_account| announce_account.peer_id)
-            .ok_or(FindRouteError::AccountNotFound)
-    }
-
     /// Add (account id, peer id) to routing table.
     /// Note: There is at most on peer id per account id.
     pub(crate) fn add_account(&mut self, announce_account: AnnounceAccount) {
@@ -185,12 +174,6 @@ impl RoutingTableView {
         self.pong_info.put(pong.nonce as usize, (pong, (cnt + 1)));
 
         res
-    }
-
-    /// Public interface for `account_peers`.
-    /// Get keys currently on cache.
-    pub(crate) fn get_accounts_keys(&self) -> impl Iterator<Item = &AccountId> + ExactSizeIterator {
-        self.account_peers.iter().map(|(k, _v)| k)
     }
 
     /// Get announce accounts on cache.

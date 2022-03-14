@@ -68,13 +68,6 @@ pub static PEER_REACHABLE: Lazy<IntGauge> = Lazy::new(|| {
     )
     .unwrap()
 });
-pub static DROP_MESSAGE_UNKNOWN_ACCOUNT: Lazy<IntCounter> = Lazy::new(|| {
-    try_create_int_counter(
-        "near_drop_message_unknown_account",
-        "Total messages dropped because target account is not known",
-    )
-    .unwrap()
-});
 pub static RECEIVED_INFO_ABOUT_ITSELF: Lazy<IntCounter> = Lazy::new(|| {
     try_create_int_counter(
         "received_info_about_itself",
