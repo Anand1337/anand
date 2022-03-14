@@ -1,3 +1,4 @@
+use std::fmt;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::concurrency::{Ctx, Once, RateLimiter, Scope, WeakMap};
@@ -16,6 +17,7 @@ use crate::peer_manager::types::{
 use near_primitives::block::{Block, BlockHeader, GenesisId};
 use near_primitives::hash::CryptoHash;
 use near_primitives::sharding::{ChunkHash, ShardChunkHeader};
+use near_primitives::network::PeerId;
 use nearcore::config::NearConfig;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
@@ -23,6 +25,7 @@ use std::future::Future;
 use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot;
 use tokio::time;
+use std::collections::HashMap;
 
 fn genesis_hash(chain_id: &str) -> CryptoHash {
     return match chain_id {
@@ -37,6 +40,48 @@ fn genesis_hash(chain_id: &str) -> CryptoHash {
     .unwrap();
 }
 
+#[derive(Default)]
+pub struct PeerStats {
+    pub requests: u32, 
+    pub responses: u32,
+    pub total_latency: time::Duration,
+}
+
+#[derive(Default)]
+pub struct PeerStatsMap(Mutex<HashMap<PeerId,PeerStats>>);
+
+impl PeerStatsMap {
+    fn add_response_time(&self, send_times: &SendTimes, peer_id: &PeerId) {
+        let mut ps = self.0.lock().unwrap();
+        for p in send_times.get_peers() {
+            ps.entry(p).or_default().requests += 1;
+        }
+        send_times.latency(peer_id).map(|l| {
+            let mut stats = ps.entry(peer_id.clone()).or_default();
+            stats.responses += 1;
+            stats.total_latency += l;
+        });
+    }
+}
+
+impl fmt::Debug for PeerStats {
+    fn fmt(&self, f :&mut fmt::Formatter<'_>) -> Result<(),fmt::Error> {
+        let resp = self.responses;
+        let avg = if resp==0 { time::Duration::ZERO } else { self.total_latency/resp };
+        f.write_str(&format!("{}/{} avg {:?}",self.responses,self.requests,avg))
+    }
+}
+
+impl fmt::Debug for PeerStatsMap {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(),fmt::Error> {
+        let mut m = f.debug_map();
+        for (_k,v) in self.0.lock().unwrap().iter() {
+            m.entry(&0,v);
+        }
+        m.finish()
+    }
+}
+
 #[derive(Default, Debug)]
 pub struct Stats {
     pub msgs_sent: AtomicU64,
@@ -48,6 +93,38 @@ pub struct Stats {
     pub block_done: AtomicU64,
     pub chunk_start: AtomicU64,
     pub chunk_done: AtomicU64,
+
+    pub peers : PeerStatsMap,
+}
+
+#[derive(Default)]
+struct SendTimes(Mutex<HashMap<PeerId,time::Instant>>);
+
+impl SendTimes {
+    fn register(&self, peer_id :&PeerId) {
+        let mut st = self.0.lock().unwrap();
+        st.entry(peer_id.clone()).or_insert_with(time::Instant::now);
+    }
+    fn get_peers(&self) -> Vec<PeerId> {
+        self.0.lock().unwrap().keys().map(|p|p.clone()).collect()
+    }
+    fn latency(&self, peer_id :&PeerId) -> Option<time::Duration> {
+        self.0.lock().unwrap().get(peer_id).map(|t|time::Instant::now()-*t)
+    }
+}
+
+struct Request<T> {
+    send_times : Arc<SendTimes>,
+    once : Once<T>,
+}
+
+impl<T:Clone+Send+Sync> Request<T> {
+    fn new() -> Request<T> {
+        Request{
+            send_times: Default::default(),
+            once: Once::new(),
+        }
+    }
 }
 
 // NetworkData contains the mutable private data of the Network struct.
@@ -62,9 +139,9 @@ struct NetworkData {
 pub struct Network {
     pub stats: Stats,
     network_adapter: Arc<dyn PeerManagerAdapter>,
-    pub block_headers: Arc<WeakMap<CryptoHash, Once<Vec<BlockHeader>>>>,
-    pub blocks: Arc<WeakMap<CryptoHash, Once<Block>>>,
-    pub chunks: Arc<WeakMap<ChunkHash, Once<PartialEncodedChunkResponseMsg>>>,
+    block_headers: Arc<WeakMap<CryptoHash, Request<Vec<BlockHeader>>>>,
+    blocks: Arc<WeakMap<CryptoHash, Request<Block>>>,
+    chunks: Arc<WeakMap<ChunkHash, Request<PartialEncodedChunkResponseMsg>>>,
     data: Mutex<NetworkData>,
 
     chain_id: String,
@@ -112,7 +189,7 @@ impl Network {
                 time::Duration::from_secs(1) / qps_limit,
                 qps_limit as u64,
             ),
-            request_timeout: time::Duration::from_secs(2),
+            request_timeout: time::Duration::from_secs(10),
         })
     }
 
@@ -126,6 +203,7 @@ impl Network {
     fn keep_sending(
         self: &Arc<Self>,
         ctx: &Ctx,
+        send_times: Arc<SendTimes>,
         new_req: impl Fn(FullPeerInfo) -> NetworkRequests + Send,
     ) -> impl Future<Output = anyhow::Result<()>> + Send {
         let self_ = self.clone();
@@ -137,6 +215,7 @@ impl Network {
                 for peer in peers {
                     // TODO: rate limit per peer.
                     self_.rate_limiter.allow(&ctx).await?;
+                    send_times.register(&peer.peer_info.id);
                     self_
                         .network_adapter
                         .do_send(PeerManagerMessageRequest::NetworkRequests(new_req(peer.clone())));
@@ -177,14 +256,16 @@ impl Network {
             let hash = hash.clone();
             move |ctx, s| async move {
                 self_.stats.header_start.fetch_add(1, Ordering::Relaxed);
-                let recv = self_.block_headers.get_or_insert(&hash, || Once::new());
-                s.spawn_weak(|ctx| {
-                    self_.keep_sending(&ctx, move |peer| NetworkRequests::BlockHeadersRequest {
+                let recv = self_.block_headers.get_or_insert(&hash, || Request::new());
+                s.spawn_weak({
+                    let self_ = &self_;
+                    let send_times = recv.send_times.clone();
+                    move |ctx| self_.keep_sending(&ctx, send_times, move |peer| NetworkRequests::BlockHeadersRequest {
                         hashes: vec![hash.clone()],
                         peer_id: peer.peer_info.id.clone(),
                     })
                 });
-                let res = ctx.wrap(recv.wait()).await;
+                let res = ctx.wrap(recv.once.wait()).await;
                 self_.stats.header_done.fetch_add(1, Ordering::Relaxed);
                 anyhow::Ok(res?)
             }
@@ -203,14 +284,16 @@ impl Network {
             let hash = hash.clone();
             move |ctx, s| async move {
                 self_.stats.block_start.fetch_add(1, Ordering::Relaxed);
-                let recv = self_.blocks.get_or_insert(&hash, || Once::new());
-                s.spawn_weak(|ctx| {
-                    self_.keep_sending(&ctx, move |peer| NetworkRequests::BlockRequest {
+                let recv = self_.blocks.get_or_insert(&hash, || Request::new());
+                s.spawn_weak({
+                    let self_ = &self_;
+                    let send_times = recv.send_times.clone();
+                    move |ctx| self_.keep_sending(&ctx, send_times, move |peer| NetworkRequests::BlockRequest {
                         hash: hash.clone(),
                         peer_id: peer.peer_info.id.clone(),
                     })
                 });
-                let res = ctx.wrap(recv.wait()).await;
+                let res = ctx.wrap(recv.once.wait()).await;
                 self_.stats.block_done.fetch_add(1, Ordering::Relaxed);
                 anyhow::Ok(res?)
             }
@@ -228,11 +311,13 @@ impl Network {
             let self_ = self.clone();
             let ch = ch.clone();
             move |ctx, s| async move {
-                let recv = self_.chunks.get_or_insert(&ch.chunk_hash(), || Once::new());
+                let recv = self_.chunks.get_or_insert(&ch.chunk_hash(), || Request::new());
                 // TODO: consider converting wrapping these atomic counters into sth like a Span.
                 self_.stats.chunk_start.fetch_add(1, Ordering::Relaxed);
-                s.spawn_weak(|ctx| {
-                    self_.keep_sending(&ctx, {
+                s.spawn_weak({
+                    let self_= &self_;
+                    let send_times = recv.send_times.clone();
+                    move |ctx| self_.keep_sending(&ctx, send_times, {
                         let ppc = self_.parts_per_chunk;
                         move |peer| NetworkRequests::PartialEncodedChunkRequest {
                             target: AccountIdOrPeerTrackingShard {
@@ -250,7 +335,7 @@ impl Network {
                         }
                     })
                 });
-                let res = ctx.wrap(recv.wait()).await;
+                let res = ctx.wrap(recv.once.wait()).await;
                 self_.stats.chunk_done.fetch_add(1, Ordering::Relaxed);
                 anyhow::Ok(res?)
             }
@@ -272,17 +357,29 @@ impl Network {
                     s.send(n.info_.clone()).unwrap();
                 }
             }
-            NetworkClientMessages::Block(block, _, _) => {
-                self.blocks.get(&block.hash().clone()).map(|p| p.set(block));
+            NetworkClientMessages::Block(block, peer_id, _) => {
+                self.blocks.get(&block.hash().clone()).map(|r|{
+                    if let Ok(_) = r.once.set(block) {
+                        self.stats.peers.add_response_time(&r.send_times,&peer_id);
+                    }
+                });
             }
-            NetworkClientMessages::BlockHeaders(headers, _) => {
+            NetworkClientMessages::BlockHeaders(headers, peer_id) => {
                 if let Some(h) = headers.iter().min_by_key(|h| h.height()) {
                     let hash = h.prev_hash().clone();
-                    self.block_headers.get(&hash).map(|p| p.set(headers));
+                    self.block_headers.get(&hash).map(|r|{
+                        if let Ok(_) = r.once.set(headers) {
+                            self.stats.peers.add_response_time(&r.send_times,&peer_id);
+                        }
+                    });
                 }
             }
-            NetworkClientMessages::PartialEncodedChunkResponse(resp) => {
-                self.chunks.get(&resp.chunk_hash.clone()).map(|p| p.set(resp));
+            NetworkClientMessages::PartialEncodedChunkResponse(resp,peer_id) => {
+                self.chunks.get(&resp.chunk_hash.clone()).map(|r|{
+                    if let Ok(_) = r.once.set(resp) {
+                        self.stats.peers.add_response_time(&r.send_times,&peer_id);
+                    }
+                });
             }
             _ => {}
         }
