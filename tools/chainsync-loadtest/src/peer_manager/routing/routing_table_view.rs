@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::peer_manager::routing::route_back_cache::RouteBackCache;
 use itertools::Itertools;
 use lru::LruCache;

@@ -10,7 +10,7 @@ use near_network_primitives::types::{
 };
 
 use actix::{Actor, Context, Handler};
-use log::info;
+use log::{info,warn};
 use crate::peer_manager::types::{
     FullPeerInfo, NetworkClientMessages, NetworkClientResponses, NetworkInfo, NetworkRequests, NetworkResponses,
     PeerManagerAdapter, PeerManagerMessageRequest, PeerManagerMessageResponse,
@@ -67,7 +67,9 @@ impl PeerStatsMap {
             let mut rs = self.requests.lock().unwrap();
             rs.requests += 1;
             rs.total_sends += send_times.sends.load(Ordering::Relaxed);
-            rs.total_latency += time::Instant::now()-*send_times.times.lock().unwrap().values().min().unwrap();
+            send_times.times.lock().unwrap().values().min().map(|t|{
+                rs.total_latency += time::Instant::now()-*t;
+            });
         }
         {
             let mut ps = self.peers.lock().unwrap();
@@ -80,6 +82,7 @@ impl PeerStatsMap {
                 stats.total_latency += l;
             } else {
                 // Response without request. THESE ARE SUSPICIOUS AND SHOULD BE DEBUGGED.
+                warn!("response without request from {}",peer_id);
                 ps.entry(peer_id.clone()).or_default().responses += 1;
             }
         }
@@ -107,6 +110,7 @@ impl fmt::Debug for PeerStatsMap {
 #[derive(Default, Debug)]
 pub struct Stats {
     pub msgs_sent: AtomicU64,
+    pub msgs_send_failures: AtomicU64,
     pub msgs_recv: AtomicU64,
 
     pub header_start: AtomicU64,
@@ -245,11 +249,16 @@ impl Network {
                     let send = self_
                         .network_adapter
                         .send(PeerManagerMessageRequest::NetworkRequests(new_req(peer.clone())));
-                    let resp = send.await?;
-                    let resp = if let PeerManagerMessageResponse::NetworkResponses(resp) = resp { resp } else { Err(anyhow!("unexpected response"))? };
-                    if let NetworkResponses::NoResponse = resp {} else { return Err(anyhow!("{:?}",resp)); }
-                    self_.stats.msgs_sent.fetch_add(1, Ordering::Relaxed);
-                    ctx.wait(self_.request_timeout).await?;
+                    match send.await? {
+                        PeerManagerMessageResponse::NetworkResponses(NetworkResponses::NoResponse) => {
+                            self_.stats.msgs_sent.fetch_add(1, Ordering::Relaxed);
+                            ctx.wait(self_.request_timeout).await?;
+                        }
+                        PeerManagerMessageResponse::NetworkResponses(NetworkResponses::RouteNotFound) => {
+                            self_.stats.msgs_send_failures.fetch_add(1, Ordering::Relaxed);
+                        }
+                        status => { return Err(anyhow!("{:?}",status)); }
+                    }
                 }
             }
         }
@@ -294,9 +303,9 @@ impl Network {
                         peer_id: peer.peer_info.id.clone(),
                     })
                 });
-                let res = ctx.wrap(recv.once.wait()).await;
+                let res = ctx.wrap(recv.once.wait()).await?;
                 self_.stats.header_done.fetch_add(1, Ordering::Relaxed);
-                anyhow::Ok(res?)
+                anyhow::Ok(res)
             }
         })
         .await
@@ -322,9 +331,9 @@ impl Network {
                         peer_id: peer.peer_info.id.clone(),
                     })
                 });
-                let res = ctx.wrap(recv.once.wait()).await;
+                let res = ctx.wrap(recv.once.wait()).await?;
                 self_.stats.block_done.fetch_add(1, Ordering::Relaxed);
-                anyhow::Ok(res?)
+                anyhow::Ok(res)
             }
         })
         .await
@@ -358,9 +367,9 @@ impl Network {
                         }
                     })
                 });
-                let res = ctx.wrap(recv.once.wait()).await;
+                let res = ctx.wrap(recv.once.wait()).await?;
                 self_.stats.chunk_done.fetch_add(1, Ordering::Relaxed);
-                anyhow::Ok(res?)
+                anyhow::Ok(res)
             }
         })
         .await

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::peer_manager::private_actix::{StopMsg, ValidateEdgeList};
 use crate::peer_manager::routing::edge_validator_actor::EdgeValidatorActor;
 use crate::peer_manager::routing::graph::Graph;

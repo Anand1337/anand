@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use near_primitives::hash::CryptoHash;
 use near_primitives::network::PeerId;
 use near_primitives::time::Clock;

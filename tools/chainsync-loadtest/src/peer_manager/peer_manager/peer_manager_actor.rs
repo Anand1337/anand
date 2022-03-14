@@ -1351,11 +1351,7 @@ impl PeerManagerActor {
         &mut self,
         msg: NetworkRequests,
         _ctx: &mut Context<Self>,
-        throttle_controller: Option<ThrottleController>,
     ) -> NetworkResponses {
-        let _d = delay_detector::DelayDetector::new(|| {
-            format!("network request {}", msg.as_ref()).into()
-        });
         match msg {
             NetworkRequests::Block {.. } => panic!("NetworkRequest::Block"),
             NetworkRequests::Approval {..} => panic!("NetworkRequest::Approval"),
@@ -1389,10 +1385,12 @@ impl PeerManagerActor {
             NetworkRequests::BanPeer {..} => panic!("BanPeer"),
             NetworkRequests::AnnounceAccount(_) => panic!("AnnounceAccount"),
             NetworkRequests::PartialEncodedChunkRequest { target, request } => {
-                if !self.send_message_to_peer(RawRoutedMessage {
-                    target: AccountOrPeerIdOrHash::PeerId(target),
+                let msg = self.sign_routed_message(RawRoutedMessage {
+                    target: AccountOrPeerIdOrHash::PeerId(target.clone()),
                     body: RoutedMessageBody::PartialEncodedChunkRequest(request.clone()),
-                }) {
+                }, self.my_peer_id.clone());
+                self.routing_table_view.add_route_back(msg.hash(), self.my_peer_id.clone());
+                if !Self::send_message(&self.connected_peers, target, PeerMessage::Routed(msg)) {
                     return NetworkResponses::RouteNotFound;
                 }
                 NetworkResponses::NoResponse
@@ -1719,7 +1717,6 @@ impl PeerManagerActor {
         &mut self,
         msg: PeerManagerMessageRequest,
         ctx: &mut Context<Self>,
-        throttle_controller: Option<ThrottleController>,
     ) -> PeerManagerMessageResponse {
         match msg {
             PeerManagerMessageRequest::RoutedMessageFrom(msg) => {
@@ -1729,7 +1726,6 @@ impl PeerManagerActor {
                 PeerManagerMessageResponse::NetworkResponses(self.handle_msg_network_requests(
                     msg,
                     ctx,
-                    throttle_controller,
                 ))
             }
             PeerManagerMessageRequest::RegisterPeer(msg) => {
@@ -1899,6 +1895,6 @@ impl PeerManagerActor {
 impl Handler<PeerManagerMessageRequest> for PeerManagerActor {
     type Result = PeerManagerMessageResponse;
     fn handle(&mut self, msg: PeerManagerMessageRequest, ctx: &mut Self::Context) -> Self::Result {
-        self.handle_peer_manager_message(msg, ctx, None)
+        self.handle_peer_manager_message(msg, ctx)
     }
 }
