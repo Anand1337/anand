@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(unused_imports)]
 /// Type that belong to the network protocol.
 pub use crate::peer_manager::network_protocol::{
     Handshake, HandshakeFailureReason, PeerMessage, RoutingTableUpdate,
@@ -205,14 +206,6 @@ impl From<NetworkResponses> for PeerManagerMessageResponse {
 #[allow(clippy::large_enum_variant)]
 #[rtype(result = "NetworkResponses")]
 pub enum NetworkRequests {
-    /// Sends block, either when block was just produced or when requested.
-    Block {
-        block: Block,
-    },
-    /// Sends approval.
-    Approval {
-        approval_message: ApprovalMessage,
-    },
     /// Request block with given hash from given peer.
     BlockRequest {
         hash: CryptoHash,
@@ -223,74 +216,11 @@ pub enum NetworkRequests {
         hashes: Vec<CryptoHash>,
         peer_id: PeerId,
     },
-    /// Request state header for given shard at given state root.
-    StateRequestHeader {
-        shard_id: ShardId,
-        sync_hash: CryptoHash,
-        target: AccountOrPeerIdOrHash,
-    },
-    /// Request state part for given shard at given state root.
-    StateRequestPart {
-        shard_id: ShardId,
-        sync_hash: CryptoHash,
-        part_id: u64,
-        target: AccountOrPeerIdOrHash,
-    },
-    /// Response to state request.
-    StateResponse {
-        route_back: CryptoHash,
-        response: StateResponseInfo,
-    },
-    EpochSyncRequest {
-        peer_id: PeerId,
-        epoch_id: EpochId,
-    },
-    EpochSyncFinalizationRequest {
-        peer_id: PeerId,
-        epoch_id: EpochId,
-    },
-    /// Ban given peer.
-    BanPeer {
-        peer_id: PeerId,
-        ban_reason: ReasonForBan,
-    },
-    /// Announce account
-    AnnounceAccount(AnnounceAccount),
-
     /// Request chunk parts and/or receipts
     PartialEncodedChunkRequest {
         target: PeerId,
         request: PartialEncodedChunkRequestMsg,
     },
-    /// Information about chunk such as its header, some subset of parts and/or incoming receipts
-    PartialEncodedChunkResponse {
-        route_back: CryptoHash,
-        response: PartialEncodedChunkResponseMsg,
-    },
-    /// Information about chunk such as its header, some subset of parts and/or incoming receipts
-    PartialEncodedChunkMessage {
-        account_id: AccountId,
-        partial_encoded_chunk: PartialEncodedChunkWithArcReceipts,
-    },
-    /// Forwarding a chunk part to a validator tracking the shard
-    PartialEncodedChunkForward {
-        account_id: AccountId,
-        forward: PartialEncodedChunkForwardMsg,
-    },
-
-    /// Valid transaction but since we are not validators we send this transaction to current validators.
-    ForwardTx(AccountId, SignedTransaction),
-    /// Query transaction status
-    TxStatus(AccountId, AccountId, CryptoHash),
-    /// General query
-    Query {
-        query_id: String,
-        account_id: AccountId,
-        block_reference: BlockReference,
-        request: QueryRequest,
-    },
-    /// Request for receipt execution outcome
-    ReceiptOutComeRequest(AccountId, CryptoHash),
 
     /// The following types of requests are used to trigger actions in the Peer Manager for testing.
     /// (Unit tests) Fetch current routing table.
@@ -308,16 +238,6 @@ pub enum NetworkRequests {
     PingTo(usize, PeerId),
     /// (Unit tests) Fetch all received ping and pong so far.
     FetchPingPongInfo,
-
-    /// A challenge to invalidate a block.
-    Challenge(Challenge),
-
-    // IbfMessage
-    #[cfg(feature = "protocol_feature_routing_exchange_algorithm")]
-    IbfMessage {
-        peer_id: PeerId,
-        ibf_msg: RoutingSyncV2,
-    },
 }
 
 /// Combines peer address info, chain and edge information.

@@ -212,50 +212,9 @@ pub enum PeerMessage {
     EpochSyncResponse(Box<EpochSyncResponse>),
     EpochSyncFinalizationRequest(EpochId),
     EpochSyncFinalizationResponse(Box<EpochSyncFinalizationResponse>),
-
-    #[cfg(feature = "protocol_feature_routing_exchange_algorithm")]
-    RoutingTableSyncV2(RoutingSyncV2),
 }
 #[cfg(target_arch = "x86_64")] // Non-x86_64 doesn't match this requirement yet but it's not bad as it's not production-ready
 const _: () = assert!(std::mem::size_of::<PeerMessage>() <= 1144, "PeerMessage > 1144 bytes");
-
-#[cfg(feature = "protocol_feature_routing_exchange_algorithm")]
-#[cfg_attr(feature = "deepsize_feature", derive(deepsize::DeepSizeOf))]
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone, Debug)]
-pub enum RoutingSyncV2 {
-    Version2(RoutingVersion2),
-}
-#[cfg(feature = "protocol_feature_routing_exchange_algorithm")]
-const _: () = assert!(std::mem::size_of::<RoutingSyncV2>() <= 80, "RoutingSyncV2 > 80 bytes");
-
-#[cfg(feature = "protocol_feature_routing_exchange_algorithm")]
-#[cfg_attr(feature = "deepsize_feature", derive(deepsize::DeepSizeOf))]
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone, Debug)]
-pub struct PartialSync {
-    pub(crate) ibf_level: crate::peer_manager::routing::ibf_peer_set::ValidIBFLevel,
-    pub(crate) ibf: Vec<crate::peer_manager::routing::ibf::IbfBox>,
-}
-
-#[cfg(feature = "protocol_feature_routing_exchange_algorithm")]
-#[cfg_attr(feature = "deepsize_feature", derive(deepsize::DeepSizeOf))]
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone, Debug)]
-pub enum RoutingState {
-    PartialSync(PartialSync),
-    RequestAllEdges,
-    Done,
-    RequestMissingEdges(Vec<u64>),
-    InitializeIbf,
-}
-
-#[cfg(feature = "protocol_feature_routing_exchange_algorithm")]
-#[cfg_attr(feature = "deepsize_feature", derive(deepsize::DeepSizeOf))]
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Eq, Clone, Debug)]
-pub struct RoutingVersion2 {
-    pub(crate) known_edges: u64,
-    pub(crate) seed: u64,
-    pub(crate) edges: Vec<Edge>,
-    pub(crate) routing_state: RoutingState,
-}
 
 impl fmt::Display for PeerMessage {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

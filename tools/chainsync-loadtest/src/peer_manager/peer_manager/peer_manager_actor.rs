@@ -1353,8 +1353,6 @@ impl PeerManagerActor {
         _ctx: &mut Context<Self>,
     ) -> NetworkResponses {
         match msg {
-            NetworkRequests::Block {.. } => panic!("NetworkRequest::Block"),
-            NetworkRequests::Approval {..} => panic!("NetworkRequest::Approval"),
             NetworkRequests::BlockRequest { hash, peer_id } => {
                 if Self::send_message(
                     &self.connected_peers,
@@ -1377,13 +1375,6 @@ impl PeerManagerActor {
                     NetworkResponses::RouteNotFound
                 }
             }
-            NetworkRequests::StateRequestHeader { .. } => panic!("StateRequestHeader"), 
-            NetworkRequests::StateRequestPart { ..} => panic!("StateRequestPart"),
-            NetworkRequests::StateResponse {..} => panic!("StateResponse"),
-            NetworkRequests::EpochSyncRequest { .. } => panic!("EpochSyncRequest"),
-            NetworkRequests::EpochSyncFinalizationRequest { .. } => panic!("EpochSyncFinalizationRequest"),
-            NetworkRequests::BanPeer {..} => panic!("BanPeer"),
-            NetworkRequests::AnnounceAccount(_) => panic!("AnnounceAccount"),
             NetworkRequests::PartialEncodedChunkRequest { target, request } => {
                 let msg = self.sign_routed_message(RawRoutedMessage {
                     target: AccountOrPeerIdOrHash::PeerId(target.clone()),
@@ -1395,18 +1386,10 @@ impl PeerManagerActor {
                 }
                 NetworkResponses::NoResponse
             }
-            NetworkRequests::PartialEncodedChunkResponse {..} => panic!("PartialEncodedChunkResponse"),
-            NetworkRequests::PartialEncodedChunkMessage { .. } => panic!("PartialEncodedChunkMessage"),
-            NetworkRequests::PartialEncodedChunkForward { .. } => panic!("PartialEncodedChunkForward"),
-            NetworkRequests::ForwardTx(_,_) => panic!("ForwardTx"),
-            NetworkRequests::TxStatus(_,_,_) => panic!("TxStatus"),
-            NetworkRequests::Query{..} => panic!("Query"),
-            NetworkRequests::ReceiptOutComeRequest(_,_) => panic!("ReceiptOutComeRequest"), 
             NetworkRequests::FetchRoutingTable => panic!("FetchRoutingTable"),
             NetworkRequests::SyncRoutingTable {..} => {
                 NetworkResponses::NoResponse
             }
-            NetworkRequests::Challenge(_) => panic!("Challenge"),
             NetworkRequests::RequestUpdateNonce(peer_id, edge_info) => {
                 if Edge::partial_verify(&self.my_peer_id, &peer_id, &edge_info) {
                     if let Some(cur_edge) = self.routing_table_view.get_local_edge(&peer_id) {
