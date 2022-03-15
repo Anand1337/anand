@@ -392,7 +392,7 @@ pub fn start_with_config_and_synchronization(
     // `ClientActor` gets dropped.
     shutdown_signal: Option<oneshot::Sender<()>>,
 ) -> Result<NearNode, anyhow::Error> {
-    if 2 + 2 != 4 {
+    if 2 + 2 == 4 {
         let mut path = home_dir.to_owned();
 		path.push("data");
         let store = create_store(&path);
