@@ -16,6 +16,7 @@ use near_primitives::shard_layout::ShardUId;
 use near_primitives::sharding::ChunkHash;
 use near_primitives::state_record::StateRecord;
 use near_primitives::syncing::get_num_state_parts;
+use near_primitives::time::Clock;
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{BlockHeight, ShardId, StateRoot};
@@ -28,7 +29,6 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tracing::info;
 
 pub(crate) fn peers(store: Store) {
     iter_peers_from_store(store, |(peer_id, peer_info)| {
@@ -51,16 +51,26 @@ pub(crate) fn state(home_dir: &Path, near_config: NearConfig, store: Store) {
     }
 }
 
-pub(crate) fn test(height: BlockHeight, home_dir: &Path, near_config: NearConfig, store: Store) {
+pub(crate) fn test(
+    height: BlockHeight,
+    apply_num_parts: u64,
+    home_dir: &Path,
+    near_config: NearConfig,
+    store: Store,
+) {
     let (runtime, state_roots, header) =
         load_trie_stop_at_height(store, home_dir, &near_config, LoadTrieMode::Height(height));
     let shard_id = 0;
     let state_root = &state_roots[0];
     let state_root_node = runtime.get_state_root_node(shard_id, header.hash(), state_root).unwrap();
     let num_parts = get_num_state_parts(state_root_node.memory_usage);
-    info!("start obtaining state part {}", num_parts);
-    let _ = runtime.obtain_state_part(shard_id, header.hash(), state_root, 0, num_parts).unwrap();
-    info!("done obtaining state part");
+    let start = Clock::instant();
+    for part_id in 0..apply_num_parts {
+        let _ = runtime
+            .obtain_state_part(shard_id, header.hash(), state_root, part_id, num_parts)
+            .unwrap();
+    }
+    println!("done obtaining state part in {} seconds", start.elapsed().as_secs());
 }
 
 pub(crate) fn dump_state(

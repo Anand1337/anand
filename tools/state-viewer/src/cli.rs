@@ -138,11 +138,13 @@ impl StateViewerSubCommand {
 pub struct TestCmd {
     #[clap(long)]
     height: BlockHeight,
+    #[clap(long)]
+    num_parts: Option<u64>,
 }
 
 impl TestCmd {
     pub fn run(self, home_dir: &Path, near_config: NearConfig, store: Store) {
-        test(self.height, home_dir, near_config, store);
+        test(self.height, self.num_parts.unwrap_or(1), home_dir, near_config, store);
     }
 }
 
