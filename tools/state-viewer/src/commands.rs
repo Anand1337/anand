@@ -15,6 +15,7 @@ use near_primitives::serialize::to_base;
 use near_primitives::shard_layout::ShardUId;
 use near_primitives::sharding::ChunkHash;
 use near_primitives::state_record::StateRecord;
+use near_primitives::syncing::get_num_state_parts;
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::chunk_extra::ChunkExtra;
 use near_primitives::types::{BlockHeight, ShardId, StateRoot};
@@ -47,6 +48,16 @@ pub(crate) fn state(home_dir: &Path, near_config: NearConfig, store: Store) {
             }
         }
     }
+}
+
+pub(crate) fn test(height: BlockHeight, home_dir: &Path, near_config: NearConfig, store: Store) {
+    let (runtime, state_roots, header) =
+        load_trie_stop_at_height(store, home_dir, &near_config, LoadTrieMode::Height(height));
+    let shard_id = 0;
+    let state_root = &state_roots[0];
+    let state_root_node = runtime.get_state_root_node(shard_id, header.hash(), state_root).unwrap();
+    let num_parts = get_num_state_parts(state_root_node.memory_usage);
+    let _ = runtime.obtain_state_part(shard_id, header.hash(), state_root, 0, num_parts).unwrap();
 }
 
 pub(crate) fn dump_state(
