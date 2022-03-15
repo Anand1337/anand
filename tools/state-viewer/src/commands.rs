@@ -28,6 +28,7 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tracing::info;
 
 pub(crate) fn peers(store: Store) {
     iter_peers_from_store(store, |(peer_id, peer_info)| {
@@ -57,7 +58,9 @@ pub(crate) fn test(height: BlockHeight, home_dir: &Path, near_config: NearConfig
     let state_root = &state_roots[0];
     let state_root_node = runtime.get_state_root_node(shard_id, header.hash(), state_root).unwrap();
     let num_parts = get_num_state_parts(state_root_node.memory_usage);
+    info!("start obtaining state part {}", num_parts);
     let _ = runtime.obtain_state_part(shard_id, header.hash(), state_root, 0, num_parts).unwrap();
+    info!("done obtaining state part");
 }
 
 pub(crate) fn dump_state(
