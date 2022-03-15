@@ -11,9 +11,9 @@ use rand::thread_rng;
 use std::collections::hash_map::{Entry, Iter};
 use std::collections::{HashMap,HashSet};
 use std::error::Error;
-use std::net::SocketAddr;
+use std::net::{SocketAddr,IpAddr};
 use std::ops::Not;
-use tracing::{debug, error};
+use tracing::{debug, error,info};
 
 /// Level of trust we have about a new (PeerId, Addr) pair.
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -49,14 +49,14 @@ pub struct PeerStore {
     // It can happens that some peers don't have known address, so
     // they will not be present in this list, otherwise they will be present.
     addr_peers: HashMap<SocketAddr, VerifiedPeer>,
-    conn_whitelist: Option<HashSet<SocketAddr>>,
+    preferred_peers: HashSet<IpAddr>,
 }
 
 impl PeerStore {
     pub(crate) fn new(
         store: Store,
         boot_nodes: &[PeerInfo],
-        mut whitelist: Vec<SocketAddr>,
+        preferred_peers: HashSet<IpAddr>,
     ) -> anyhow::Result<Self> {
         // A mapping from `PeerId` to `KnownPeerState`.
         let mut peerid_2_state = HashMap::default();
@@ -132,7 +132,7 @@ impl PeerStore {
             store,
             peer_states: peerid_2_state,
             addr_peers: addr_2_peer,
-            conn_whitelist: Some(whitelist.drain(0..).collect()), 
+            preferred_peers: preferred_peers, 
         })
     }
 
@@ -225,19 +225,29 @@ impl PeerStore {
         &self,
         ignore_fn: impl Fn(&KnownPeerState) -> bool,
     ) -> Option<PeerInfo> {
-        self.find_peers(
-            |p| {
-                if let (Some(set),Some(addr)) = (&self.conn_whitelist,&p.peer_info.addr) {
-                    if !set.contains(addr) { return false }
-                }
-                (p.status == KnownPeerStatus::NotConnected || p.status == KnownPeerStatus::Unknown)
-                    && !ignore_fn(p)
-                    && p.peer_info.addr.is_some()
-            },
-            1,
-        )
-        .get(0)
-        .cloned()
+        let mut peer_count = 0;
+        let mut preferred_peer_count = 0;
+        for (_,v) in &self.peer_states {
+            let addr = if let Some(addr) = v.peer_info.addr { addr } else { continue; };
+            peer_count += 1;
+            if self.preferred_peers.contains(&addr.ip()) {
+                preferred_peer_count += 1;
+            }
+        }
+        info!("known peers = {} (preferred = {})",peer_count,preferred_peer_count);
+
+        let filter = |p:&&KnownPeerState| (p.status == KnownPeerStatus::NotConnected || p.status == KnownPeerStatus::Unknown)
+            && !ignore_fn(p)
+            && p.peer_info.addr.is_some();
+        let preferred_filter = |p:&&KnownPeerState| filter(p) && p.peer_info.addr.as_ref().map(|addr|self.preferred_peers.contains(&addr.ip())).unwrap_or(false);
+        let peers = self.find_peers(preferred_filter,1);
+        if peers.len()>0 {
+            info!("preferred {:?}",peers.get(0));
+            return peers.get(0).cloned();
+        }
+        let peers = self.find_peers(filter,1);
+        info!("other {:?}",peers.get(0));
+        return peers.get(0).cloned();
     }
 
     /// Return healthy known peers up to given amount.

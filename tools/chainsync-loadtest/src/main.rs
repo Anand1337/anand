@@ -6,6 +6,7 @@ mod peer_manager;
 use std::io;
 use std::sync::Arc;
 use std::net;
+use std::collections::HashSet;
 
 use actix::{Actor, Arbiter};
 use anyhow::{anyhow, Context};
@@ -28,13 +29,13 @@ use near_store::{db, Store};
 use nearcore::config;
 use nearcore::config::NearConfig;
 
-pub fn start_with_config(config: NearConfig, qps_limit: u32, peers : Vec<net::SocketAddr>) -> anyhow::Result<Arc<Network>> {
+pub fn start_with_config(config: NearConfig, qps_limit: u32, peer_whitelist: HashSet<net::IpAddr>) -> anyhow::Result<Arc<Network>> {
     config.network_config.verify().context("start_with_config")?;
     let node_id = PeerId::new(config.network_config.public_key.clone());
     let store = Store::new(Arc::new(db::TestDB::new()));
 
     let network_adapter = Arc::new(NetworkRecipient::default());
-    let network = Network::new(&config, network_adapter.clone(), qps_limit);
+    let network = Network::new(&config, network_adapter.clone(), qps_limit, peer_whitelist.clone());
     let client_actor = FakeClientActor::start_in_arbiter(&Arbiter::new().handle(), {
         let network = network.clone();
         move |_| FakeClientActor::new(network)
@@ -48,7 +49,7 @@ pub fn start_with_config(config: NearConfig, qps_limit: u32, peers : Vec<net::So
             client_actor.clone().recipient(),
             client_actor.clone().recipient(),
             routing_table_addr,
-            peers,
+            peer_whitelist.clone(),
         )
         .unwrap()
     })
@@ -85,7 +86,7 @@ struct Cmd {
     #[clap(long, default_value = "2000")]
     pub block_limit: u64,
     #[clap(long)]
-    pub peers: String,
+    pub peers_filepath: String,
 }
 
 impl Cmd {
@@ -94,9 +95,11 @@ impl Cmd {
         let start_block_hash =
             cmd.start_block_hash.parse::<CryptoHash>().map_err(|x| anyhow!(x.to_string())).context("start_block_hash.parse")?;
 
-        let mut peers = Vec::<net::SocketAddr>::new();
-        for ip in cmd.peers.split(',') {
-            peers.push(ip.parse()?);
+        let mut peers = HashSet::new();
+        let peers_raw = std::fs::read_to_string(cmd.peers_filepath).context("fs::read_to_string()")?;
+        for ip in peers_raw.split_whitespace() {
+            if ip.len()==0 { continue }
+            peers.insert(ip.parse().with_context(||format!("parse('{}')",ip))?);
         }
 
         let mut cache_dir = dirs::cache_dir().context("dirs::cache_dir() = None")?;

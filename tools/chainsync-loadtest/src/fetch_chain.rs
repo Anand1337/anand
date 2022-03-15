@@ -21,8 +21,8 @@ pub async fn run(
     block_limit: u64,
 ) -> anyhow::Result<()> {
     info!("SYNC start");
-    let peers = network.info(&ctx).await?;
-    let target_height = peers.highest_height_peers[0].chain_info.height as i64;
+    let peers = network.wait_for_peers(&ctx).await?;
+    let target_height = peers.iter().map(|p|p.chain_info.height).max().unwrap() as i64;
     info!("SYNC target_height = {}", target_height);
 
     let start_time = time::Instant::now();

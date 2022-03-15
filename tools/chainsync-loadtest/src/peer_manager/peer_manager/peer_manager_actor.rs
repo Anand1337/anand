@@ -45,7 +45,7 @@ use near_store::Store;
 use rand::seq::IteratorRandom;
 use std::cmp::{max, min};
 use std::collections::{HashMap, HashSet};
-use std::net::SocketAddr;
+use std::net::{SocketAddr,IpAddr};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -238,9 +238,9 @@ impl PeerManagerActor {
         client_addr: Recipient<NetworkClientMessages>,
         view_client_addr: Recipient<NetworkViewClientMessages>,
         routing_table_addr: Addr<RoutingTableActor>,
-        peers: Vec<SocketAddr>,
+        preferred_peers: HashSet<IpAddr>,
     ) -> anyhow::Result<Self> {
-        let peer_store = PeerStore::new(store.clone(), &config.boot_nodes, peers)?;
+        let peer_store = PeerStore::new(store.clone(), &config.boot_nodes, preferred_peers)?;
         debug!(target: "network", len = peer_store.len(), boot_nodes = config.boot_nodes.len(), "Found known peers");
         debug!(target: "network", blacklist = ?config.blacklist, "Blacklist");
 

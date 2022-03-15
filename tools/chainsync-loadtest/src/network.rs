@@ -1,8 +1,9 @@
 use std::fmt;
+use std::net;
 use std::sync::atomic::{AtomicU64, Ordering};
 use anyhow::{anyhow};
-
 use crate::concurrency::{Ctx, Once, RateLimiter, Scope, WeakMap};
+use tokio::sync::watch;
 
 use near_network_primitives::types::{
     NetworkViewClientMessages, NetworkViewClientResponses,
@@ -12,7 +13,7 @@ use near_network_primitives::types::{
 use actix::{Actor, Context, Handler};
 use log::{info,warn};
 use crate::peer_manager::types::{
-    FullPeerInfo, NetworkClientMessages, NetworkClientResponses, NetworkInfo, NetworkRequests, NetworkResponses,
+    FullPeerInfo, NetworkClientMessages, NetworkClientResponses, NetworkRequests, NetworkResponses,
     PeerManagerAdapter, PeerManagerMessageRequest, PeerManagerMessageResponse,
 };
 use near_primitives::block::{Block, BlockHeader, GenesisId};
@@ -24,9 +25,8 @@ use rand::seq::SliceRandom;
 use rand::thread_rng;
 use std::future::Future;
 use std::sync::{Arc, Mutex};
-use tokio::sync::oneshot;
 use tokio::time;
-use std::collections::HashMap;
+use std::collections::{HashMap,HashSet};
 
 fn genesis_hash(chain_id: &str) -> CryptoHash {
     return match chain_id {
@@ -157,14 +157,6 @@ impl<T:Clone+Send+Sync> Request<T> {
     }
 }
 
-// NetworkData contains the mutable private data of the Network struct.
-// TODO: consider replacing the vector of oneshot Senders with a single
-// Notify/Once.
-struct NetworkData {
-    info_futures: Vec<oneshot::Sender<Arc<NetworkInfo>>>,
-    info_: Arc<NetworkInfo>,
-}
-
 // Network encapsulates PeerManager and exposes an async API for sending RPCs.
 pub struct Network {
     pub stats: Stats,
@@ -172,7 +164,6 @@ pub struct Network {
     block_headers: Arc<WeakMap<CryptoHash, Request<Vec<BlockHeader>>>>,
     blocks: Arc<WeakMap<CryptoHash, Request<Block>>>,
     chunks: Arc<WeakMap<ChunkHash, Request<PartialEncodedChunkResponseMsg>>>,
-    data: Mutex<NetworkData>,
 
     chain_id: String,
     // client_config.min_num_peers
@@ -181,9 +172,11 @@ pub struct Network {
     // (see https://cs.github.com/near/nearcore/blob/dae9553670de13c279d3ebd55f17da13d94fa691/nearcore/src/runtime/mod.rs#L1114).
     // AFAICT eventually it will change dynamically (I guess it will be provided in the Block).
     parts_per_chunk: u64,
-
+    peers_whitelist: HashSet<net::IpAddr>,
     request_timeout: tokio::time::Duration,
+
     rate_limiter: RateLimiter,
+    peers_watch: watch::Sender<Vec<FullPeerInfo>>,
 }
 
 impl Network {
@@ -191,23 +184,11 @@ impl Network {
         config: &NearConfig,
         network_adapter: Arc<dyn PeerManagerAdapter>,
         qps_limit: u32,
+        peers_whitelist: HashSet<net::IpAddr>,
     ) -> Arc<Network> {
         Arc::new(Network {
             stats: Default::default(),
             network_adapter,
-            data: Mutex::new(NetworkData {
-                info_: Arc::new(NetworkInfo {
-                    connected_peers: vec![],
-                    num_connected_peers: 0,
-                    peer_max_count: 0,
-                    highest_height_peers: vec![],
-                    sent_bytes_per_sec: 0,
-                    received_bytes_per_sec: 0,
-                    known_producers: vec![],
-                    peer_counter: 0,
-                }),
-                info_futures: Default::default(),
-            }),
             blocks: WeakMap::new(),
             block_headers: WeakMap::new(),
             chunks: WeakMap::new(),
@@ -215,6 +196,9 @@ impl Network {
             chain_id: config.client_config.chain_id.clone(),
             min_peers: config.client_config.min_num_peers,
             parts_per_chunk: config.genesis.config.num_block_producer_seats,
+            peers_whitelist: peers_whitelist,
+
+            peers_watch: { let (s,_) = watch::channel(vec![]); s },
             rate_limiter: RateLimiter::new(
                 time::Duration::from_secs(1) / qps_limit,
                 qps_limit as u64,
@@ -240,7 +224,7 @@ impl Network {
         let ctx = ctx.with_label("keep_sending");
         async move {
             loop {
-                let mut peers = self_.info(&ctx).await?.connected_peers.clone();
+                let mut peers = self_.wait_for_peers(&ctx).await?.clone();
                 peers.shuffle(&mut thread_rng());
                 for peer in peers {
                     // TODO: rate limit per peer.
@@ -266,18 +250,17 @@ impl Network {
 
     // info() fetches the state of the newest available NetworkInfo.
     // It blocks if the number of connected peers is too small.
-    pub async fn info(self: &Arc<Self>, ctx: &Ctx) -> anyhow::Result<Arc<NetworkInfo>> {
-        let ctx = ctx.clone();
-        let (send, recv) = oneshot::channel();
-        {
-            let mut n = self.data.lock().unwrap();
-            if n.info_.num_connected_peers >= self.min_peers {
-                let _ = send.send(n.info_.clone());
-            } else {
-                n.info_futures.push(send);
+    pub async fn wait_for_peers(self: &Arc<Self>, ctx: &Ctx) -> anyhow::Result<Vec<FullPeerInfo>> {
+        let mut s = self.peers_watch.subscribe();
+        // TODO: this loop is suboptimal: every subscriber uses the same predicate, so it would be
+        // more efficient to check it when sending the value to the watch.
+        loop {
+            {
+                let peers = s.borrow_and_update();
+                if peers.len() > self.min_peers { return Ok(peers.clone()); }
             }
+            ctx.wrap(s.changed()).await??;
         }
-        anyhow::Ok(ctx.wrap(recv).await??)
     }
 
     // fetch_block_headers fetches a batch of headers, starting with the header
@@ -379,15 +362,14 @@ impl Network {
         self.stats.msgs_recv.fetch_add(1, Ordering::Relaxed);
         match msg {
             NetworkClientMessages::NetworkInfo(info) => {
-                let mut n = self.data.lock().unwrap();
-                n.info_ = Arc::new(info);
-                if n.info_.num_connected_peers < self.min_peers {
-                    info!("connected = {}/{}", n.info_.num_connected_peers, self.min_peers);
-                    return;
+                let peers : Vec<_> = info.connected_peers.iter()
+                    .filter(|p|p.peer_info.addr.as_ref().map(|addr|self.peers_whitelist.contains(&addr.ip())).unwrap_or(false))
+                    .cloned()
+                    .collect();
+                if peers.len()<self.min_peers { 
+                    info!("connected = {}/{} (all peers = {})", peers.len(), self.min_peers,info.connected_peers.len());
                 }
-                for s in n.info_futures.split_off(0) {
-                    s.send(n.info_.clone()).unwrap();
-                }
+                self.peers_watch.send_replace(peers);
             }
             NetworkClientMessages::Block(block, peer_id, _) => {
                 self.blocks.get(&block.hash().clone()).map(|r|{
