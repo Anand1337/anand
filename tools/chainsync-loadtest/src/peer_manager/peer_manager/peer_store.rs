@@ -9,7 +9,7 @@ use near_store::{ColPeers, Store};
 use rand::seq::IteratorRandom;
 use rand::thread_rng;
 use std::collections::hash_map::{Entry, Iter};
-use std::collections::HashMap;
+use std::collections::{HashMap,HashSet};
 use std::error::Error;
 use std::net::SocketAddr;
 use std::ops::Not;
@@ -49,13 +49,15 @@ pub struct PeerStore {
     // It can happens that some peers don't have known address, so
     // they will not be present in this list, otherwise they will be present.
     addr_peers: HashMap<SocketAddr, VerifiedPeer>,
+    conn_whitelist: Option<HashSet<SocketAddr>>,
 }
 
 impl PeerStore {
     pub(crate) fn new(
         store: Store,
         boot_nodes: &[PeerInfo],
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+        mut whitelist: Vec<SocketAddr>,
+    ) -> anyhow::Result<Self> {
         // A mapping from `PeerId` to `KnownPeerState`.
         let mut peerid_2_state = HashMap::default();
         // Stores mapping from `SocketAddr` to `VerifiedPeer`, which contains `PeerId`.
@@ -126,7 +128,12 @@ impl PeerStore {
                 }
             }
         }
-        Ok(PeerStore { store, peer_states: peerid_2_state, addr_peers: addr_2_peer })
+        Ok(PeerStore {
+            store,
+            peer_states: peerid_2_state,
+            addr_peers: addr_2_peer,
+            conn_whitelist: Some(whitelist.drain(0..).collect()), 
+        })
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -220,6 +227,9 @@ impl PeerStore {
     ) -> Option<PeerInfo> {
         self.find_peers(
             |p| {
+                if let (Some(set),Some(addr)) = (&self.conn_whitelist,&p.peer_info.addr) {
+                    if !set.contains(addr) { return false }
+                }
                 (p.status == KnownPeerStatus::NotConnected || p.status == KnownPeerStatus::Unknown)
                     && !ignore_fn(p)
                     && p.peer_info.addr.is_some()

@@ -238,8 +238,9 @@ impl PeerManagerActor {
         client_addr: Recipient<NetworkClientMessages>,
         view_client_addr: Recipient<NetworkViewClientMessages>,
         routing_table_addr: Addr<RoutingTableActor>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        let peer_store = PeerStore::new(store.clone(), &config.boot_nodes)?;
+        peers: Vec<SocketAddr>,
+    ) -> anyhow::Result<Self> {
+        let peer_store = PeerStore::new(store.clone(), &config.boot_nodes, peers)?;
         debug!(target: "network", len = peer_store.len(), boot_nodes = config.boot_nodes.len(), "Found known peers");
         debug!(target: "network", blacklist = ?config.blacklist, "Blacklist");
 

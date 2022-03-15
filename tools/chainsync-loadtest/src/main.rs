@@ -5,6 +5,7 @@ mod peer_manager;
 
 use std::io;
 use std::sync::Arc;
+use std::net;
 
 use actix::{Actor, Arbiter};
 use anyhow::{anyhow, Context};
@@ -27,7 +28,7 @@ use near_store::{db, Store};
 use nearcore::config;
 use nearcore::config::NearConfig;
 
-pub fn start_with_config(config: NearConfig, qps_limit: u32) -> anyhow::Result<Arc<Network>> {
+pub fn start_with_config(config: NearConfig, qps_limit: u32, peers : Vec<net::SocketAddr>) -> anyhow::Result<Arc<Network>> {
     config.network_config.verify().context("start_with_config")?;
     let node_id = PeerId::new(config.network_config.public_key.clone());
     let store = Store::new(Arc::new(db::TestDB::new()));
@@ -47,6 +48,7 @@ pub fn start_with_config(config: NearConfig, qps_limit: u32) -> anyhow::Result<A
             client_actor.clone().recipient(),
             client_actor.clone().recipient(),
             routing_table_addr,
+            peers,
         )
         .unwrap()
     })
@@ -82,6 +84,8 @@ struct Cmd {
     pub qps_limit: u32,
     #[clap(long, default_value = "2000")]
     pub block_limit: u64,
+    #[clap(long)]
+    pub peers: String,
 }
 
 impl Cmd {
@@ -89,6 +93,11 @@ impl Cmd {
         let cmd = Self::parse();
         let start_block_hash =
             cmd.start_block_hash.parse::<CryptoHash>().map_err(|x| anyhow!(x.to_string())).context("start_block_hash.parse")?;
+
+        let mut peers = Vec::<net::SocketAddr>::new();
+        for ip in cmd.peers.split(',') {
+            peers.push(ip.parse()?);
+        }
 
         let mut cache_dir = dirs::cache_dir().context("dirs::cache_dir() = None")?;
         cache_dir.push("near_configs");
@@ -109,7 +118,7 @@ impl Cmd {
         let rt = rt_.clone();
         return actix::System::new().block_on(async move {
             let network =
-                start_with_config(near_config, cmd.qps_limit).context("start_with_config")?;
+                start_with_config(near_config, cmd.qps_limit, peers).context("start_with_config")?;
 
             // We execute the chain_sync on a totally separate set of system threads to minimize
             // the interaction with actix.
