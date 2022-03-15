@@ -231,6 +231,7 @@ impl PeerStore {
             let addr = if let Some(addr) = v.peer_info.addr { addr } else { continue; };
             peer_count += 1;
             if self.preferred_peers.contains(&addr.ip()) {
+                info!("preferred = {}",addr.ip());
                 preferred_peer_count += 1;
             }
         }
