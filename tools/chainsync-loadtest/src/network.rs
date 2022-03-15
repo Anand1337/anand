@@ -43,6 +43,7 @@ fn genesis_hash(chain_id: &str) -> CryptoHash {
 
 #[derive(Default)]
 pub struct PeerStats {
+    pub ip: Option<net::IpAddr>,
     pub requests: u32, 
     pub responses: u32,
     pub total_latency: time::Duration,
@@ -101,7 +102,7 @@ impl fmt::Debug for PeerStatsMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(),fmt::Error> {
         let mut m = f.debug_map();
         for (_k,v) in self.peers.lock().unwrap().iter() {
-            m.entry(&0,v);
+            m.entry(&v.ip,v);
         }
         m.finish()
     }
@@ -366,6 +367,14 @@ impl Network {
                     .filter(|p|p.peer_info.addr.as_ref().map(|addr|self.peers_whitelist.contains(&addr.ip())).unwrap_or(false))
                     .cloned()
                     .collect();
+                {
+                    let mut ps = self.stats.peers.peers.lock().unwrap();
+                    for p in &info.connected_peers {
+                        if let Some(addr) = p.peer_info.addr {
+                            ps.entry(p.peer_info.id.clone()).or_default().ip = Some(addr.ip());
+                        }
+                    }
+                }
                 if peers.len()<self.min_peers { 
                     info!("connected = {}/{} (all peers = {})", peers.len(), self.min_peers,info.connected_peers.len());
                 }
