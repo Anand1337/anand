@@ -7,7 +7,7 @@ use near_primitives::time::{Clock, Utc};
 use near_primitives::utils::to_timestamp;
 use near_store::{ColPeers, Store};
 use rand::seq::IteratorRandom;
-use rand::thread_rng;
+use rand::{thread_rng,Rng};
 use std::collections::hash_map::{Entry, Iter};
 use std::collections::{HashMap,HashSet};
 use std::error::Error;
@@ -231,7 +231,7 @@ impl PeerStore {
             let addr = if let Some(addr) = v.peer_info.addr { addr } else { continue; };
             peer_count += 1;
             if self.preferred_peers.contains(&addr.ip()) {
-                info!("preferred = {}",addr.ip());
+                //info!("preferred = {}",addr.ip());
                 preferred_peer_count += 1;
             }
         }
@@ -241,10 +241,14 @@ impl PeerStore {
             && !ignore_fn(p)
             && p.peer_info.addr.is_some();
         let preferred_filter = |p:&&KnownPeerState| filter(p) && p.peer_info.addr.as_ref().map(|addr|self.preferred_peers.contains(&addr.ip())).unwrap_or(false);
-        let peers = self.find_peers(preferred_filter,1);
-        if peers.len()>0 {
-            info!("preferred {:?}",peers.get(0));
-            return peers.get(0).cloned();
+        // Sometimes peer discovery gets stuck because the only discovered preferred node refuses
+        // to connect, and we are retrying hard.
+        if thread_rng().gen_bool(0.5) {
+            let peers = self.find_peers(preferred_filter,1);
+            if peers.len()>0 {
+                info!("preferred {:?}",peers.get(0));
+                return peers.get(0).cloned();
+            }
         }
         let peers = self.find_peers(filter,1);
         info!("other {:?}",peers.get(0));

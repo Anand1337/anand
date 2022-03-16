@@ -395,7 +395,7 @@ impl PeerActor {
                 let block_hash = *block.hash();
                 self.tracker.push_received(block_hash);
                 self.chain_info.height = max(self.chain_info.height, block.header().height());
-                NetworkClientMessages::Block(block, peer_id, self.tracker.has_request(&block_hash))
+                NetworkClientMessages::Block(block, self.peer_info.as_ref().as_ref().unwrap().clone())
             }
             PeerMessage::Transaction(transaction) => {
                 metrics::PEER_TRANSACTION_RECEIVED_TOTAL.inc();
@@ -406,7 +406,7 @@ impl PeerActor {
                 }
             }
             PeerMessage::BlockHeaders(headers) => {
-                NetworkClientMessages::BlockHeaders(headers, peer_id)
+                NetworkClientMessages::BlockHeaders(headers, self.peer_info.as_ref().as_ref().unwrap().clone())
             }
             // All Routed messages received at this point are for us.
             PeerMessage::Routed(routed_message) => {
@@ -434,7 +434,7 @@ impl PeerActor {
                         NetworkClientMessages::PartialEncodedChunkRequest(request, msg_hash)
                     }
                     RoutedMessageBody::PartialEncodedChunkResponse(response) => {
-                        NetworkClientMessages::PartialEncodedChunkResponse(response,routed_message.author)
+                        NetworkClientMessages::PartialEncodedChunkResponse(response,self.peer_info.as_ref().as_ref().unwrap().clone(),routed_message.author)
                     }
                     RoutedMessageBody::PartialEncodedChunk(partial_encoded_chunk) => {
                         NetworkClientMessages::PartialEncodedChunk(PartialEncodedChunk::V1(

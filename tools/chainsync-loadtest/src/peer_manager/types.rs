@@ -291,9 +291,9 @@ pub enum NetworkClientMessages {
         check_only: bool,
     },
     /// Received block, possibly requested.
-    Block(Block, PeerId, bool),
+    Block(Block, PeerInfo),
     /// Received list of headers for syncing.
-    BlockHeaders(Vec<BlockHeader>, PeerId),
+    BlockHeaders(Vec<BlockHeader>, PeerInfo),
     /// Block approval.
     BlockApproval(Approval, PeerId),
     /// State response.
@@ -306,7 +306,7 @@ pub enum NetworkClientMessages {
     /// Request chunk parts and/or receipts.
     PartialEncodedChunkRequest(PartialEncodedChunkRequestMsg, CryptoHash),
     /// Response to a request for  chunk parts and/or receipts.
-    PartialEncodedChunkResponse(PartialEncodedChunkResponseMsg, PeerId),
+    PartialEncodedChunkResponse(PartialEncodedChunkResponseMsg, PeerInfo, PeerId),
     /// Information about chunk such as its header, some subset of parts and/or incoming receipts
     PartialEncodedChunk(PartialEncodedChunk),
     /// Forwarding parts to those tracking the shard (so they don't need to send requests)

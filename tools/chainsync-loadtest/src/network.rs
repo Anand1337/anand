@@ -6,6 +6,7 @@ use crate::concurrency::{Ctx, Once, RateLimiter, Scope, WeakMap};
 use tokio::sync::watch;
 
 use near_network_primitives::types::{
+    PeerInfo,
     NetworkViewClientMessages, NetworkViewClientResponses,
     PartialEncodedChunkRequestMsg, PartialEncodedChunkResponseMsg,
 };
@@ -43,7 +44,7 @@ fn genesis_hash(chain_id: &str) -> CryptoHash {
 
 #[derive(Default)]
 pub struct PeerStats {
-    pub ip: Option<net::IpAddr>,
+    pub info: Option<PeerInfo>,
     pub requests: u32, 
     pub responses: u32,
     pub total_latency: time::Duration,
@@ -102,7 +103,7 @@ impl fmt::Debug for PeerStatsMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(),fmt::Error> {
         let mut m = f.debug_map();
         for (_k,v) in self.peers.lock().unwrap().iter() {
-            m.entry(&v.ip,v);
+            m.entry(&v.info,v);
         }
         m.finish()
     }
@@ -370,9 +371,7 @@ impl Network {
                 {
                     let mut ps = self.stats.peers.peers.lock().unwrap();
                     for p in &info.connected_peers {
-                        if let Some(addr) = p.peer_info.addr {
-                            ps.entry(p.peer_info.id.clone()).or_default().ip = Some(addr.ip());
-                        }
+                        ps.entry(p.peer_info.id.clone()).or_default().info = Some(p.peer_info.clone());
                     }
                 }
                 if peers.len()<self.min_peers { 
@@ -380,27 +379,27 @@ impl Network {
                 }
                 self.peers_watch.send_replace(peers);
             }
-            NetworkClientMessages::Block(block, peer_id, _) => {
+            NetworkClientMessages::Block(block, peer_info) => {
                 self.blocks.get(&block.hash().clone()).map(|r|{
                     if let Ok(_) = r.once.set(block) {
-                        self.stats.peers.add_response_time(&r.send_times,&peer_id);
+                        self.stats.peers.add_response_time(&r.send_times,&peer_info.id);
                     }
                 });
             }
-            NetworkClientMessages::BlockHeaders(headers, peer_id) => {
+            NetworkClientMessages::BlockHeaders(headers, peer_info) => {
                 if let Some(h) = headers.iter().min_by_key(|h| h.height()) {
                     let hash = h.prev_hash().clone();
                     self.block_headers.get(&hash).map(|r|{
                         if let Ok(_) = r.once.set(headers) {
-                            self.stats.peers.add_response_time(&r.send_times,&peer_id);
+                            self.stats.peers.add_response_time(&r.send_times,&peer_info.id);
                         }
                     });
                 }
             }
-            NetworkClientMessages::PartialEncodedChunkResponse(resp,peer_id) => {
+            NetworkClientMessages::PartialEncodedChunkResponse(resp,peer_info,_author_id) => {
                 self.chunks.get(&resp.chunk_hash.clone()).map(|r|{
                     if let Ok(_) = r.once.set(resp) {
-                        self.stats.peers.add_response_time(&r.send_times,&peer_id);
+                        self.stats.peers.add_response_time(&r.send_times,&peer_info.id);
                     }
                 });
             }
