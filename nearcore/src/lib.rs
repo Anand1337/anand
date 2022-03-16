@@ -400,7 +400,7 @@ pub fn start_with_config_and_synchronization(
         info!("PATH: {:?}", path);
 
 		let mut store_update = store.store_update();
-		let mut i = 0;
+		let mut i: u64 = 0;
 		for (key, value) in store.iter(DBCol::ColState) {
 			i += 1;
 			let batch_size = 10000;
