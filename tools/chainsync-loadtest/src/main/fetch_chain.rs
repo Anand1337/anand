@@ -1,7 +1,7 @@
-mod concurrency;
-mod fetch_chain;
-mod network;
-mod peer_manager;
+use crate::concurrency;
+use crate::fetch_chain;
+use crate::network;
+use crate::config;
 
 use std::io;
 use std::sync::Arc;
@@ -13,20 +13,18 @@ use anyhow::{anyhow, Context};
 use clap::Clap;
 use openssl_probe;
 use tracing::metadata::LevelFilter;
-use tracing::{error, info};
+use tracing::{info};
 use tracing_subscriber::EnvFilter;
 
 use concurrency::{Ctx, Scope};
 use network::{FakeClientActor, Network};
 
-use near_chain_configs::Genesis;
 use crate::peer_manager::routing::start_routing_table_actor;
 use crate::peer_manager::test_utils::NetworkRecipient;
 use crate::peer_manager::PeerManagerActor;
 use near_primitives::hash::CryptoHash;
 use near_primitives::network::PeerId;
 use near_store::{db, Store};
-use nearcore::config;
 use nearcore::config::NearConfig;
 
 pub fn start_with_config(config: NearConfig, qps_limit: u32, peer_whitelist: HashSet<net::IpAddr>) -> anyhow::Result<Arc<Network>> {
@@ -58,22 +56,7 @@ pub fn start_with_config(config: NearConfig, qps_limit: u32, peer_whitelist: Has
     return Ok(network);
 }
 
-fn download_configs(chain_id: &str, dir: &std::path::Path) -> anyhow::Result<NearConfig> {
-    // Always fetch the config.
-    std::fs::create_dir_all(dir)?;
-    let url = config::get_config_url(chain_id);
-    let config_path = &dir.join(config::CONFIG_FILENAME);
-    config::download_config(&url, config_path)?;
-    let config = config::Config::from_file(config_path)?;
 
-    // Generate node key.
-    let account_id = "node".parse().unwrap();
-    let node_signer =
-        near_crypto::InMemorySigner::from_random(account_id, near_crypto::KeyType::ED25519);
-    let mut genesis = Genesis::default();
-    genesis.config.chain_id = chain_id.to_string();
-    return Ok(NearConfig::new(config, genesis, (&node_signer).into(), None));
-}
 
 #[derive(Clap, Debug)]
 struct Cmd {
@@ -102,14 +85,9 @@ impl Cmd {
             peers.insert(ip.parse().with_context(||format!("parse('{}')",ip))?);
         }
 
-        let mut cache_dir = dirs::cache_dir().context("dirs::cache_dir() = None")?;
-        cache_dir.push("near_configs");
-        cache_dir.push(&cmd.chain_id);
 
         info!("downloading configs for chain {}", cmd.chain_id);
-        let home_dir = cache_dir.as_path();
-        let near_config =
-            download_configs(&cmd.chain_id, home_dir).context("download_configs")?;
+        let near_config = config::download(&cmd.chain_id).context("download_configs")?;
 
         info!("#boot nodes = {}", near_config.network_config.boot_nodes.len());
         // Dropping Runtime is blocking, while futures should never be blocking.
@@ -157,7 +135,7 @@ fn init_logging() {
         .init();
 }
 
-fn main() {
+pub fn main() -> anyhow::Result<()> {
     init_logging();
     let orig_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
@@ -165,7 +143,5 @@ fn main() {
         std::process::exit(1);
     }));
     openssl_probe::init_ssl_cert_env_vars();
-    if let Err(e) = Cmd::parse_and_run() {
-        error!("Cmd::parse_and_run(): {:#}", e);
-    }
+    Cmd::parse_and_run().context("Cmd::parse_and_run")
 }

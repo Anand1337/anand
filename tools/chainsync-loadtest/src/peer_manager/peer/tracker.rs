@@ -79,10 +79,6 @@ impl Tracker {
         self.received.push(hash);
     }
 
-    pub(crate) fn has_request(&self, hash: &CryptoHash) -> bool {
-        self.requested.contains(hash)
-    }
-
     pub(crate) fn push_request(&mut self, hash: CryptoHash) {
         self.requested.push(hash);
     }

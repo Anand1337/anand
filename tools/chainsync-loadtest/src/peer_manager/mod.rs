@@ -3,7 +3,7 @@ pub use crate::peer_manager::peer_manager::peer_manager_actor::PeerManagerActor;
 pub use crate::peer_manager::routing::routing_table_actor::RoutingTableActor;
 
 mod network_protocol;
-mod peer;
+pub mod peer;
 mod peer_manager;
 #[cfg(not(feature = "test_features"))]
 pub(crate) mod private_actix;

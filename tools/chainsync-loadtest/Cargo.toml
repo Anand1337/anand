@@ -6,11 +6,10 @@ publish = false
 # Please update rust-toolchain.toml as well when changing version here:
 rust-version = "1.56.0"
 edition = "2021"
-default-run = "chainsync-loadtest"
 
 [[bin]]
-path = "src/main.rs"
-name = "chainsync-loadtest"
+name = "fetch_chain"
+path = "src/bin/fetch_chain.rs"
 
 [dependencies]
 clap = "=3.0.0-beta.2"
