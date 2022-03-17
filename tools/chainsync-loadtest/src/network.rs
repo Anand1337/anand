@@ -17,7 +17,7 @@ use crate::peer_manager::types::{
     FullPeerInfo, NetworkClientMessages, NetworkClientResponses, NetworkRequests, NetworkResponses,
     PeerManagerAdapter, PeerManagerMessageRequest, PeerManagerMessageResponse,
 };
-use near_primitives::block::{Block, BlockHeader, GenesisId};
+use near_primitives::block::{Block, BlockHeader};
 use near_primitives::hash::CryptoHash;
 use near_primitives::sharding::{ChunkHash, ShardChunkHeader};
 use near_primitives::network::PeerId;
@@ -28,19 +28,6 @@ use std::future::Future;
 use std::sync::{Arc, Mutex};
 use tokio::time;
 use std::collections::{HashMap,HashSet};
-
-fn genesis_hash(chain_id: &str) -> CryptoHash {
-    return match chain_id {
-        "mainnet" => "EPnLgE7iEq9s7yTkos96M3cWymH5avBAPm3qx3NXqR8H",
-        "testnet" => "FWJ9kR6KFWoyMoNjpLXXGHeuiy7tEY6GmoFeCA5yuc6b",
-        "betanet" => "6hy7VoEJhPEUaJr1d5ePBhKdgeDWKCjLoUAn7XS9YPj",
-        _ => {
-            return Default::default();
-        }
-    }
-    .parse()
-    .unwrap();
-}
 
 #[derive(Default)]
 pub struct PeerStats {
@@ -440,10 +427,7 @@ impl Handler<NetworkViewClientMessages> for FakeClientActor {
             }
             NetworkViewClientMessages::GetChainInfo => {
                 return NetworkViewClientResponses::ChainInfo {
-                    genesis_id: GenesisId {
-                        chain_id: self.network.chain_id.clone(),
-                        hash: genesis_hash(&self.network.chain_id),
-                    },
+                    genesis_id: crate::config::genesis_id(&self.network.chain_id),
                     height: 0,
                     tracked_shards: Default::default(),
                     archival: false,
