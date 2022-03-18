@@ -559,6 +559,10 @@ impl Handler<NetworkClientMessages> for ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::PartialEncodedChunkRequest(part_request_msg, route_back) => {
+                println!(
+                    "XXX ClientActor::PartialEncodedChunkRequest {:?}\n{:#?}",
+                    route_back, part_request_msg
+                );
                 let _ = self.client.shards_mgr.process_partial_encoded_chunk_request(
                     part_request_msg,
                     route_back,
@@ -568,6 +572,7 @@ impl Handler<NetworkClientMessages> for ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::PartialEncodedChunkResponse(response) => {
+                println!("XXX ClientActor::PartialEncodedChunkResponse\n{:#?}", response);
                 if let Ok(accepted_blocks) =
                     self.client.process_partial_encoded_chunk_response(response)
                 {
@@ -576,6 +581,7 @@ impl Handler<NetworkClientMessages> for ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::PartialEncodedChunk(partial_encoded_chunk) => {
+                println!("XXX ClientActor::PartialEncodedChunk\n{:#?}", partial_encoded_chunk);
                 if let Ok(accepted_blocks) = self
                     .client
                     .process_partial_encoded_chunk(MaybeValidated::from(partial_encoded_chunk))
@@ -585,6 +591,7 @@ impl Handler<NetworkClientMessages> for ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::PartialEncodedChunkForward(forward) => {
+                println!("XXX ClientActor::PartialEncodedChunkForward\n{:#?}", forward);
                 match self.client.process_partial_encoded_chunk_forward(forward) {
                     Ok(accepted_blocks) => self.process_accepted_blocks(accepted_blocks),
                     // Unknown chunk is normal if we get parts before the header

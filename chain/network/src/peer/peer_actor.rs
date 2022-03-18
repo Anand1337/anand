@@ -431,12 +431,18 @@ impl PeerActor {
                         NetworkClientMessages::StateResponse(info)
                     }
                     RoutedMessageBody::PartialEncodedChunkRequest(request) => {
+                        println!("XXX PartialEncodedChunkRequest {:#?}\n{:#?}", peer_id, request);
                         NetworkClientMessages::PartialEncodedChunkRequest(request, msg_hash)
                     }
                     RoutedMessageBody::PartialEncodedChunkResponse(response) => {
+                        println!("XXX PartialEncodedChunkResponse {:#?}\n{:#?}", peer_id, response);
                         NetworkClientMessages::PartialEncodedChunkResponse(response)
                     }
                     RoutedMessageBody::PartialEncodedChunk(partial_encoded_chunk) => {
+                        println!(
+                            "XXX PartialEncodedChunk {:#?}\n{:#?}",
+                            peer_id, partial_encoded_chunk
+                        );
                         NetworkClientMessages::PartialEncodedChunk(PartialEncodedChunk::V1(
                             partial_encoded_chunk,
                         ))
@@ -445,6 +451,7 @@ impl PeerActor {
                         NetworkClientMessages::PartialEncodedChunk(chunk)
                     }
                     RoutedMessageBody::PartialEncodedChunkForward(forward) => {
+                        println!("XXXPartialEncodedChunkForward {:#?}\n{:#?}", peer_id, forward);
                         NetworkClientMessages::PartialEncodedChunkForward(forward)
                     }
                     RoutedMessageBody::Ping(_)

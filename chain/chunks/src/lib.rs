@@ -540,6 +540,7 @@ impl ShardsManager {
         request_own_parts_from_others: bool,
         request_from_archival: bool,
     ) -> Result<(), near_chain::Error> {
+        println!("XXX request_partial_encoded_chunk {:?}", chunk_hash);
         let mut bp_to_parts = HashMap::<_, Vec<u64>>::new();
 
         let cache_entry = self.encoded_chunks.get(chunk_hash);
@@ -655,10 +656,15 @@ impl ShardsManager {
                     min_height: height.saturating_sub(CHUNK_REQUEST_PEER_HORIZON),
                 };
 
+                println!("XXX do send PartialEncodedChunkMessage to {:?}:\n{:#?}", target, request);
                 self.peer_manager_adapter.do_send(PeerManagerMessageRequest::NetworkRequests(
                     NetworkRequests::PartialEncodedChunkRequest { target, request },
                 ));
             } else {
+                println!(
+                    "XXX {:?} requests parts {:?} for chunk {:?} from self",
+                    me, part_ords, chunk_hash
+                );
                 warn!(target: "client", "{:?} requests parts {:?} for chunk {:?} from self",
                     me, part_ords, chunk_hash
                 );
