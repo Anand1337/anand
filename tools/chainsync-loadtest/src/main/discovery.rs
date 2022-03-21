@@ -1,11 +1,13 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
-use std::collections::HashSet;
+use std::collections::{HashSet,HashMap};
 use std::io;
 use std::pin::{Pin};
-use std::sync::{Arc,Mutex};
+use std::sync::{Arc};
+use std::sync::atomic::{AtomicU64,Ordering};
 use std::future::Future;
 
+use parking_lot::{Mutex};
 use futures::future::{BoxFuture,FutureExt};
 use bytes::{BytesMut,BufMut};
 use bytesize::{GIB, MIB};
@@ -45,27 +47,41 @@ struct Stream<RW>(BufStream<RW>);
 impl<RW:AsyncRead+AsyncWrite+Unpin> Stream<RW> {
     fn new(rw:RW) -> Self { Self(BufStream::new(rw)) }
     
-    async fn read(&mut self) -> anyhow::Result<PeerMessage> {
-        let n = self.0.read_u32_le().await? as usize;
+    async fn read(&mut self, ctx: &Ctx) -> anyhow::Result<PeerMessage> {
+        let n = ctx.wrap(self.0.read_u32_le()).await?? as usize;
 		// TODO: if this check fails, the stream is broken, because we read some bytes already.
 		if n>NETWORK_MESSAGE_MAX_SIZE_BYTES { return Err(anyhow!("message size too large")); }
         let mut buf = BytesMut::new();
 	    buf.resize(n,0);	
-        self.0.read_exact(&mut buf[..]).await?;
+        ctx.wrap(self.0.read_exact(&mut buf[..])).await??;
         Ok(PeerMessage::try_from_slice(&buf[..])?)
     }
     
-    async fn write(&mut self, msg: &PeerMessage) -> anyhow::Result<()> {
+    async fn write(&mut self, ctx: &Ctx, msg: &PeerMessage) -> anyhow::Result<()> {
         let msg = msg.try_to_vec()?;
         // TODO: If writing fails in the middle, then the stream is broken.
-        self.0.write_u32_le(msg.len() as u32).await?;
-        self.0.write_all(&msg[..]).await?;
-        self.0.flush().await?;
+        ctx.wrap(self.0.write_u32_le(msg.len() as u32)).await??;
+        ctx.wrap(self.0.write_all(&msg[..])).await??;
+        ctx.wrap(self.0.flush()).await??;
         Ok(())
     }
 }
 
-async fn ask_for_peers(ctx:&Ctx, cfg :&NearConfig, peer_info:&PeerInfo) -> anyhow::Result<Vec<PeerInfo>> {
+// TODO: use the network protocol knowledge from here to reimplement the loadtest without using the
+// PeerManager at all: do a discovery and connect directly to peers. If discovery is too expensive
+// to run every time, dump the peer_info: hash@addr for each relevant peer and then reuse it at
+// startup.
+
+#[derive(Default)]
+struct AskForPeersResult {
+    connect:bool,
+    handshake:bool,
+    handshake_failure:bool,
+    peers_responses:usize,
+    peers: Vec<PeerInfo>,
+}
+
+async fn ask_for_peers(ctx:&Ctx, result:&mut AskForPeersResult, cfg :&NearConfig, peer_info:&PeerInfo, peers_responses:usize) -> anyhow::Result<()> {
     // The `connect` may take several minutes. This happens when the
     // `SYN` packet for establishing a TCP connection gets silently
     // dropped, in which case the default TCP timeout is applied. That's
@@ -74,11 +90,10 @@ async fn ask_for_peers(ctx:&Ctx, cfg :&NearConfig, peer_info:&PeerInfo) -> anyho
     // Why exactly a second? It was hard-coded in a library we used
     // before, so we keep it to preserve behavior. Removing the timeout
     // completely was observed to break stuff for real on the testnet.
-    let connect_timeout = time::Duration::from_secs(1);
-    let addr = peer_info.addr.ok_or(anyhow!("missing addr"))?;
-    let stream = ctx.with_timeout(connect_timeout).wrap(net::TcpStream::connect(addr)).await??;
+    let addr = peer_info.addr.expect("missing addr");
+    let stream = ctx.wrap(net::TcpStream::connect(addr)).await.context("connect()")??;
+    result.connect = true;
     
-    info!("connected!");
     let my_peer_id = PeerId::new(cfg.network_config.public_key.clone());
     let my_addr = cfg.network_config.addr.unwrap_or(stream.local_addr()?);
     let edge_info = PartialEdgeInfo::new(&my_peer_id, &peer_info.id, 1, &cfg.network_config.secret_key);
@@ -98,19 +113,21 @@ async fn ask_for_peers(ctx:&Ctx, cfg :&NearConfig, peer_info:&PeerInfo) -> anyho
         edge_info,
     ));
     let mut stream = Stream::new(stream);
-    stream.write(&msg).await?;
-    info!("sent");
-    loop {
-        match stream.read().await? {
+    stream.write(ctx,&msg).await.context("stream.write()")?;
+    while result.peers_responses<peers_responses {
+        match stream.read(ctx).await.context("stream.read()")? {
             PeerMessage::Handshake(h) => {
-                info!("Hanshake");
-                let (got,want) = (&h.sender_chain_info.genesis_id,&genesis_id);
-                if got!=want { return Err(anyhow!("got = {:?}, want {:?}",got,want)); }
-                let (got,want) = (&h.target_peer_id,&my_peer_id);
-                if got!=want { return Err(anyhow!("got = {}, want = {}",got,want)); }
-                stream.write(&PeerMessage::PeersRequest{}).await?;
+                let got = (&h.target_peer_id,&h.sender_chain_info.genesis_id);
+                let want = (&my_peer_id,&genesis_id);
+                if got!=want {
+                    result.handshake_failure = true;
+                    return Err(anyhow!("got = {:?}, want {:?}",got,want));
+                }
+                result.handshake = true;
+                stream.write(ctx,&PeerMessage::PeersRequest{}).await?;
             }
             PeerMessage::HandshakeFailure(_,reason) => {
+                result.handshake_failure = true;
                 return Err(anyhow!("handshake failure: {:?}",reason));
             }
             PeerMessage::SyncRoutingTable(update) => {
@@ -120,22 +137,18 @@ async fn ask_for_peers(ctx:&Ctx, cfg :&NearConfig, peer_info:&PeerInfo) -> anyho
                     peers.insert(p1.clone());
                     peers.insert(p2.clone());
                 }
-                info!("SyncRoutingTable = (edges={},accounts={},peers={})",update.edges.len(),update.accounts.len(),peers.len());
+                //info!("SyncRoutingTable = (edges={},accounts={},peers={})",update.edges.len(),update.accounts.len(),peers.len());
             }
             // contains peer_store.healthy_peers(config.max_send_peers)
-            PeerMessage::PeersResponse(infos) => { 
-                let mut peers = HashSet::<PeerId>::new();
-                for info in &infos {
-                    if info.addr.is_some() {
-                        peers.insert(info.id.clone());
-                    }
-                }
-                info!("PeersResponse = (with_addr={},total={})",peers.len(),infos.len());
-                return Ok(infos);
+            PeerMessage::PeersResponse(infos) => {
+                result.peers_responses += 1;
+                for info in infos { result.peers.push(info); }
+                stream.write(ctx,&PeerMessage::PeersRequest{}).await?;
             }
-            msg => { info!("ignoring {:?}",msg); }
+            _ => {}
         }
     }
+    return Ok(());
 }
 
 #[derive(Clap, Debug)]
@@ -144,10 +157,21 @@ struct Cmd {
     pub chain_id: String,
 }
 
+#[derive(Default,Debug)]
+struct Stats {
+    scan_calls:AtomicU64,
+    ask_for_peers_calls:AtomicU64,
+}
+
 struct Scanner {
-    done:Mutex<HashSet<PeerId>>,
+    per_peer_timeout:time::Duration,
+    per_peer_requests:usize,
     cfg:NearConfig,
+
+    started:Mutex<HashMap<PeerId,std::net::SocketAddr>>,
+    result:Mutex<HashMap<PeerId,AskForPeersResult>>,
     sem:Semaphore,
+    stats:Stats,
 }
 
 type Spawnable = Box<dyn FnOnce(Ctx,Arc<Scope>) -> BoxFuture<'static,anyhow::Result<()>> + Send>;
@@ -164,35 +188,37 @@ fn spawnable<F,G>(g:G) -> Spawnable where
 }
 
 impl Scanner {
-    fn new(cfg:NearConfig) -> Self {
-        Self{
-            done: Mutex::new(HashSet::new()),
-            cfg:cfg,
-            sem:Semaphore::new(100),
-        }
+    fn new(cfg:NearConfig, per_peer_timeout:time::Duration, per_peer_requests:usize, inflight_limit:usize) -> Arc<Self> {
+        Arc::new(Self{
+            started: Mutex::new(HashMap::new()),
+            result: Mutex::new(HashMap::new()),
+            per_peer_timeout,
+            per_peer_requests,
+            cfg,
+            sem:Semaphore::new(inflight_limit),
+            stats:Stats::default(),
+        })
     }
 
     fn scan(self:Arc<Scanner>,info:PeerInfo) -> Spawnable {
-        if info.addr.is_none(){ return noop(); }
+        self.stats.scan_calls.fetch_add(1,Ordering::Relaxed);
+        if info.addr.is_none() { return noop(); }
         // Check if this peer has been already processed.
         {
-            let mut done = self.done.lock().unwrap();
-            if done.contains(&info.id){ return noop(); }
-            done.insert(info.id.clone());
+            let mut started = self.started.lock();
+            if started.contains_key(&info.id){ return noop(); }
+            started.insert(info.id.clone(),info.addr.unwrap());
         }
         spawnable(move |ctx,s| async move {
-            // Acquire a permit. TODO: consider acquiring the permit before spawning scan.
+            // Acquire a permit.
             let permit = self.sem.acquire().await;
-            let infos = match ask_for_peers(&ctx,&self.cfg,&info).await {
-                Ok(infos) => infos,
-                Err(err) => {
-                    info!("connect({}): {:#}",&info.addr.unwrap(),err);
-                    return Ok(());
-                }
-            };
-            for info in infos {
-                s.spawn(self.clone().scan(info));
+            self.stats.ask_for_peers_calls.fetch_add(1,Ordering::Relaxed);
+            let mut result = AskForPeersResult::default();
+            let _ = ask_for_peers(&ctx.with_timeout(self.per_peer_timeout),&mut result,&self.cfg,&info,self.per_peer_requests).await;
+            for info in &result.peers {
+                s.spawn(self.clone().scan(info.clone()));
             }
+            self.result.lock().insert(info.id,result);
             return Ok(());
         })
     }
@@ -204,10 +230,20 @@ pub fn main() -> anyhow::Result<()> {
     let cfg = crate::config::download(&cmd.chain_id)?;
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async move{
-        let scanner = Arc::new(Scanner::new(cfg.clone()));
+        let scanner = Scanner::new(cfg.clone(),time::Duration::from_secs(10),5,1000);
         Scope::run(&Ctx::background(),{
             let scanner = scanner.clone();
             |ctx,s|async move{
+                s.spawn_weak({
+                    let scanner = scanner.clone();
+                    |ctx|async move{
+                        loop {
+                            info!("stats = {:?}",scanner.stats);
+                            ctx.wait(time::Duration::from_secs(2)).await?;
+                        }
+                    }
+                });
+                
                 for info in &scanner.cfg.network_config.boot_nodes {
                     let info = info.clone();
                     let scanner = scanner.clone();
@@ -216,7 +252,31 @@ pub fn main() -> anyhow::Result<()> {
                 Ok(())
             }
         }).await?;
-        info!("total peers = {}",scanner.done.lock().unwrap().len());
+        let mut found = HashSet::new();
+        let mut addr_count = 0;
+        let mut connected_count = 0;
+        let mut handshake_count = 0;
+        let mut handshake_failure_count = 0;
+        let mut fetch_completed_count = 0;
+        for (_,v) in &*scanner.result.lock() {
+            addr_count += 1;
+            if v.connect { connected_count += 1; }
+            if v.handshake { handshake_count += 1; }
+            if v.handshake_failure { handshake_failure_count += 1; }
+            if v.peers_responses>=scanner.per_peer_requests { fetch_completed_count += 1; }
+            for info in &v.peers {
+                found.insert(info.id.clone());
+            }
+        }
+        info!("fetch_completed_count = {}",fetch_completed_count);
+        info!("handshake_count = {}",handshake_count);
+        info!("handshake_failure_count = {}",handshake_failure_count);
+        info!("connected_count = {}",connected_count);
+        info!("addr_count = {}",addr_count);
+        info!("found_count = {}",found.len());
+        for (_,v) in &*scanner.started.lock() {
+            println!("{}",v.ip());
+        }
         Ok(())
     })
 }
