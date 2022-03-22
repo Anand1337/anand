@@ -36,7 +36,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::oneshot;
 use tracing::{error, info, trace};
-use near_store::db::DBCol;
 
 pub mod append_only_map;
 pub mod config;
