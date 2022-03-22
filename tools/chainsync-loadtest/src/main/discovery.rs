@@ -80,11 +80,14 @@ enum HandshakeFailure {
 
 #[derive(Default)]
 struct AskForPeersResult {
+    expected_info:Option<PeerInfo>,
+    actual_info:Option<PeerInfo>,
     connect:bool,
     handshake:bool,
     handshake_failure:Option<HandshakeFailure>,
     peers_responses:usize,
     peers: Vec<PeerInfo>,
+    err : Option<anyhow::Error>,
 }
 
 async fn ask_for_peers(ctx:&Ctx, result:&mut AskForPeersResult, cfg :&NearConfig, peer_info:&PeerInfo, peers_responses:usize) -> anyhow::Result<()> {
@@ -96,6 +99,7 @@ async fn ask_for_peers(ctx:&Ctx, result:&mut AskForPeersResult, cfg :&NearConfig
     // Why exactly a second? It was hard-coded in a library we used
     // before, so we keep it to preserve behavior. Removing the timeout
     // completely was observed to break stuff for real on the testnet.
+    result.expected_info = Some(peer_info.clone());
     let addr = peer_info.addr.expect("missing addr");
     let stream = ctx.wrap(net::TcpStream::connect(addr)).await.context("connect()")??;
     result.connect = true;
@@ -145,7 +149,14 @@ async fn ask_for_peers(ctx:&Ctx, result:&mut AskForPeersResult, cfg :&NearConfig
                         continue
                     },
                     HandshakeFailureReason::GenesisMismatch(_) => HandshakeFailure::Genesis{local:false},
-                    HandshakeFailureReason::InvalidTarget => HandshakeFailure::Target{local:false},
+                    HandshakeFailureReason::InvalidTarget => {
+                        if let Some(actual_info) = &result.actual_info { panic!("received InvalidTarget for the second time: actual_info.id = {}, info.id = {}",&actual_info.id,&info.id); }
+                        result.actual_info = Some(info.clone());
+                        msg.target_peer_id = info.id.clone();
+                        msg.partial_edge_info = PartialEdgeInfo::new(&my_peer_id, &info.id, 1, &cfg.network_config.secret_key);
+                        stream.write(ctx,&PeerMessage::Handshake(msg.clone())).await.context("stream.write(Handshake)")?;
+                        continue
+                    },
                 });
                 return Err(anyhow!("handshake failure: {:?}",reason));
             }
@@ -187,8 +198,8 @@ struct Scanner {
     per_peer_requests:usize,
     cfg:NearConfig,
 
-    started:Mutex<HashMap<PeerId,std::net::SocketAddr>>,
-    result:Mutex<HashMap<PeerId,AskForPeersResult>>,
+    started:Mutex<HashSet<std::net::SocketAddr>>,
+    result:Mutex<HashMap<std::net::SocketAddr,AskForPeersResult>>,
     sem:Semaphore,
     stats:Stats,
 }
@@ -209,7 +220,7 @@ fn spawnable<F,G>(g:G) -> Spawnable where
 impl Scanner {
     fn new(cfg:NearConfig, per_peer_timeout:time::Duration, per_peer_requests:usize, inflight_limit:usize) -> Arc<Self> {
         Arc::new(Self{
-            started: Mutex::new(HashMap::new()),
+            started: Mutex::new(HashSet::new()),
             result: Mutex::new(HashMap::new()),
             per_peer_timeout,
             per_peer_requests,
@@ -221,29 +232,33 @@ impl Scanner {
 
     fn scan(self:Arc<Scanner>,info:PeerInfo) -> Spawnable {
         self.stats.scan_calls.fetch_add(1,Ordering::Relaxed);
-        if info.addr.is_none() { return noop(); }
+        let addr = if let Some(addr) = &info.addr { addr.clone() } else { return noop() };
         // Check if this peer has been already processed.
         {
             let mut started = self.started.lock();
-            if started.contains_key(&info.id){ return noop(); }
-            started.insert(info.id.clone(),info.addr.unwrap());
+            if started.contains(&addr){ return noop(); }
+            started.insert(addr);
         }
         spawnable(move |ctx,s| async move {
             // Acquire a permit.
             let permit = self.sem.acquire().await;
             self.stats.ask_for_peers_calls.fetch_add(1,Ordering::Relaxed);
             let mut result = AskForPeersResult::default();
-            let _ = ask_for_peers(&ctx.with_timeout(self.per_peer_timeout),&mut result,&self.cfg,&info,self.per_peer_requests).await;
+            if let Err(err) = ask_for_peers(&ctx.with_timeout(self.per_peer_timeout),&mut result,&self.cfg,&info,self.per_peer_requests).await {
+                result.err = Some(err);
+            }
             for info in &result.peers {
                 s.spawn(self.clone().scan(info.clone()));
             }
-            self.result.lock().insert(info.id,result);
+            self.result.lock().insert(addr,result);
             return Ok(());
         })
     }
 }
 
 pub fn main() -> anyhow::Result<()> {
+    // http://rpc.mainnet.near.org/network_info
+    // rust client: hyper
     init_logging();
     let cmd = Cmd::parse();
     let cfg = crate::config::download(&cmd.chain_id)?;
@@ -272,7 +287,9 @@ pub fn main() -> anyhow::Result<()> {
             }
         }).await?;
         let mut found = HashSet::new();
+        let mut accounts = HashSet::new();
         let mut addr_count = 0;
+        let mut peer_id_mismatch_count = 0;
         let mut connected_count = 0;
         let mut handshake_count = 0;
         let mut handshake_failures = HashMap::<_,usize>::new();
@@ -281,6 +298,12 @@ pub fn main() -> anyhow::Result<()> {
             addr_count += 1;
             if v.connect { connected_count += 1; }
             if v.handshake { handshake_count += 1; }
+            v.actual_info.as_ref().or(v.expected_info.as_ref())
+                .map(|info|info.account_id.as_ref()).flatten()
+                .map(|id|accounts.insert(id.clone()));
+            if v.actual_info.is_some() {
+                peer_id_mismatch_count += 1;
+            }
             if let Some(reason) = v.handshake_failure {
                 *handshake_failures.entry(reason).or_default() += 1;
             }
@@ -295,8 +318,10 @@ pub fn main() -> anyhow::Result<()> {
         info!("connected_count = {}",connected_count);
         info!("addr_count = {}",addr_count);
         info!("found_count = {}",found.len());
+        info!("peer_id_mismatch_count = {}",peer_id_mismatch_count);
         //for (_,v) in &*scanner.started.lock() { println!("{}",v.ip()); }
         //for id in &found { println!("{}",id); }
+        for id in &accounts { println!("{}",id); }
         Ok(())
     })
 }
