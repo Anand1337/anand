@@ -27,7 +27,7 @@ use near_network_primitives::types::{PeerInfo,PartialEdgeInfo,PeerChainInfoV2};
 use near_primitives::network::{PeerId};
 use near_primitives::version::{PEER_MIN_ALLOWED_PROTOCOL_VERSION,PROTOCOL_VERSION};
 use crate::peer_manager::peer::codec::{Codec};
-use crate::peer_manager::types::{PeerMessage,Handshake};
+use crate::peer_manager::types::{PeerMessage,Handshake,HandshakeFailureReason};
 use crate::concurrency::{Ctx,Scope};
 
 /// Maximum size of network message in encoded format.
@@ -72,11 +72,17 @@ impl<RW:AsyncRead+AsyncWrite+Unpin> Stream<RW> {
 // to run every time, dump the peer_info: hash@addr for each relevant peer and then reuse it at
 // startup.
 
+#[derive(Copy,Clone,Debug,Eq,PartialEq,Hash)]
+enum HandshakeFailure {
+    Genesis{local:bool},
+    Target{local:bool},
+}
+
 #[derive(Default)]
 struct AskForPeersResult {
     connect:bool,
     handshake:bool,
-    handshake_failure:bool,
+    handshake_failure:Option<HandshakeFailure>,
     peers_responses:usize,
     peers: Vec<PeerInfo>,
 }
@@ -99,7 +105,7 @@ async fn ask_for_peers(ctx:&Ctx, result:&mut AskForPeersResult, cfg :&NearConfig
     let edge_info = PartialEdgeInfo::new(&my_peer_id, &peer_info.id, 1, &cfg.network_config.secret_key);
     
 	let genesis_id = crate::config::genesis_id(&cfg.client_config.chain_id); 
-    let msg = PeerMessage::Handshake(Handshake::new(
+    let mut msg = Handshake::new(
         PROTOCOL_VERSION, // TODO: check when exactly the handshake fails on protocol mismatch
         my_peer_id.clone(),
         peer_info.id.clone(),
@@ -111,23 +117,36 @@ async fn ask_for_peers(ctx:&Ctx, result:&mut AskForPeersResult, cfg :&NearConfig
             archival: false,
         },
         edge_info,
-    ));
+    );
     let mut stream = Stream::new(stream);
-    stream.write(ctx,&msg).await.context("stream.write()")?;
+    stream.write(ctx,&PeerMessage::Handshake(msg.clone())).await.context("stream.write()")?;
     while result.peers_responses<peers_responses {
         match stream.read(ctx).await.context("stream.read()")? {
             PeerMessage::Handshake(h) => {
-                let got = (&h.target_peer_id,&h.sender_chain_info.genesis_id);
-                let want = (&my_peer_id,&genesis_id);
+                let (got,want) = (&h.target_peer_id,&my_peer_id); 
                 if got!=want {
-                    result.handshake_failure = true;
+                    result.handshake_failure = Some(HandshakeFailure::Target{local:true});
+                    return Err(anyhow!("got = {:?}, want {:?}",got,want));
+                }
+                let (got,want) = (&h.sender_chain_info.genesis_id,&genesis_id);
+                if got!=want {
+                    result.handshake_failure = Some(HandshakeFailure::Genesis{local:true});
                     return Err(anyhow!("got = {:?}, want {:?}",got,want));
                 }
                 result.handshake = true;
                 stream.write(ctx,&PeerMessage::PeersRequest{}).await?;
             }
-            PeerMessage::HandshakeFailure(_,reason) => {
-                result.handshake_failure = true;
+            PeerMessage::HandshakeFailure(info,reason) => { // TODO: use the info to restart the handshake (from within scan)
+                result.handshake_failure = Some(match reason {
+                    HandshakeFailureReason::ProtocolVersionMismatch{version,oldest_supported_version} => {
+                        msg.protocol_version = version;
+                        msg.oldest_supported_version = oldest_supported_version;
+                        stream.write(ctx,&PeerMessage::Handshake(msg.clone())).await.context("stream.write(Handshake)")?;
+                        continue
+                    },
+                    HandshakeFailureReason::GenesisMismatch(_) => HandshakeFailure::Genesis{local:false},
+                    HandshakeFailureReason::InvalidTarget => HandshakeFailure::Target{local:false},
+                });
                 return Err(anyhow!("handshake failure: {:?}",reason));
             }
             PeerMessage::SyncRoutingTable(update) => {
@@ -256,13 +275,15 @@ pub fn main() -> anyhow::Result<()> {
         let mut addr_count = 0;
         let mut connected_count = 0;
         let mut handshake_count = 0;
-        let mut handshake_failure_count = 0;
+        let mut handshake_failures = HashMap::<_,usize>::new();
         let mut fetch_completed_count = 0;
         for (_,v) in &*scanner.result.lock() {
             addr_count += 1;
             if v.connect { connected_count += 1; }
             if v.handshake { handshake_count += 1; }
-            if v.handshake_failure { handshake_failure_count += 1; }
+            if let Some(reason) = v.handshake_failure {
+                *handshake_failures.entry(reason).or_default() += 1;
+            }
             if v.peers_responses>=scanner.per_peer_requests { fetch_completed_count += 1; }
             for info in &v.peers {
                 found.insert(info.id.clone());
@@ -270,13 +291,12 @@ pub fn main() -> anyhow::Result<()> {
         }
         info!("fetch_completed_count = {}",fetch_completed_count);
         info!("handshake_count = {}",handshake_count);
-        info!("handshake_failure_count = {}",handshake_failure_count);
+        info!("handshake_failures = {:?}",handshake_failures);
         info!("connected_count = {}",connected_count);
         info!("addr_count = {}",addr_count);
         info!("found_count = {}",found.len());
-        for (_,v) in &*scanner.started.lock() {
-            println!("{}",v.ip());
-        }
+        //for (_,v) in &*scanner.started.lock() { println!("{}",v.ip()); }
+        //for id in &found { println!("{}",id); }
         Ok(())
     })
 }
