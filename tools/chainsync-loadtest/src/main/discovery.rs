@@ -22,12 +22,14 @@ use tokio::sync::{Semaphore};
 use tokio::io::{AsyncReadExt,AsyncWriteExt,AsyncRead,AsyncWrite,BufStream};
 use anyhow::{anyhow,Context};
 
+use near_crypto::{PublicKey};
 use nearcore::config::{NearConfig};
 use near_network_primitives::types::{PeerInfo,PartialEdgeInfo,PeerChainInfoV2};
+use near_primitives::types::{AccountId};
 use near_primitives::network::{PeerId};
 use near_primitives::version::{PEER_MIN_ALLOWED_PROTOCOL_VERSION,PROTOCOL_VERSION};
 use crate::peer_manager::peer::codec::{Codec};
-use crate::peer_manager::types::{PeerMessage,Handshake,HandshakeFailureReason};
+use crate::peer_manager::types::{PeerMessage,Handshake,HandshakeFailureReason,RoutingTableUpdate};
 use crate::concurrency::{Ctx,Scope};
 use near_jsonrpc_primitives::types::network_info::{RpcNetworkInfoResponse};
 use near_jsonrpc_primitives::types::validator::RpcValidatorResponse;
@@ -91,7 +93,10 @@ struct AskForPeersResult {
     handshake_failure:Option<HandshakeFailure>,
     peers_responses:usize,
     peers: Vec<PeerInfo>,
+    routing_table : Option<RoutingTableUpdate>,
     err : Option<anyhow::Error>,
+    
+    network_info: Option<RpcNetworkInfoResponse>,
 }
 
 async fn ask_for_peers(ctx:&Ctx, result:&mut AskForPeersResult, cfg :&NearConfig, peer_info:&PeerInfo, peers_responses:usize) -> anyhow::Result<()> {
@@ -126,9 +131,10 @@ async fn ask_for_peers(ctx:&Ctx, result:&mut AskForPeersResult, cfg :&NearConfig
         },
         edge_info,
     );
+
     let mut stream = Stream::new(stream);
     stream.write(ctx,&PeerMessage::Handshake(msg.clone())).await.context("stream.write()")?;
-    while result.peers_responses<peers_responses {
+    while result.peers_responses<peers_responses || result.routing_table.is_none() {
         match stream.read(ctx).await.context("stream.read()")? {
             PeerMessage::Handshake(h) => {
                 let (got,want) = (&h.target_peer_id,&my_peer_id); 
@@ -165,19 +171,26 @@ async fn ask_for_peers(ctx:&Ctx, result:&mut AskForPeersResult, cfg :&NearConfig
                 return Err(anyhow!("handshake failure: {:?}",reason));
             }
             PeerMessage::SyncRoutingTable(update) => {
+                if update.accounts.len()>0 { 
+                    info!("SyncRoutingTable = (edges={},accounts={})",update.edges.len(),update.accounts.len());
+                    result.routing_table = Some(update);
+                }
+                /*
                 let mut peers = HashSet::<PeerId>::new();
                 for e in &update.edges {
                     let (p1,p2) = e.key();
                     peers.insert(p1.clone());
                     peers.insert(p2.clone());
-                }
+                }*/
                 //info!("SyncRoutingTable = (edges={},accounts={},peers={})",update.edges.len(),update.accounts.len(),peers.len());
             }
             // contains peer_store.healthy_peers(config.max_send_peers)
             PeerMessage::PeersResponse(infos) => {
                 result.peers_responses += 1;
                 for info in infos { result.peers.push(info); }
-                stream.write(ctx,&PeerMessage::PeersRequest{}).await?;
+                if result.peers_responses < peers_responses {
+                    stream.write(ctx,&PeerMessage::PeersRequest{}).await?;
+                }
             }
             _ => {}
         }
@@ -251,6 +264,13 @@ impl Scanner {
             if let Err(err) = ask_for_peers(&ctx.with_timeout(self.per_peer_timeout),&mut result,&self.cfg,&info,self.per_peer_requests).await {
                 result.err = Some(err);
             }
+            match fetch_network_info(&ctx.with_timeout(time::Duration::from_secs(2)),addr.ip()).await {
+                Ok(ni) => {
+                    // info!("accounts.len() = {}",ni.known_producers.len());
+                    result.network_info = Some(ni);
+                }
+                Err(err) => {} //{ info!("err = {:#}",err); }
+            }
             for info in &result.peers {
                 s.spawn(self.clone().scan(info.clone()));
             }
@@ -260,11 +280,36 @@ impl Scanner {
     }
 }
 
-async fn fetch_validators(uri: hyper::Uri) -> anyhow::Result<RpcValidatorResponse> {
-    //let resp = hyper::Client::new().get(hyper::Uri::from_static("http://rpc.mainnet.near.org/network_info")).await?;
-    //let json = hyper::body::to_bytes(resp).await?;
-    //let network_info = serde_json::from_slice::<RpcNetworkInfoResponse>(&*json)?;
+async fn fetch_network_info(ctx :&Ctx, ip: std::net::IpAddr) -> anyhow::Result<RpcNetworkInfoResponse> {
+    let uri = hyper::Uri::builder()
+        .scheme("http")
+        .authority(std::net::SocketAddr::new(ip,3030).to_string())
+        .path_and_query("/")
+        .build()?;
+    let req = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": "dontcare",
+        "method": "network_info",
+        "params": [],
+    });
+    let req = hyper::Request::builder()
+        .method(hyper::Method::POST)
+        .header("Content-Type","application/json")
+        .uri(uri)
+        .body(hyper::Body::from(serde_json::to_string(&req)?))?;
+    
+    let resp = ctx.wrap(hyper::Client::new().request(req)).await??;
+    let resp = ctx.wrap(hyper::body::to_bytes(resp)).await??;
+    //info!("resp = {}",std::str::from_utf8(&resp).unwrap());
+    let resp = serde_json::from_slice::<message::Response>(&*resp)?;
+    let resp = match resp.result {
+        Ok(resp) => resp,
+        Err(err) => { return Err(anyhow!(serde_json::to_string(&err)?)) }
+    };
+    return Ok(serde_json::from_value::<RpcNetworkInfoResponse>(resp)?);
+}
 
+async fn fetch_validators(uri: hyper::Uri) -> anyhow::Result<RpcValidatorResponse> {
     let req = serde_json::json!({
         "jsonrpc": "2.0",
         "method": "validators",
@@ -293,8 +338,12 @@ pub fn main() -> anyhow::Result<()> {
     let cfg = crate::config::download(&cmd.chain_id)?;
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async move{
-        let validators = fetch_validators(hyper::Uri::from_static("http://rpc.mainnet.near.org")).await?;
-        let scanner = Scanner::new(cfg.clone(),time::Duration::from_secs(10),5,1000);
+        let vi = fetch_validators(hyper::Uri::from_static("http://rpc.mainnet.near.org")).await?;
+        let mut validators : HashMap<AccountId,PublicKey> = HashMap::new();
+        for v in &vi.validator_info.current_validators {
+            validators.insert(v.account_id.clone(),v.public_key.clone());
+        }
+        let scanner = Scanner::new(cfg.clone(),time::Duration::from_secs(20),5,1000);
         Scope::run(&Ctx::background(),{
             let scanner = scanner.clone();
             |ctx,s|async move{
@@ -318,7 +367,9 @@ pub fn main() -> anyhow::Result<()> {
         }).await?;
         let mut found = HashSet::new();
         let mut addrs = HashSet::new();
-        let mut accounts = HashSet::new();
+        let mut network_info_count = 0;
+        let mut routing_tables_count = 0;
+        let mut accounts = HashMap::new();
         let mut addr_count = 0;
         let mut peer_id_mismatch_count = 0;
         let mut connected_count = 0;
@@ -328,14 +379,25 @@ pub fn main() -> anyhow::Result<()> {
         let mut fetch_completed_count = 0;
         for (_,v) in &*scanner.result.lock() {
             addr_count += 1;
+            if v.network_info.is_some() { network_info_count += 1; }
             if v.connect { connected_count += 1; }
             if v.handshake {
                 handshake_count += 1;
                 handshakes.insert(v.actual_info.as_ref().or(v.expected_info.as_ref()).unwrap().id.clone());
             }
-            v.actual_info.as_ref().or(v.expected_info.as_ref())
-                .map(|info|info.account_id.as_ref()).flatten()
-                .map(|id|accounts.insert(id.clone()));
+            if let Some(rt) = &v.routing_table {
+                routing_tables_count += 1;
+                for a in &rt.accounts {
+                    if let Some(public_key) = validators.get(&a.account_id) {
+                        if !a.signature.verify(a.hash().as_ref(),public_key) {
+                            info!("signature mismatch for {}",a.account_id);
+                            continue;
+                        }
+                        //info!("signature OK for {}",a.account_id);
+                        accounts.insert(a.account_id.clone(),a.peer_id.clone());
+                    }
+                }
+            }
             if v.actual_info.is_some() {
                 peer_id_mismatch_count += 1;
             }
@@ -348,13 +410,19 @@ pub fn main() -> anyhow::Result<()> {
                 if info.addr.is_some() { addrs.insert(info.id.clone()); }
             }
         }
-        for v in &validators.validator_info.current_validators {
-            let id = PeerId::new(v.public_key.clone());
-            info!("prod = {}, found = {}, addr = {}, handshake = {}",&id,
-                  found.contains(&id),
-                  addrs.contains(&id),
-                  handshakes.contains(&id));
+        for (account_id,_) in &validators {
+            let peer_id = accounts.get(account_id);
+
+            info!("validator = {}, peer = {:?}, found = {}, addr = {}, handshake = {}",
+                  account_id,
+                  peer_id,
+                  peer_id.map(|i|found.contains(&i)).unwrap_or(false),
+                  peer_id.map(|i|addrs.contains(&i)).unwrap_or(false),
+                  peer_id.map(|i|handshakes.contains(&i)).unwrap_or(false),
+            );
         }
+        info!("network_info_count = {}",network_info_count);
+        info!("routing_tables_count = {}",routing_tables_count);
         info!("fetch_completed_count = {}",fetch_completed_count);
         info!("handshake_count = {}",handshake_count);
         info!("handshake_failures = {:?}",handshake_failures);

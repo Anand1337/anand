@@ -284,6 +284,8 @@ impl Network {
     }
 
     // fetch_block() fetches a block with a given hash.
+    // Note that <hash> is actually the hash of just the block header,
+    // we are just fetching more data this time.
     pub async fn fetch_block(
         self: &Arc<Self>,
         ctx: &Ctx,
