@@ -29,6 +29,10 @@ use near_primitives::version::{PEER_MIN_ALLOWED_PROTOCOL_VERSION,PROTOCOL_VERSIO
 use crate::peer_manager::peer::codec::{Codec};
 use crate::peer_manager::types::{PeerMessage,Handshake,HandshakeFailureReason};
 use crate::concurrency::{Ctx,Scope};
+use near_jsonrpc_primitives::types::network_info::{RpcNetworkInfoResponse};
+use near_jsonrpc_primitives::types::validator::RpcValidatorResponse;
+use near_jsonrpc_primitives::message;
+
 
 /// Maximum size of network message in encoded format.
 /// We encode length as `u32`, and therefore maximum size can't be larger than `u32::MAX`.
@@ -256,14 +260,40 @@ impl Scanner {
     }
 }
 
+async fn fetch_validators(uri: hyper::Uri) -> anyhow::Result<RpcValidatorResponse> {
+    //let resp = hyper::Client::new().get(hyper::Uri::from_static("http://rpc.mainnet.near.org/network_info")).await?;
+    //let json = hyper::body::to_bytes(resp).await?;
+    //let network_info = serde_json::from_slice::<RpcNetworkInfoResponse>(&*json)?;
+
+    let req = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": "validators",
+        "id": "dontcare",
+        "params": [null],
+    });
+    let req = hyper::Request::builder()
+        .method(hyper::Method::POST)
+        .header("Content-Type","application/json")
+        .uri(uri)
+        .body(hyper::Body::from(serde_json::to_string(&req)?))?;
+    
+    let resp = hyper::Client::new().request(req).await?;
+    let resp = hyper::body::to_bytes(resp).await?;
+    let resp = serde_json::from_slice::<message::Response>(&*resp)?;
+    let resp = match resp.result {
+        Ok(resp) => resp,
+        Err(err) => { return Err(anyhow!(serde_json::to_string(&err)?)) }
+    };
+    return Ok(serde_json::from_value::<RpcValidatorResponse>(resp)?);
+}
+
 pub fn main() -> anyhow::Result<()> {
-    // http://rpc.mainnet.near.org/network_info
-    // rust client: hyper
     init_logging();
     let cmd = Cmd::parse();
     let cfg = crate::config::download(&cmd.chain_id)?;
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async move{
+        let validators = fetch_validators(hyper::Uri::from_static("http://rpc.mainnet.near.org")).await?;
         let scanner = Scanner::new(cfg.clone(),time::Duration::from_secs(10),5,1000);
         Scope::run(&Ctx::background(),{
             let scanner = scanner.clone();
@@ -287,17 +317,22 @@ pub fn main() -> anyhow::Result<()> {
             }
         }).await?;
         let mut found = HashSet::new();
+        let mut addrs = HashSet::new();
         let mut accounts = HashSet::new();
         let mut addr_count = 0;
         let mut peer_id_mismatch_count = 0;
         let mut connected_count = 0;
         let mut handshake_count = 0;
+        let mut handshakes = HashSet::new();
         let mut handshake_failures = HashMap::<_,usize>::new();
         let mut fetch_completed_count = 0;
         for (_,v) in &*scanner.result.lock() {
             addr_count += 1;
             if v.connect { connected_count += 1; }
-            if v.handshake { handshake_count += 1; }
+            if v.handshake {
+                handshake_count += 1;
+                handshakes.insert(v.actual_info.as_ref().or(v.expected_info.as_ref()).unwrap().id.clone());
+            }
             v.actual_info.as_ref().or(v.expected_info.as_ref())
                 .map(|info|info.account_id.as_ref()).flatten()
                 .map(|id|accounts.insert(id.clone()));
@@ -310,7 +345,15 @@ pub fn main() -> anyhow::Result<()> {
             if v.peers_responses>=scanner.per_peer_requests { fetch_completed_count += 1; }
             for info in &v.peers {
                 found.insert(info.id.clone());
+                if info.addr.is_some() { addrs.insert(info.id.clone()); }
             }
+        }
+        for v in &validators.validator_info.current_validators {
+            let id = PeerId::new(v.public_key.clone());
+            info!("prod = {}, found = {}, addr = {}, handshake = {}",&id,
+                  found.contains(&id),
+                  addrs.contains(&id),
+                  handshakes.contains(&id));
         }
         info!("fetch_completed_count = {}",fetch_completed_count);
         info!("handshake_count = {}",handshake_count);
@@ -321,7 +364,7 @@ pub fn main() -> anyhow::Result<()> {
         info!("peer_id_mismatch_count = {}",peer_id_mismatch_count);
         //for (_,v) in &*scanner.started.lock() { println!("{}",v.ip()); }
         //for id in &found { println!("{}",id); }
-        for id in &accounts { println!("{}",id); }
+        //for id in &accounts { println!("{}",id); }
         Ok(())
     })
 }
