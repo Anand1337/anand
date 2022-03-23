@@ -24,7 +24,7 @@ use anyhow::{anyhow,Context};
 
 use near_crypto::{PublicKey};
 use nearcore::config::{NearConfig};
-use near_network_primitives::types::{PeerInfo,PartialEdgeInfo,PeerChainInfoV2};
+use near_network_primitives::types::{EdgeState,PeerInfo,PartialEdgeInfo,PeerChainInfoV2};
 use near_primitives::types::{AccountId};
 use near_primitives::network::{PeerId};
 use near_primitives::version::{PEER_MIN_ALLOWED_PROTOCOL_VERSION,PROTOCOL_VERSION};
@@ -332,6 +332,42 @@ async fn fetch_validators(uri: hyper::Uri) -> anyhow::Result<RpcValidatorRespons
     return Ok(serde_json::from_value::<RpcValidatorResponse>(resp)?);
 }
 
+fn bfs(graph: &RoutingTableUpdate, start: &HashSet<PeerId>) -> HashMap<PeerId,usize> {
+    let mut edges : HashMap<PeerId,HashSet<PeerId>> = HashMap::new();
+    let mut edges_list = graph.edges.clone();
+    edges_list.sort_by_key(|v|v.nonce());
+    for e in &edges_list {
+        let (p0,p1) = e.key();
+        match e.edge_type() {
+            EdgeState::Active => {
+                edges.entry(p0.clone()).or_default().insert(p1.clone());
+                edges.entry(p1.clone()).or_default().insert(p0.clone());
+            }
+            EdgeState::Removed => {
+                edges.entry(p0.clone()).or_default().remove(p1);
+                edges.entry(p1.clone()).or_default().remove(p0);
+            }
+        }
+    }
+    let mut dist : HashMap<PeerId,usize> = HashMap::new();
+    let mut queue = vec![];
+    for p in start {
+        dist.insert(p.clone(),1);
+        queue.push(p);
+    }
+    let mut i = 0;
+    while i<queue.len() {
+        let v = queue[i];
+        i += 1;
+        for w in edges.get(v).iter().map(|s|s.iter()).flatten() {
+            if dist.contains_key(w) { continue }
+            dist.insert(w.clone(),dist.get(v).unwrap()+1);
+            queue.push(w);
+        }
+    }
+    return dist;
+}
+
 pub fn main() -> anyhow::Result<()> {
     init_logging();
     let cmd = Cmd::parse();
@@ -377,6 +413,7 @@ pub fn main() -> anyhow::Result<()> {
         let mut handshakes = HashSet::new();
         let mut handshake_failures = HashMap::<_,usize>::new();
         let mut fetch_completed_count = 0;
+        let mut graph : Option<RoutingTableUpdate> = None;
         for (_,v) in &*scanner.result.lock() {
             addr_count += 1;
             if v.network_info.is_some() { network_info_count += 1; }
@@ -397,6 +434,9 @@ pub fn main() -> anyhow::Result<()> {
                         accounts.insert(a.account_id.clone(),a.peer_id.clone());
                     }
                 }
+                if graph.as_ref().map(|g|g.edges.len()<rt.edges.len()).unwrap_or(true) {
+                    graph = Some(rt.clone());    
+                }
             }
             if v.actual_info.is_some() {
                 peer_id_mismatch_count += 1;
@@ -410,15 +450,16 @@ pub fn main() -> anyhow::Result<()> {
                 if info.addr.is_some() { addrs.insert(info.id.clone()); }
             }
         }
+        let dist = bfs(&graph.ok_or(anyhow!("no peer provided a graph"))?,&handshakes);
         for (account_id,_) in &validators {
             let peer_id = accounts.get(account_id);
-
-            info!("validator = {}, peer = {:?}, found = {}, addr = {}, handshake = {}",
+            info!("validator = {}, peer = {:?}, found = {}, addr = {}, handshake = {}, dist = {:?}",
                   account_id,
                   peer_id,
                   peer_id.map(|i|found.contains(&i)).unwrap_or(false),
                   peer_id.map(|i|addrs.contains(&i)).unwrap_or(false),
                   peer_id.map(|i|handshakes.contains(&i)).unwrap_or(false),
+                  peer_id.map(|i|dist.get(i)).flatten(),
             );
         }
         info!("network_info_count = {}",network_info_count);
@@ -428,6 +469,10 @@ pub fn main() -> anyhow::Result<()> {
         info!("handshake_failures = {:?}",handshake_failures);
         info!("connected_count = {}",connected_count);
         info!("addr_count = {}",addr_count);
+        // TODO: how many nodes are in the RoutingTable graph?
+        // TODO: how many nodes are not isolated in the RoutingTable graph?
+        // Next step will be to send routing requests to them (but that requires finalizing network2).
+        info!("reachable_count = {}",dist.len());
         info!("found_count = {}",found.len());
         info!("peer_id_mismatch_count = {}",peer_id_mismatch_count);
         //for (_,v) in &*scanner.started.lock() { println!("{}",v.ip()); }
