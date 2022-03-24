@@ -395,27 +395,28 @@ pub fn start_with_config_and_synchronization(
 ) -> Result<NearNode, anyhow::Error> {
     if 2 + 2 == 4 {
         let mut path = home_dir.to_owned();
-		path.push("data");
+        path.push("data");
         let store = create_store(&path);
 
         info!("PATH: {:?}", path);
 
-		let mut store_update = store.store_update();
-		let mut i: u64 = 0;
-		for (key, value) in store.iter(DBCol::ColState) {
-			i += 1;
-			let batch_size = 10000;
-			if i % batch_size == 0 {
-				println!("Processed {} keys in column {} ({})", i, DBCol::ColState, DBCol::ColState as usize);
-				store_update.commit().unwrap();
-				store_update = store.store_update();
-			}
-			store_update.set_ser(DBCol::ColState128MIB, &key, &value).unwrap();
-			store_update.set_ser(DBCol::ColState256MIB, &key, &value).unwrap();
-			store_update.set_ser(DBCol::ColState512MIB, &key, &value).unwrap();
-			store_update.set_ser(DBCol::ColState1024MIB, &key, &value).unwrap();
-		}
-		store_update.commit().unwrap();
+        let mut store_update = store.store_update();
+        let mut i: u64 = 0;
+        for (key, value) in store.iter(DBCol::ColState) {
+            i += 1;
+            let batch_size = 10000;
+            if i % batch_size == 0 {
+                println!("Processed {} keys in column {} ({})", i, DBCol::ColState, DBCol::ColState as usize);
+                store_update.commit().unwrap();
+                store_update = store.store_update();
+            }
+            store_update.set_ser(DBCol::ColState128MIB, &key, &value).unwrap();
+            store_update.set_ser(DBCol::ColState256MIB, &key, &value).unwrap();
+            store_update.set_ser(DBCol::ColState512MIB, &key, &value).unwrap();
+            store_update.set_ser(DBCol::ColState1024MIB, &key, &value).unwrap();
+        }
+        info!("committing changes!");
+        store_update.commit().unwrap();
 
         info!("DONE!");
 

@@ -852,18 +852,23 @@ fn rocksdb_column_options(col: DBCol) -> Options {
     opts.optimize_level_style_compaction(128 * bytesize::MIB as usize);
     match col {
         DBCol::ColState128MIB => {
+            opts.set_max_bytes_for_level_base(256 * bytesize::MIB);
             opts.set_target_file_size_base(128 * bytesize::MIB);
         }
         DBCol::ColState256MIB => {
+            opts.set_max_bytes_for_level_base(512 * bytesize::MIB);
             opts.set_target_file_size_base(256 * bytesize::MIB);
         }
         DBCol::ColState512MIB => {
+            opts.set_max_bytes_for_level_base(1024 * bytesize::MIB);
             opts.set_target_file_size_base(512 * bytesize::MIB);
         }
         DBCol::ColState1024MIB => {
+            opts.set_max_bytes_for_level_base(2048 * bytesize::MIB);
             opts.set_target_file_size_base(1024 * bytesize::MIB);
         }
         _ => {
+            opts.set_max_bytes_for_level_base(128 * bytesize::MIB);
             opts.set_target_file_size_base(64 * bytesize::MIB);
         }
     }
