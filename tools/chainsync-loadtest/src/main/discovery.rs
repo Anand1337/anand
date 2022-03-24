@@ -332,41 +332,61 @@ async fn fetch_validators(uri: hyper::Uri) -> anyhow::Result<RpcValidatorRespons
     return Ok(serde_json::from_value::<RpcValidatorResponse>(resp)?);
 }
 
-fn bfs(graph: &RoutingTableUpdate, start: &HashSet<PeerId>) -> HashMap<PeerId,usize> {
-    let mut edges : HashMap<PeerId,HashSet<PeerId>> = HashMap::new();
-    let mut edges_list = graph.edges.clone();
-    edges_list.sort_by_key(|v|v.nonce());
-    for e in &edges_list {
-        let (p0,p1) = e.key();
-        match e.edge_type() {
-            EdgeState::Active => {
-                edges.entry(p0.clone()).or_default().insert(p1.clone());
-                edges.entry(p1.clone()).or_default().insert(p0.clone());
-            }
-            EdgeState::Removed => {
-                edges.entry(p0.clone()).or_default().remove(p1);
-                edges.entry(p1.clone()).or_default().remove(p0);
-            }
-        }
-    }
-    let mut dist : HashMap<PeerId,usize> = HashMap::new();
-    let mut queue = vec![];
-    for p in start {
-        dist.insert(p.clone(),1);
-        queue.push(p);
-    }
-    let mut i = 0;
-    while i<queue.len() {
-        let v = queue[i];
-        i += 1;
-        for w in edges.get(v).iter().map(|s|s.iter()).flatten() {
-            if dist.contains_key(w) { continue }
-            dist.insert(w.clone(),dist.get(v).unwrap()+1);
-            queue.push(w);
-        }
-    }
-    return dist;
+struct Graph {
+    edges : HashMap<PeerId,HashSet<PeerId>>,
 }
+
+impl Graph {
+    fn node_count(&self) -> usize { self.edges.len() }
+    fn isolated_node_count(&self) -> usize { self.edges.iter().filter(|(k,v)|v.is_empty()).count() }
+
+    fn new(graph: &RoutingTableUpdate) -> Graph {
+        let mut edges : HashMap<PeerId,HashSet<PeerId>> = HashMap::new();
+        let mut edges_list = graph.edges.clone();
+        edges_list.sort_by_key(|v|v.nonce());
+        for e in &edges_list {
+            let (p0,p1) = e.key();
+            match e.edge_type() {
+                EdgeState::Active => {
+                    edges.entry(p0.clone()).or_default().insert(p1.clone());
+                    edges.entry(p1.clone()).or_default().insert(p0.clone());
+                }
+                EdgeState::Removed => {
+                    edges.entry(p0.clone()).or_default().remove(p1);
+                    edges.entry(p1.clone()).or_default().remove(p0);
+                }
+            }
+        }
+        return Graph{edges}
+    }
+
+    fn dist_from(&self, start: &HashSet<PeerId>) -> (HashMap<PeerId,usize>,usize) {
+        let mut dist : HashMap<PeerId,usize> = HashMap::new();
+        let mut queue = vec![];
+        let mut unknown_nodes = 0;
+        for p in start {
+            if self.edges.contains_key(&p) {
+                dist.insert(p.clone(),1);
+                queue.push(p);
+            } else {
+                unknown_nodes += 1;
+            }
+        }
+        let mut i = 0;
+        while i<queue.len() {
+            let v = queue[i];
+            i += 1;
+            for w in self.edges.get(v).iter().map(|s|s.iter()).flatten() {
+                if dist.contains_key(w) { continue }
+                dist.insert(w.clone(),dist.get(v).unwrap()+1);
+                queue.push(w);
+            }
+        }
+        return (dist,unknown_nodes);
+    }
+}
+
+
 
 pub fn main() -> anyhow::Result<()> {
     init_logging();
@@ -379,7 +399,7 @@ pub fn main() -> anyhow::Result<()> {
         for v in &vi.validator_info.current_validators {
             validators.insert(v.account_id.clone(),v.public_key.clone());
         }
-        let scanner = Scanner::new(cfg.clone(),time::Duration::from_secs(20),5,1000);
+        let scanner = Scanner::new(cfg.clone(),time::Duration::from_secs(10),5,1000);
         Scope::run(&Ctx::background(),{
             let scanner = scanner.clone();
             |ctx,s|async move{
@@ -450,7 +470,11 @@ pub fn main() -> anyhow::Result<()> {
                 if info.addr.is_some() { addrs.insert(info.id.clone()); }
             }
         }
-        let dist = bfs(&graph.ok_or(anyhow!("no peer provided a graph"))?,&handshakes);
+        let graph = Graph::new(&graph.ok_or(anyhow!("no peer provided a graph"))?);
+        let (dist,unknown_nodes) = graph.dist_from(&handshakes);
+        let mut dist_hist : HashMap<usize,usize> = HashMap::new();
+        for (_,v) in &dist { *dist_hist.entry(*v).or_default() += 1; }
+
         for (account_id,_) in &validators {
             let peer_id = accounts.get(account_id);
             info!("validator = {}, peer = {:?}, found = {}, addr = {}, handshake = {}, dist = {:?}",
@@ -469,10 +493,14 @@ pub fn main() -> anyhow::Result<()> {
         info!("handshake_failures = {:?}",handshake_failures);
         info!("connected_count = {}",connected_count);
         info!("addr_count = {}",addr_count);
-        // TODO: how many nodes are in the RoutingTable graph?
-        // TODO: how many nodes are not isolated in the RoutingTable graph?
-        // Next step will be to send routing requests to them (but that requires finalizing network2).
-        info!("reachable_count = {}",dist.len());
+        info!("handshakes_not_in_the_graph = {}",unknown_nodes);
+        info!("graph_node_count = {}",graph.node_count());
+        info!("graph_isolated_node_count = {}",graph.isolated_node_count());
+        // TODO: Next step will be to send routing requests to them (but that requires finalizing network2).
+        info!("graph_reachable_count = {}",dist.len());
+        for (k,v) in &dist_hist {
+            info!("graph_reachable[{}] = {}",k,v);
+        }
         info!("found_count = {}",found.len());
         info!("peer_id_mismatch_count = {}",peer_id_mismatch_count);
         //for (_,v) in &*scanner.started.lock() { println!("{}",v.ip()); }
