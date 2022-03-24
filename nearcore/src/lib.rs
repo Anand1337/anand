@@ -419,10 +419,7 @@ pub fn start_with_config_and_synchronization(
         store_update.commit().unwrap();
 
         info!("DONE!");
-
-        if 2 + 2 == 4 {
-            panic!("### END ###");
-        }
+        panic!("### END ###");
     }
 
     let store = init_and_migrate_store(home_dir, &config);
