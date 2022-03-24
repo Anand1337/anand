@@ -2,7 +2,7 @@ use std::fmt;
 use std::net;
 use std::sync::atomic::{AtomicU64, Ordering};
 use anyhow::{anyhow};
-use crate::concurrency::{Ctx, Once, RateLimiter, Scope, WeakMap};
+use crate::concurrency::{Ctx, Once, RateLimit, RateLimiter, Scope, WeakMap};
 use tokio::sync::watch;
 
 use near_network_primitives::types::{
@@ -188,10 +188,10 @@ impl Network {
             peers_whitelist: peers_whitelist,
 
             peers_watch: { let (s,_) = watch::channel(vec![]); s },
-            rate_limiter: RateLimiter::new(
-                time::Duration::from_secs(1) / qps_limit,
-                qps_limit as u64,
-            ),
+            rate_limiter: RateLimiter::new(RateLimit{
+                burst: qps_limit as u64,
+                qps: qps_limit as f64,
+            }),
             request_timeout: time::Duration::from_secs(10),
         })
     }

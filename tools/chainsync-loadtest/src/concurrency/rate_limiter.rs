@@ -19,6 +19,11 @@ impl RateLimiter_ {
     }
 }
 
+pub struct RateLimit {
+    pub burst : u64,
+    pub qps : f64,
+}
+
 // RateLimiter is a Semaphore with periodically added permits.
 // It allows to rate limit any async-based operations.
 // It is parametrized by:
@@ -27,14 +32,11 @@ impl RateLimiter_ {
 pub struct RateLimiter(Arc<tokio::sync::Mutex<RateLimiter_>>);
 
 impl RateLimiter {
-    pub fn new(interval: time::Duration, burst: u64) -> RateLimiter {
-        if interval.is_zero() {
-            panic!("interval has to be non-zero");
-        }
+    pub fn new(cfg:RateLimit) -> RateLimiter {
         return RateLimiter(Arc::new(tokio::sync::Mutex::new(RateLimiter_ {
-            interval,
-            burst,
-            tokens: burst,
+            interval: time::Duration::from_secs(1).div_f64(cfg.qps),
+            burst: cfg.burst,
+            tokens: cfg.burst,
             start: time::Instant::now(),
             ticks_processed: 0,
         })));
