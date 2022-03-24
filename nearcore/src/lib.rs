@@ -410,10 +410,10 @@ pub fn start_with_config_and_synchronization(
                 store_update.commit().unwrap();
                 store_update = store.store_update();
             }
-            store_update.set_ser(DBCol::ColState128MIB, &key, &value).unwrap();
-            store_update.set_ser(DBCol::ColState256MIB, &key, &value).unwrap();
-            store_update.set_ser(DBCol::ColState512MIB, &key, &value).unwrap();
-            store_update.set_ser(DBCol::ColState1024MIB, &key, &value).unwrap();
+            store_update.set(DBCol::ColState128MIB, &key, &value).unwrap();
+            store_update.set(DBCol::ColState256MIB, &key, &value).unwrap();
+            store_update.set(DBCol::ColState512MIB, &key, &value).unwrap();
+            store_update.set(DBCol::ColState1024MIB, &key, &value).unwrap();
         }
         info!("committing changes!");
         store_update.commit().unwrap();
