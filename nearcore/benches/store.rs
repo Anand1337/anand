@@ -5,6 +5,7 @@ use bencher::Bencher;
 use near_chain::{ChainStore, ChainStoreAccess, RuntimeAdapter};
 use near_chain_configs::GenesisValidationMode;
 use near_logger_utils::init_integration_logger;
+use near_primitives::state_record::StateRecord;
 use near_primitives::types::StateRoot;
 use near_store::{create_store_with_config, StoreConfig, TrieIterator};
 use nearcore::{get_default_home, get_store_path, load_config, NightshadeRuntime};
@@ -23,7 +24,7 @@ fn read_trie_items(bench: &mut Bencher, shard_id: usize, read_only: bool) {
     init_integration_logger();
     let home_dir = get_default_home();
     let near_config = load_config(&home_dir, GenesisValidationMode::UnsafeFast);
-    let num_trie_items = 10_000;
+    let num_trie_items = 1_000_000_000;
 
     bench.iter(move || {
         tracing::info!(target: "neard", "{:?}", home_dir);
@@ -55,9 +56,12 @@ fn read_trie_items(bench: &mut Bencher, shard_id: usize, read_only: bool) {
         let start = Instant::now();
         let num_items_read = trie
             .enumerate()
-            .map(|(i, _)| {
+            .map(|(i, item)| {
                 if i % 500 == 0 {
-                    tracing::info!(target: "neard", "{}", i)
+                    tracing::info!(target: "neard", "{}", i);
+                    let item = item.unwrap();
+                    let state_record = StateRecord::from_raw_key_value(item.0, item.1).unwrap();
+                    tracing::info!(target: "neard", "{:?}", state_record);
                 }
             })
             .take(num_trie_items)
