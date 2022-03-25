@@ -404,16 +404,15 @@ pub fn start_with_config_and_synchronization(
         let mut i: u64 = 0;
         for (key, value) in store.iter(DBCol::ColState) {
             i += 1;
-            let batch_size = 10000;
+            let batch_size = 1000;
             if i % batch_size == 0 {
                 println!("Processed {} keys in column {} ({})", i, DBCol::ColState, DBCol::ColState as usize);
                 store_update.commit().unwrap();
                 store_update = store.store_update();
             }
-            store_update.set(DBCol::ColState128MIB, &key, &value).unwrap();
-            store_update.set(DBCol::ColState256MIB, &key, &value).unwrap();
-            store_update.set(DBCol::ColState512MIB, &key, &value).unwrap();
-            store_update.set(DBCol::ColState1024MIB, &key, &value).unwrap();
+            store_update.set(DBCol::ColState128MIB, &key, &value);
+            store_update.set(DBCol::ColState256MIB, &key, &value);
+            store_update.set(DBCol::ColState512MIB, &key, &value);
         }
         info!("committing changes!");
         store_update.commit().unwrap();
