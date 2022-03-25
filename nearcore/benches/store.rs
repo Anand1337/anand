@@ -52,7 +52,7 @@ fn read_trie_items(bench: &mut Bencher, shard_id: usize, read_only: bool) {
         let state_root = state_roots[shard_id];
         let trie = runtime.get_trie_for_shard(shard_id as u64, header.prev_hash()).unwrap();
         let mut trie = TrieIterator::new(&trie, &state_root).unwrap();
-        trie.seek(vec![9])?;
+        trie.seek(vec![9]).unwrap();
 
         let start = Instant::now();
         let num_items_read = trie
