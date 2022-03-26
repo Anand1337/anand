@@ -381,11 +381,11 @@ impl ClientActor {
                         )
                     }
                     near_network_primitives::types::NetworkSandboxMessage::SandboxFastForward(delta_height) => {
-                        if self.fastforward_delta.is_some() {
-                            return NetworkClientResponses::SandboxResult(
-                                near_network_primitives::types::SandboxResponse::SandboxFastForwardFailed(
-                                    "Consecutive fast_forward requests cannot be made while a current one is going on.".to_string()));
-                        }
+                        // if self.fastforward_delta.is_some() {
+                        //     return NetworkClientResponses::SandboxResult(
+                        //         near_network_primitives::types::SandboxResponse::SandboxFastForwardFailed(
+                        //             "Consecutive fast_forward requests cannot be made while a current one is going on.".to_string()));
+                        // }
 
                         self.fastforward_delta = Some(delta_height);
                         NetworkClientResponses::NoResponse
@@ -941,18 +941,19 @@ impl ClientActor {
         Ok(Some(new_latest_known))
     }
 
-    fn pre_block_production(&mut self) -> Result<(), Error> {
+    fn pre_block_production(&mut self) -> Result<near_chain::types::LatestKnown, Error> {
+        let latest_known = self.client.chain.mut_store().get_latest_known()?;
         #[cfg(feature = "sandbox")]
         {
-            let latest_known = self.client.chain.mut_store().get_latest_known()?;
             if let Some(new_latest_known) =
                 self.sandbox_process_fast_forward(latest_known.height)?
             {
                 self.client.chain.mut_store().save_latest_known(new_latest_known.clone())?;
                 self.client.sandbox_update_tip(new_latest_known.height)?;
+                return Ok(new_latest_known);
             }
         }
-        Ok(())
+        Ok(latest_known)
     }
 
     fn post_block_production(&mut self) {
@@ -974,9 +975,9 @@ impl ClientActor {
 
         let _ = self.client.check_and_update_doomslug_tip();
 
-        self.pre_block_production()?;
         let head = self.client.chain.head()?;
-        let latest_known = self.client.chain.mut_store().get_latest_known()?;
+        let latest_known = self.pre_block_production()?;
+        // let latest_known = self.client.chain.mut_store().get_latest_known()?;
 
         assert!(
             head.height <= latest_known.height,

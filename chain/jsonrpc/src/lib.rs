@@ -1203,21 +1203,22 @@ impl JsonRpcHandler {
 
                 match fast_forward_finished {
                     Ok(NetworkClientResponses::SandboxResult(SandboxResponse::SandboxFastForwardFinished(true))) => break,
-                    Ok(NetworkClientResponses::SandboxResult(SandboxResponse::SandboxFastForwardFailed(err))) => return Err(err),
+                    // Ok(NetworkClientResponses::SandboxResult(SandboxResponse::SandboxFastForwardFailed(err))) => return Err(err),
                     _ => (),
                 }
 
                 let _ = sleep(self.polling_config.polling_interval).await;
             }
-            Ok(())
+            // Ok(())
         })
         .await
         .map_err(|_| near_jsonrpc_primitives::types::sandbox::RpcSandboxFastForwardError::InternalError {
             error_message: "sandbox failed to fast forward within reasonable time of an hour".to_string()
-        })?
-        .map_err(|err| near_jsonrpc_primitives::types::sandbox::RpcSandboxFastForwardError::InternalError {
-            error_message: format!("sandbox failed to fast forward due to: {:?}", err),
         })?;
+        // .unwrap();
+        // .map_err(|err| near_jsonrpc_primitives::types::sandbox::RpcSandboxFastForwardError::InternalError {
+        //     error_message: format!("sandbox failed to fast forward due to: {:?}", err),
+        // })?;
 
         Ok(near_jsonrpc_primitives::types::sandbox::RpcSandboxFastForwardResponse {})
     }
