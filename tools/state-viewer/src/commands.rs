@@ -130,7 +130,7 @@ pub(crate) fn dump_state_records(
                             &format!("{},{},{},", shard_id, data_key.len(), value.len(),),
                         );
                         if i % 500 == 0 {
-                            tracing::info!(target: "neard", "{} {:?}", i, state_record);
+                            tracing::info!(target: "neard", "{} {} {:?}", i, account_id, data_key);
                         }
                     }
                     _ => {
