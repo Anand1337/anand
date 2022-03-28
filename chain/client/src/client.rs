@@ -50,6 +50,7 @@ use near_network_primitives::types::{
 use near_primitives::block_header::ApprovalType;
 use near_primitives::epoch_manager::RngSeed;
 use near_primitives::version::PROTOCOL_VERSION;
+use std::thread;
 
 const NUM_REBROADCAST_BLOCKS: usize = 30;
 
@@ -1048,6 +1049,7 @@ impl Client {
             };
             self.chain.blocks_with_missing_chunks.prune_blocks_below_height(last_finalized_height);
             if !self.config.archive {
+                thread::sleep(Duration::from_millis(200));
                 let timer = metrics::GC_TIME.start_timer();
                 if let Err(err) = self
                     .chain
