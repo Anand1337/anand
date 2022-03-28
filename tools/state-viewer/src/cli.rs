@@ -118,7 +118,7 @@ impl StateViewerSubCommand {
         let near_config = load_config(home_dir, genesis_validation);
         let store = create_store_with_config(
             &get_store_path(home_dir),
-            StoreConfig { read_only: true, enable_statistics: false },
+            StoreConfig { read_only: false, enable_statistics: false },
         );
         match self {
             StateViewerSubCommand::Peers => peers(store),
