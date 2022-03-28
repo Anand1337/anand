@@ -28,7 +28,8 @@ use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
 pub(crate) fn peers(store: Store) {
     iter_peers_from_store(store, |(peer_id, peer_info)| {
@@ -98,6 +99,54 @@ pub(crate) fn dump_state_redis(
 
     let res = state_dump_redis(runtime, &state_roots, header);
     assert_eq!(res, Ok(()));
+}
+
+pub(crate) fn dump_state_records(
+    home_dir: &Path,
+    near_config: NearConfig,
+    store: Store,
+    csv_file: Option<PathBuf>,
+) {
+    let (runtime, state_roots, header) = load_trie(store, home_dir, &near_config);
+    println!("Storage roots are {:?}, block height is {}", state_roots, header.height());
+    let mut csv_file = csv_file.map(|filename| std::fs::File::create(filename).unwrap());
+    let csv_file_mutex = Arc::new(Mutex::new(csv_file).as_mut());
+    maybe_add_to_csv(&csv_file_mutex, "ShardId,KeyLen,ValueLen");
+
+    state_roots.into_par_iter().enumerate().for_each(|(shard_id, state_root)| {
+        let trie = runtime.get_trie_for_shard(shard_id as u64, header.prev_hash()).unwrap();
+        let mut trie = TrieIterator::new(&trie, &state_root).unwrap();
+        trie.seek(vec![9]).unwrap();
+
+        let num_items_read = trie
+            .enumerate()
+            .map(|(i, item)| {
+                let item = item.unwrap();
+                let state_record = StateRecord::from_raw_key_value(item.0, item.1).unwrap();
+                match state_record {
+                    StateRecord::Data { account_id, data_key, value } => {
+                        maybe_add_to_csv(
+                            &csv_file_mutex,
+                            &format!(
+                                "{},{},{},",
+                                shard_id,
+                                data_key.len(),
+                                value.len(),
+                            ),
+                        );
+                        if i % 500 == 0 {
+                            tracing::info!(target: "neard", "{} {:?}", i, state_record);
+                        }
+                    }
+                    _ => {
+                        unreachable!();
+                    }
+                }
+            })
+            .take(100)
+            .count();
+        eprintln!("{}", num_items_read);
+    }
 }
 
 pub(crate) fn apply_range(
@@ -726,4 +775,11 @@ pub(crate) fn apply_chunk(
     )?;
     print_apply_chunk_result(apply_result, gas_limit, tx_hashes, receipt_hashes);
     Ok(())
+}
+
+pub fn maybe_add_to_csv(csv_file_mutex: &Mutex<Option<&mut File>>, s: &str) {
+    let mut csv_file = csv_file_mutex.lock().unwrap();
+    if let Some(csv_file) = csv_file.as_mut() {
+        write!(csv_file, "{}\n", s).unwrap();
+    }
 }

@@ -5,6 +5,7 @@ use std::sync::Mutex;
 
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
+use crate::commands;
 use near_chain::chain::collect_receipts_from_response;
 use near_chain::migrations::check_if_block_is_first_with_chunk_of_version;
 use near_chain::types::ApplyTransactionResult;
@@ -107,13 +108,6 @@ fn old_outcomes(
         .collect()
 }
 
-fn maybe_add_to_csv(csv_file_mutex: &Mutex<Option<&mut File>>, s: &str) {
-    let mut csv_file = csv_file_mutex.lock().unwrap();
-    if let Some(csv_file) = csv_file.as_mut() {
-        write!(csv_file, "{}\n", s).unwrap();
-    }
-}
-
 fn apply_block_from_range(
     height: BlockHeight,
     shard_id: ShardId,
@@ -171,7 +165,7 @@ fn apply_block_from_range(
                 if verbose_output {
                     println!("Skipping applying block #{} because the previous block is unavailable and I can't determine the gas_price to use.", height);
                 }
-                maybe_add_to_csv(
+                commands::maybe_add_to_csv(
                     csv_file_mutex,
                     &format!(
                         "{},{},{},,,{},,{},,",
@@ -304,7 +298,7 @@ fn apply_block_from_range(
             }
         }
     };
-    maybe_add_to_csv(
+    commands::maybe_add_to_csv(
         csv_file_mutex,
         &format!(
             "{},{},{},{},{},{},{},{},{},{}",
@@ -347,7 +341,7 @@ pub fn apply_chain_range(
 
     println!("Printing results including outcomes of applying receipts");
     let csv_file_mutex = Arc::new(Mutex::new(csv_file));
-    maybe_add_to_csv(&csv_file_mutex, "Height,Hash,Author,#Tx,#Receipt,Timestamp,GasUsed,ChunkPresent,#ProcessedDelayedReceipts,#DelayedReceipts");
+    commands::maybe_add_to_csv(&csv_file_mutex, "Height,Hash,Author,#Tx,#Receipt,Timestamp,GasUsed,ChunkPresent,#ProcessedDelayedReceipts,#DelayedReceipts");
 
     let range = start_height..=end_height;
     let progress_reporter = ProgressReporter {

@@ -70,6 +70,8 @@ pub enum StateViewerSubCommand {
     DumpState(DumpStateCmd),
     #[clap(name = "dump_state_redis")]
     DumpStateRedis(DumpStateRedisCmd),
+    #[clap(name = "dump_state_records")]
+    DumpStateRecords(DumpStateRecordsCmd),
     /// Print chain from start_index to end_index.
     #[clap(name = "chain")]
     Chain(ChainCmd),
@@ -123,6 +125,7 @@ impl StateViewerSubCommand {
             StateViewerSubCommand::State => state(home_dir, near_config, store),
             StateViewerSubCommand::DumpState(cmd) => cmd.run(home_dir, near_config, store),
             StateViewerSubCommand::DumpStateRedis(cmd) => cmd.run(home_dir, near_config, store),
+            StateViewerSubCommand::DumpStateRecords(cmd) => cmd.run(home_dir, near_config, store),
             StateViewerSubCommand::Chain(cmd) => cmd.run(home_dir, near_config, store),
             StateViewerSubCommand::Replay(cmd) => cmd.run(home_dir, near_config, store),
             StateViewerSubCommand::ApplyRange(cmd) => cmd.run(home_dir, near_config, store),
@@ -175,6 +178,21 @@ pub struct DumpStateRedisCmd {
 impl DumpStateRedisCmd {
     pub fn run(self, home_dir: &Path, near_config: NearConfig, store: Store) {
         dump_state_redis(self.height, home_dir, near_config, store);
+    }
+}
+
+#[derive(Parser)]
+pub struct DumpStateRecordsCmd {
+    /// Optionally, can specify at which height to dump state.
+    #[clap(long)]
+    height: Option<BlockHeight>,
+    #[clap(long, parse(from_os_str))]
+    csv_file: Option<PathBuf>,
+}
+
+impl DumpStateRecordsCmd {
+    pub fn run(self, home_dir: &Path, near_config: NearConfig, store: Store) {
+        dump_state_records(home_dir, near_config, store, self.csv_file);
     }
 }
 
