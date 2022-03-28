@@ -138,7 +138,6 @@ pub(crate) fn dump_state_records(
                     }
                 }
             })
-            .take(100)
             .count();
         eprintln!("{}", num_items_read);
     });
