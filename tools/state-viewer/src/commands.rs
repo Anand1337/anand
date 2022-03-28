@@ -24,12 +24,12 @@ use near_store::test_utils::create_test_store;
 use near_store::{Store, TrieIterator};
 use nearcore::{NearConfig, NightshadeRuntime};
 use node_runtime::adapter::ViewRuntimeAdapter;
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
 pub(crate) fn peers(store: Store) {
     iter_peers_from_store(store, |(peer_id, peer_info)| {
@@ -110,7 +110,7 @@ pub(crate) fn dump_state_records(
     let (runtime, state_roots, header) = load_trie(store, home_dir, &near_config);
     println!("Storage roots are {:?}, block height is {}", state_roots, header.height());
     let mut csv_file = csv_file.map(|filename| std::fs::File::create(filename).unwrap());
-    let csv_file_mutex = Arc::new(Mutex::new(csv_file).as_mut());
+    let csv_file_mutex = Arc::new(Mutex::new(csv_file.as_mut()));
     maybe_add_to_csv(&csv_file_mutex, "ShardId,KeyLen,ValueLen");
 
     state_roots.into_par_iter().enumerate().for_each(|(shard_id, state_root)| {
@@ -127,12 +127,7 @@ pub(crate) fn dump_state_records(
                     StateRecord::Data { account_id, data_key, value } => {
                         maybe_add_to_csv(
                             &csv_file_mutex,
-                            &format!(
-                                "{},{},{},",
-                                shard_id,
-                                data_key.len(),
-                                value.len(),
-                            ),
+                            &format!("{},{},{},", shard_id, data_key.len(), value.len(),),
                         );
                         if i % 500 == 0 {
                             tracing::info!(target: "neard", "{} {:?}", i, state_record);
@@ -146,7 +141,7 @@ pub(crate) fn dump_state_records(
             .take(100)
             .count();
         eprintln!("{}", num_items_read);
-    }
+    });
 }
 
 pub(crate) fn apply_range(
