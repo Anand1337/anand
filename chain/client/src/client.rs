@@ -1049,7 +1049,9 @@ impl Client {
             };
             self.chain.blocks_with_missing_chunks.prune_blocks_below_height(last_finalized_height);
             if !self.config.archive {
-                thread::sleep(Duration::from_millis(200));
+                if let Some(gc_sleep_time) = self.config.gc_sleep_time {
+                    thread::sleep(gc_sleep_time);
+                }
                 let timer = metrics::GC_TIME.start_timer();
                 if let Err(err) = self
                     .chain

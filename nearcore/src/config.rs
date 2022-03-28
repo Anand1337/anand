@@ -459,6 +459,7 @@ pub struct Config {
     pub db_migration_snapshot_path: Option<PathBuf>,
     #[serde(default = "default_enable_rocksdb_statistics")]
     pub enable_rocksdb_statistics: bool,
+    pub gc_sleep_time: Option<Duration>,
 }
 
 impl Default for Config {
@@ -488,6 +489,7 @@ impl Default for Config {
             db_migration_snapshot_path: None,
             use_db_migration_snapshot: true,
             enable_rocksdb_statistics: false,
+            gc_sleep_time: None,
         }
     }
 }
@@ -690,6 +692,7 @@ impl NearConfig {
                 view_client_throttle_period: config.view_client_throttle_period,
                 trie_viewer_state_size_limit: config.trie_viewer_state_size_limit,
                 max_gas_burnt_view: config.max_gas_burnt_view,
+                gc_sleep_time: config.gc_sleep_time,
             },
             network_config: NetworkConfig {
                 public_key: network_key_pair.public_key,
