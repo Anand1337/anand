@@ -66,10 +66,10 @@ impl<'a> TrieIterator<'a> {
             trail: Vec::with_capacity(8),
             key_nibbles: Vec::with_capacity(64),
             root: *root,
-            branches: Rc::new(0),
-            sum_children: Rc::new(0),
-            extensions: Rc::new(0),
-            leaves: Rc::new(0),
+            branches: Rc::new(RefCell::new(0)),
+            sum_children: Rc::new(RefCell::new(0)),
+            extensions: Rc::new(RefCell::new(0)),
+            leaves: Rc::new(RefCell::new(0)),
         };
         let node = trie.retrieve_node(root)?;
         r.descend_into_node(node);
@@ -165,14 +165,14 @@ impl<'a> TrieIterator<'a> {
         match &node.node {
             TrieNode::Empty => {}
             TrieNode::Leaf(..) => {
-                self.leaves.borrow_mut().add_assign(1);
+                self.leaves.get_mut().add_assign(1);
             }
             TrieNode::Branch(child, ..) => {
-                self.branches.borrow_mut().add_assign(1);
-                self.sum_children.borrow_mut().add_assign(child.iter().flatten().count() as u64);
+                self.branches.get_mut().add_assign(1);
+                self.sum_children.get_mut().add_assign(child.iter().flatten().count() as u64);
             }
             TrieNode::Extension(..) => {
-                self.extensions.borrow_mut().add_assign(1);
+                self.extensions.get_mut().add_assign(1);
             }
         }
         self.trail.push(Crumb { status: CrumbStatus::Entering, node });
