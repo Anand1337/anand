@@ -1497,8 +1497,10 @@ impl PeerManagerActor {
         throttle_controller: Option<ThrottleController>,
     ) -> NetworkResponses {
         #[cfg(feature = "delay_detector")]
-        let _d =
-            delay_detector::DelayDetector::new(format!("network request {}", msg.as_ref()).into());
+        let _d = delay_detector::DelayDetector::new(|| {
+            format!("network request {}", msg.as_ref()).into()
+        });
+        metrics::REQUEST_COUNT_BY_TYPE_TOTAL.with_label_values(&[msg.as_ref()]).inc();
         match msg {
             NetworkRequests::Block { block } => {
                 Self::broadcast_message(

@@ -858,12 +858,14 @@ impl ClientActor {
         let mut delay = Duration::from_secs(1);
         let now = Utc::now();
 
+        let timer = metrics::CHECK_TRIGGERS_TIME.start_timer();
         if self.sync_started {
             self.doomslug_timer_next_attempt = self.run_timer(
                 self.client.config.doosmslug_step_period,
                 self.doomslug_timer_next_attempt,
                 ctx,
                 |act, ctx| act.try_doomslug_timer(ctx),
+                "doomslug",
             );
             delay = core::cmp::min(
                 delay,
@@ -879,6 +881,7 @@ impl ClientActor {
                 self.block_production_next_attempt,
                 ctx,
                 |act, _ctx| act.try_handle_block_production(),
+                "block_production",
             );
 
             let _ = self.client.check_head_progress_stalled(
@@ -902,7 +905,9 @@ impl ClientActor {
                     act.client.shards_mgr.resend_chunk_requests(&header_head)
                 }
             },
+            "resend_chunk_requests",
         );
+        timer.observe_duration();
         core::cmp::min(
             delay,
             self.chunk_request_retry_next_attempt
@@ -1290,6 +1295,7 @@ impl ClientActor {
         next_attempt: DateTime<Utc>,
         ctx: &mut Context<ClientActor>,
         f: F,
+        timer_label: &str,
     ) -> DateTime<Utc>
     where
         F: FnOnce(&mut Self, &mut <Self as Actor>::Context) + 'static,
@@ -1299,7 +1305,10 @@ impl ClientActor {
             return next_attempt;
         }
 
+        let timer =
+            metrics::CLIENT_TRIGGER_TIME_BY_TYPE.with_label_values(&[timer_label]).start_timer();
         f(self, ctx);
+        timer.observe_duration();
 
         return now.checked_add_signed(chrono::Duration::from_std(duration).unwrap()).unwrap();
     }
