@@ -18,3 +18,13 @@ pub static PARTIAL_ENCODED_CHUNK_REQUEST_PROCESSING_TIME: Lazy<near_metrics::His
         )
         .unwrap()
     });
+
+pub static REQUEST_CHUNK_TIME: Lazy<near_metrics::HistogramVec> = Lazy::new(|| {
+    near_metrics::try_create_histogram_vec(
+        "near_partial_encoded_chunk_request_time",
+        "Time spent requesting chunks",
+        &["orphan"],
+        Some(prometheus::exponential_buckets(0.00001, 2.0, 16).unwrap()),
+    )
+    .unwrap()
+});

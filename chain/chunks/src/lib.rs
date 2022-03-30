@@ -836,12 +836,15 @@ impl ShardsManager {
                 false
             });
         for chunk_header in chunks_to_request {
+            let timer =
+                metrics::REQUEST_CHUNK_TIME.with_label_values(&["non-orphan"]).start_timer();
             self.request_chunk_single(
                 &chunk_header,
                 prev_hash,
                 Some(header_head),
                 is_chunk_forwarding_enabled,
             );
+            timer.observe_duration();
         }
     }
 
@@ -877,12 +880,14 @@ impl ShardsManager {
                 false
             });
         for chunk_header in chunks_to_request {
+            let timer = metrics::REQUEST_CHUNK_TIME.with_label_values(&["orphan"]).start_timer();
             self.request_chunk_single(
                 &chunk_header,
                 ancestor_hash,
                 Some(header_head),
                 should_wait_for_chunk_forwarding,
-            )
+            );
+            timer.observe_duration();
         }
     }
 
