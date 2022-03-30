@@ -1,4 +1,5 @@
 use near_primitives::hash::CryptoHash;
+use std::ops::AddAssign;
 use std::rc::Rc;
 
 use crate::trie::nibble_slice::NibbleSlice;
@@ -162,14 +163,14 @@ impl<'a> TrieIterator<'a> {
         match &node.node {
             TrieNode::Empty => {}
             TrieNode::Leaf(..) => {
-                self.leaves.saturating_add(1);
+                self.leaves.add_assign(1);
             }
             TrieNode::Branch(child, ..) => {
-                self.branches.saturating_add(1);
-                self.sum_children.saturating_add(child.iter().flatten().count() as u64);
+                self.branches.add_assign(1);
+                self.sum_children.add_assign(child.iter().flatten().count() as u64);
             }
             TrieNode::Extension(..) => {
-                self.extensions.saturating_add(1);
+                self.extensions.add_assign(1);
             }
         }
         self.trail.push(Crumb { status: CrumbStatus::Entering, node });

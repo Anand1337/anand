@@ -155,10 +155,7 @@ pub(crate) fn dump_state_records(
         .unwrap();
         let num_items_read = trie.take(100).count();
 
-        eprintln!(
-            "{},{},{},{},{}",
-            num_items_read, trie.branches, trie.extensions, trie.leaves, trie.sum_children
-        );
+        eprintln!("{},{},{},{},{}", num_items_read, branches, extensions, leaves, sum_children);
     });
 }
 
