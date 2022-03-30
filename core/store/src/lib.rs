@@ -321,8 +321,7 @@ pub fn create_store_with_config(path: &Path, store_config: StoreConfig) -> Store
     }
 
     let db = Arc::new(
-        (if store_config.read_only { opts.read_only(path) } else { opts.read_write(path) })
-            .expect("Failed to open the database"),
+        opts.read_write(path).expect("Failed to open the database"),
     );
     Store::new(db)
 }
