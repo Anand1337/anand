@@ -156,6 +156,7 @@ pub(crate) fn dump_state_records(
         .unwrap();
         let num_items_read = trie.count();
 
+        // I messed up extensions and leaves!
         eprintln!(
             "{},{},{},{},{}",
             num_items_read,
