@@ -116,30 +116,36 @@ pub(crate) fn dump_state_records(
     state_roots.into_par_iter().enumerate().for_each(|(shard_id, state_root)| {
         let trie = runtime.get_trie_for_shard(shard_id as u64, header.prev_hash()).unwrap();
         let mut trie = TrieIterator::new(&trie, &state_root).unwrap();
-        trie.seek(vec![9]).unwrap();
+        // trie.seek(vec![9]).unwrap();
+        //
+        // let num_items_read = trie
+        //     .enumerate()
+        //     .map(|(i, item)| {
+        //         let item = item.unwrap();
+        //         let state_record = StateRecord::from_raw_key_value(item.0, item.1).unwrap();
+        //         match state_record {
+        //             StateRecord::Data { account_id, data_key, value } => {
+        //                 maybe_add_to_csv(
+        //                     &csv_file_mutex,
+        //                     &format!("{},{},{},", shard_id, data_key.len(), value.len(),),
+        //                 );
+        //                 if i % 500 == 0 {
+        //                     tracing::info!(target: "neard", "{} {} {:?}", i, account_id, data_key);
+        //                 }
+        //             }
+        //             _ => {
+        //                 unreachable!();
+        //             }
+        //         }
+        //     })
+        //     .count();
 
-        let num_items_read = trie
-            .enumerate()
-            .map(|(i, item)| {
-                let item = item.unwrap();
-                let state_record = StateRecord::from_raw_key_value(item.0, item.1).unwrap();
-                match state_record {
-                    StateRecord::Data { account_id, data_key, value } => {
-                        maybe_add_to_csv(
-                            &csv_file_mutex,
-                            &format!("{},{},{},", shard_id, data_key.len(), value.len(),),
-                        );
-                        if i % 500 == 0 {
-                            tracing::info!(target: "neard", "{} {} {:?}", i, account_id, data_key);
-                        }
-                    }
-                    _ => {
-                        unreachable!();
-                    }
-                }
-            })
-            .count();
-        eprintln!("{}", num_items_read);
+        let num_items_read = trie.take(100).count();
+
+        eprintln!(
+            "{},{},{},{},{}",
+            num_items_read, trie.branches, trie.extensions, trie.leaves, trie.sum_children
+        );
     });
 }
 

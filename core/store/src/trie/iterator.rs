@@ -37,6 +37,10 @@ pub struct TrieIterator<'a> {
     trail: Vec<Crumb>,
     pub(crate) key_nibbles: Vec<u8>,
     root: CryptoHash,
+    pub branches: u64,
+    pub sum_children: u64, // for double checking
+    pub extensions: u64,
+    pub leaves: u64,
 }
 
 pub type TrieItem = (Vec<u8>, Vec<u8>);
@@ -58,6 +62,10 @@ impl<'a> TrieIterator<'a> {
             trail: Vec::with_capacity(8),
             key_nibbles: Vec::with_capacity(64),
             root: *root,
+            branches: 0,
+            sum_children: 0,
+            extensions: 0,
+            leaves: 0,
         };
         let node = trie.retrieve_node(root)?;
         r.descend_into_node(node);
@@ -128,6 +136,15 @@ impl<'a> TrieIterator<'a> {
 
     fn descend_into_node(&mut self, node: TrieNodeWithSize) {
         self.trail.push(Crumb { status: CrumbStatus::Entering, node });
+        match &node.node {
+            TrieNode::Empty => {}
+            TrieNode::Leaf(..) => self.leaves += 1,
+            TrieNode::Branch(child, value) => {
+                self.branches += 1;
+                self.sum_children += child.iter().flatten().count();
+            }
+            TrieNode::Extension(..) => self.extensions += 1,
+        }
     }
 
     fn key(&self) -> Vec<u8> {
