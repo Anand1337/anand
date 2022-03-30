@@ -38,6 +38,11 @@ use crate::peer_manager::peer::codec::{Codec};
 use crate::peer_manager::types::{PeerMessage,Handshake,HandshakeFailureReason,RoutingTableUpdate};
 use crate::concurrency::{Ctx,CtxWithCancel,Scope,RateLimit,RateLimiter,WeakMap,Once};
 
+// TODO: use the network protocol knowledge from here to reimplement the loadtest without using the
+// PeerManager at all: do a discovery and connect directly to peers. If discovery is too expensive
+// to run every time, dump the peer_info: hash@addr for each relevant peer and then reuse it at
+// startup.
+
 /// Maximum size of network message in encoded format.
 /// We encode length as `u32`, and therefore maximum size can't be larger than `u32::MAX`.
 const NETWORK_MESSAGE_MAX_SIZE_BYTES: usize = 512 * MIB as usize;
@@ -111,9 +116,12 @@ pub struct NodeClient {
     cfg : NodeClientConfig,
     my_id : PeerId,
     event_loop_ctx : Once<CtxWithCancel>,
+
     block_headers: Arc<WeakMap<CryptoHash, Once<Vec<BlockHeader>>>>,
     blocks: Arc<WeakMap<CryptoHash, Once<Block>>>,
     chunks: Arc<WeakMap<ChunkHash, Once<PartialEncodedChunkResponseMsg>>>,
+    peers: Arc<WeakMap<(),Once<Vec<PeerInfo>>>>,
+
     stream: Stream,
     rate_limiter : RateLimiter,
     stats : Stats,
@@ -137,6 +145,7 @@ impl NodeClient {
             block_headers: WeakMap::new(),
             blocks: WeakMap::new(),
             chunks: WeakMap::new(),
+            peers: WeakMap::new(),
             rate_limiter: RateLimiter::new(cfg.rate_limit.clone()),
             stats: Stats::default(),
             cfg,
@@ -235,6 +244,9 @@ impl NodeClient {
                                 }
                                 _ => {}
                             }
+                            PeerMessage::PeersResponse(infos) => {
+                                cli.peers.get(&()).map(|once|once.set(infos));
+                            }
                             PeerMessage::SyncRoutingTable(u) => {
                                 if let Err(err) = server.sync_routing_table(&ctx,u) {
                                     info!("serve.sync_routing_table(): {:#}",err);
@@ -271,7 +283,7 @@ impl NodeClient {
         self.call(ctx,msg,recv.wait()).await
     }
 
-    pub async fn fetch_block(self:&Arc<Self>,ctx:&Ctx,hash:CryptoHash)  -> anyhow::Result<Block>  {
+    pub async fn fetch_block(self:&Arc<Self>,ctx:&Ctx,hash:CryptoHash)  -> anyhow::Result<Block> {
         let msg = PeerMessage::BlockRequest(hash.clone());
         let recv = self.blocks.get_or_insert(&hash,Once::new);
         self.call(ctx,msg,recv.wait()).await
@@ -288,6 +300,12 @@ impl NodeClient {
         }.sign(self.my_id.clone(),&self.cfg.near.network_config.secret_key,/*ttl=*/1);
         let msg = PeerMessage::Routed(msg);
         let recv = self.chunks.get_or_insert(&ch.chunk_hash(),Once::new);
+        self.call(ctx,msg,recv.wait()).await
+    }
+
+    pub async fn fetch_peers(self:&Arc<Self>,ctx:&Ctx) -> anyhow::Result<Vec<PeerInfo>> {
+        let msg = PeerMessage::PeersRequest{};
+        let recv = self.peers.get_or_insert(&(),Once::new);
         self.call(ctx,msg,recv.wait()).await
     }
 }

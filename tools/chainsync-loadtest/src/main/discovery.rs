@@ -30,15 +30,11 @@ use near_primitives::network::{PeerId};
 use near_primitives::version::{PEER_MIN_ALLOWED_PROTOCOL_VERSION,PROTOCOL_VERSION};
 use crate::peer_manager::peer::codec::{Codec};
 use crate::peer_manager::types::{PeerMessage,Handshake,HandshakeFailureReason,RoutingTableUpdate};
-use crate::concurrency::{Ctx,Scope};
+use crate::concurrency::{Ctx,Scope,RateLimit,Once};
+use crate::network2 as network;
 use near_jsonrpc_primitives::types::network_info::{RpcNetworkInfoResponse};
 use near_jsonrpc_primitives::types::validator::RpcValidatorResponse;
 use near_jsonrpc_primitives::message;
-
-
-/// Maximum size of network message in encoded format.
-/// We encode length as `u32`, and therefore maximum size can't be larger than `u32::MAX`.
-const NETWORK_MESSAGE_MAX_SIZE_BYTES: usize = 512 * MIB as usize;
 
 fn init_logging() {
     let env_filter = tracing_subscriber::EnvFilter::from_default_env().add_directive(metadata::LevelFilter::INFO.into());
@@ -48,35 +44,6 @@ fn init_logging() {
         .init();
 }
 
-struct Stream<RW>(BufStream<RW>);
-
-impl<RW:AsyncRead+AsyncWrite+Unpin> Stream<RW> {
-    fn new(rw:RW) -> Self { Self(BufStream::new(rw)) }
-    
-    async fn read(&mut self, ctx: &Ctx) -> anyhow::Result<PeerMessage> {
-        let n = ctx.wrap(self.0.read_u32_le()).await?? as usize;
-		// TODO: if this check fails, the stream is broken, because we read some bytes already.
-		if n>NETWORK_MESSAGE_MAX_SIZE_BYTES { return Err(anyhow!("message size too large")); }
-        let mut buf = BytesMut::new();
-	    buf.resize(n,0);	
-        ctx.wrap(self.0.read_exact(&mut buf[..])).await??;
-        Ok(PeerMessage::try_from_slice(&buf[..])?)
-    }
-    
-    async fn write(&mut self, ctx: &Ctx, msg: &PeerMessage) -> anyhow::Result<()> {
-        let msg = msg.try_to_vec()?;
-        // TODO: If writing fails in the middle, then the stream is broken.
-        ctx.wrap(self.0.write_u32_le(msg.len() as u32)).await??;
-        ctx.wrap(self.0.write_all(&msg[..])).await??;
-        ctx.wrap(self.0.flush()).await??;
-        Ok(())
-    }
-}
-
-// TODO: use the network protocol knowledge from here to reimplement the loadtest without using the
-// PeerManager at all: do a discovery and connect directly to peers. If discovery is too expensive
-// to run every time, dump the peer_info: hash@addr for each relevant peer and then reuse it at
-// startup.
 
 #[derive(Copy,Clone,Debug,Eq,PartialEq,Hash)]
 enum HandshakeFailure {
@@ -99,103 +66,55 @@ struct AskForPeersResult {
     network_info: Option<RpcNetworkInfoResponse>,
 }
 
-async fn ask_for_peers(ctx:&Ctx, result:&mut AskForPeersResult, cfg :&NearConfig, peer_info:&PeerInfo, peers_responses:usize) -> anyhow::Result<()> {
-    // The `connect` may take several minutes. This happens when the
-    // `SYN` packet for establishing a TCP connection gets silently
-    // dropped, in which case the default TCP timeout is applied. That's
-    // too long for us, so we shorten it to one second.
-    //
-    // Why exactly a second? It was hard-coded in a library we used
-    // before, so we keep it to preserve behavior. Removing the timeout
-    // completely was observed to break stuff for real on the testnet.
-    result.expected_info = Some(peer_info.clone());
-    let addr = peer_info.addr.expect("missing addr");
-    let stream = ctx.wrap(net::TcpStream::connect(addr)).await.context("connect()")??;
-    result.connect = true;
-    
-    let my_peer_id = PeerId::new(cfg.network_config.public_key.clone());
-    let my_addr = cfg.network_config.addr.unwrap_or(stream.local_addr()?);
-    let edge_info = PartialEdgeInfo::new(&my_peer_id, &peer_info.id, 1, &cfg.network_config.secret_key);
-    
-	let genesis_id = crate::config::genesis_id(&cfg.client_config.chain_id); 
-    let mut msg = Handshake::new(
-        PROTOCOL_VERSION, // TODO: check when exactly the handshake fails on protocol mismatch
-        my_peer_id.clone(),
-        peer_info.id.clone(),
-        Some(my_addr.port()), // required 
-        PeerChainInfoV2 {
-			genesis_id: genesis_id.clone(), 
-			height: 0,
-            tracked_shards: Default::default(),
-            archival: false,
-        },
-        edge_info,
-    );
+struct Server {
+    routing_table : Once<RoutingTableUpdate>,
+}
 
-    let mut stream = Stream::new(stream);
-    stream.write(ctx,&PeerMessage::Handshake(msg.clone())).await.context("stream.write()")?;
-    while result.peers_responses<peers_responses || result.routing_table.is_none() {
-        match stream.read(ctx).await.context("stream.read()")? {
-            PeerMessage::Handshake(h) => {
-                let (got,want) = (&h.target_peer_id,&my_peer_id); 
-                if got!=want {
-                    result.handshake_failure = Some(HandshakeFailure::Target{local:true});
-                    return Err(anyhow!("got = {:?}, want {:?}",got,want));
-                }
-                let (got,want) = (&h.sender_chain_info.genesis_id,&genesis_id);
-                if got!=want {
-                    result.handshake_failure = Some(HandshakeFailure::Genesis{local:true});
-                    return Err(anyhow!("got = {:?}, want {:?}",got,want));
-                }
-                result.handshake = true;
-                stream.write(ctx,&PeerMessage::PeersRequest{}).await?;
-            }
-            PeerMessage::HandshakeFailure(info,reason) => { // TODO: use the info to restart the handshake (from within scan)
-                result.handshake_failure = Some(match reason {
-                    HandshakeFailureReason::ProtocolVersionMismatch{version,oldest_supported_version} => {
-                        msg.protocol_version = version;
-                        msg.oldest_supported_version = oldest_supported_version;
-                        stream.write(ctx,&PeerMessage::Handshake(msg.clone())).await.context("stream.write(Handshake)")?;
-                        continue
-                    },
-                    HandshakeFailureReason::GenesisMismatch(_) => HandshakeFailure::Genesis{local:false},
-                    HandshakeFailureReason::InvalidTarget => {
-                        if let Some(actual_info) = &result.actual_info { panic!("received InvalidTarget for the second time: actual_info.id = {}, info.id = {}",&actual_info.id,&info.id); }
-                        result.actual_info = Some(info.clone());
-                        msg.target_peer_id = info.id.clone();
-                        msg.partial_edge_info = PartialEdgeInfo::new(&my_peer_id, &info.id, 1, &cfg.network_config.secret_key);
-                        stream.write(ctx,&PeerMessage::Handshake(msg.clone())).await.context("stream.write(Handshake)")?;
-                        continue
-                    },
-                });
-                return Err(anyhow!("handshake failure: {:?}",reason));
-            }
-            PeerMessage::SyncRoutingTable(update) => {
-                if update.accounts.len()>0 { 
-                    info!("SyncRoutingTable = (edges={},accounts={})",update.edges.len(),update.accounts.len());
-                    result.routing_table = Some(update);
-                }
-                /*
-                let mut peers = HashSet::<PeerId>::new();
-                for e in &update.edges {
-                    let (p1,p2) = e.key();
-                    peers.insert(p1.clone());
-                    peers.insert(p2.clone());
-                }*/
-                //info!("SyncRoutingTable = (edges={},accounts={},peers={})",update.edges.len(),update.accounts.len(),peers.len());
-            }
-            // contains peer_store.healthy_peers(config.max_send_peers)
-            PeerMessage::PeersResponse(infos) => {
-                result.peers_responses += 1;
-                for info in infos { result.peers.push(info); }
-                if result.peers_responses < peers_responses {
-                    stream.write(ctx,&PeerMessage::PeersRequest{}).await?;
-                }
-            }
-            _ => {}
+impl network::NodeServer for Server {
+    fn sync_routing_table(&self,ctx:&Ctx,update:RoutingTableUpdate) -> anyhow::Result<()> {
+        if update.accounts.len()>0 { 
+            info!("SyncRoutingTable = (edges={},accounts={})",update.edges.len(),update.accounts.len());
+            // Ignore subsequent setting attempts.
+            let _ = self.routing_table.set(update);
         }
+        Ok(())
     }
-    return Ok(());
+}
+
+async fn ask_for_peers(ctx:&Ctx, cfg :Arc<NearConfig>, peer_info:PeerInfo, peers_responses:usize) -> AskForPeersResult {
+    let res = Arc::new(Mutex::new(AskForPeersResult::default()));
+    let err = Scope::run(ctx,{
+        let res = res.clone();
+        |ctx,s|async move{
+            res.lock().expected_info = Some(peer_info.clone());
+            let addr = peer_info.addr.expect("missing addr");
+            let (cli,event_loop) = network::NodeClient::connect(&ctx,network::NodeClientConfig{
+                near: cfg.clone(),
+                peer_info: peer_info.clone(),
+                rate_limit: RateLimit{burst:10,qps:10.},
+                allow_protocol_mismatch:true,
+                allow_peer_mismatch:true,
+                allow_genesis_mismatch:false,
+            }).await?;
+            // TODO: distinguish between these by augmenting the error.
+            res.lock().connect = true;
+            res.lock().handshake = true;
+            let server = Arc::new(Server{routing_table: Once::new()});
+            s.spawn_weak(|ctx|event_loop(ctx,server.clone()));
+        
+            while res.lock().peers_responses<peers_responses{
+                let infos = cli.fetch_peers(&ctx).await?;
+                res.lock().peers_responses += 1;
+                for info in infos { res.lock().peers.push(info); }
+            }
+            res.lock().routing_table = Some(ctx.wrap(server.routing_table.wait()).await?);
+            Ok(())
+        }
+    }).await;
+    if let Err(err) = err {
+        res.lock().err = Some(err);
+    }
+    return std::mem::take(&mut *res.lock());
 }
 
 #[derive(Clap, Debug)]
@@ -213,7 +132,7 @@ struct Stats {
 struct Scanner {
     per_peer_timeout:time::Duration,
     per_peer_requests:usize,
-    cfg:NearConfig,
+    cfg:Arc<NearConfig>,
 
     started:Mutex<HashSet<std::net::SocketAddr>>,
     result:Mutex<HashMap<std::net::SocketAddr,AskForPeersResult>>,
@@ -235,7 +154,7 @@ fn spawnable<F,G>(g:G) -> Spawnable where
 }
 
 impl Scanner {
-    fn new(cfg:NearConfig, per_peer_timeout:time::Duration, per_peer_requests:usize, inflight_limit:usize) -> Arc<Self> {
+    fn new(cfg:Arc<NearConfig>, per_peer_timeout:time::Duration, per_peer_requests:usize, inflight_limit:usize) -> Arc<Self> {
         Arc::new(Self{
             started: Mutex::new(HashSet::new()),
             result: Mutex::new(HashMap::new()),
@@ -260,10 +179,7 @@ impl Scanner {
             // Acquire a permit.
             let permit = self.sem.acquire().await;
             self.stats.ask_for_peers_calls.fetch_add(1,Ordering::Relaxed);
-            let mut result = AskForPeersResult::default();
-            if let Err(err) = ask_for_peers(&ctx.with_timeout(self.per_peer_timeout),&mut result,&self.cfg,&info,self.per_peer_requests).await {
-                result.err = Some(err);
-            }
+            let mut result = ask_for_peers(&ctx.with_timeout(self.per_peer_timeout),self.cfg.clone(),info.clone(),self.per_peer_requests).await;
             match fetch_network_info(&ctx.with_timeout(time::Duration::from_secs(2)),addr.ip()).await {
                 Ok(ni) => {
                     // info!("accounts.len() = {}",ni.known_producers.len());
@@ -391,7 +307,7 @@ impl Graph {
 pub fn main() -> anyhow::Result<()> {
     init_logging();
     let cmd = Cmd::parse();
-    let cfg = crate::config::download(&cmd.chain_id)?;
+    let cfg = Arc::new(crate::config::download(&cmd.chain_id)?);
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async move{
         let vi = fetch_validators(hyper::Uri::from_static("http://rpc.mainnet.near.org")).await?;
