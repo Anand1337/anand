@@ -1,6 +1,6 @@
 use near_primitives::hash::CryptoHash;
 use std::borrow::BorrowMut;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::ops::AddAssign;
 use std::rc::Rc;
 
@@ -41,10 +41,10 @@ pub struct TrieIterator<'a> {
     trail: Vec<Crumb>,
     pub(crate) key_nibbles: Vec<u8>,
     root: CryptoHash,
-    pub branches: Rc<RefCell<u64>>,
-    pub sum_children: Rc<RefCell<u64>>, // for double checking
-    pub extensions: Rc<RefCell<u64>>,
-    pub leaves: Rc<RefCell<u64>>,
+    pub branches: Rc<Cell<u64>>,
+    pub sum_children: Rc<Cell<u64>>, // for double checking
+    pub extensions: Rc<Cell<u64>>,
+    pub leaves: Rc<Cell<u64>>,
 }
 
 pub type TrieItem = (Vec<u8>, Vec<u8>);
@@ -66,10 +66,10 @@ impl<'a> TrieIterator<'a> {
             trail: Vec::with_capacity(8),
             key_nibbles: Vec::with_capacity(64),
             root: *root,
-            branches: Rc::new(RefCell::new(0)),
-            sum_children: Rc::new(RefCell::new(0)),
-            extensions: Rc::new(RefCell::new(0)),
-            leaves: Rc::new(RefCell::new(0)),
+            branches: Rc::new(Cell::new(0)),
+            sum_children: Rc::new(Cell::new(0)),
+            extensions: Rc::new(Cell::new(0)),
+            leaves: Rc::new(Cell::new(0)),
         };
         let node = trie.retrieve_node(root)?;
         r.descend_into_node(node);
@@ -79,10 +79,10 @@ impl<'a> TrieIterator<'a> {
     pub fn new_with_counters(
         trie: &'a Trie,
         root: &CryptoHash,
-        branches: Rc<RefCell<u64>>,
-        sum_children: Rc<RefCell<u64>>,
-        extensions: Rc<RefCell<u64>>,
-        leaves: Rc<RefCell<u64>>,
+        branches: Rc<Cell<u64>>,
+        sum_children: Rc<Cell<u64>>,
+        extensions: Rc<Cell<u64>>,
+        leaves: Rc<Cell<u64>>,
     ) -> Result<Self, StorageError> {
         let mut r = TrieIterator {
             trie,
@@ -165,14 +165,14 @@ impl<'a> TrieIterator<'a> {
         match &node.node {
             TrieNode::Empty => {}
             TrieNode::Leaf(..) => {
-                self.leaves.get_mut().add_assign(1);
+                self.leaves.borrow_mut().fetch_add(1);
             }
             TrieNode::Branch(child, ..) => {
-                self.branches.get_mut().add_assign(1);
-                self.sum_children.get_mut().add_assign(child.iter().flatten().count() as u64);
+                self.branches.borrow_mut().fetch_add(1);
+                self.sum_children.borrow_mut().fetch_add(child.iter().flatten().count() as u64);
             }
             TrieNode::Extension(..) => {
-                self.extensions.get_mut().add_assign(1);
+                self.extensions.borrow_mut().fetch_add(1);
             }
         }
         self.trail.push(Crumb { status: CrumbStatus::Entering, node });

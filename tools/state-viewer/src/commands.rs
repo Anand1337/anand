@@ -25,7 +25,7 @@ use near_store::{Store, TrieIterator};
 use nearcore::{NearConfig, NightshadeRuntime};
 use node_runtime::adapter::ViewRuntimeAdapter;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::Write;
@@ -141,10 +141,10 @@ pub(crate) fn dump_state_records(
         //         }
         //     })
         //     .count();
-        let mut branches = Rc::new(RefCell::new(0u64));
-        let mut sum_children = Rc::new(RefCell::new(0u64));
-        let mut leaves = Rc::new(RefCell::new(0u64));
-        let mut extensions = Rc::new(RefCell::new(0u64));
+        let mut branches = Rc::new(Cell::new(0u64));
+        let mut sum_children = Rc::new(Cell::new(0u64));
+        let mut leaves = Rc::new(Cell::new(0u64));
+        let mut extensions = Rc::new(Cell::new(0u64));
         let mut trie = TrieIterator::new_with_counters(
             &trie,
             &state_root,
