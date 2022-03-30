@@ -165,14 +165,16 @@ impl<'a> TrieIterator<'a> {
         match &node.node {
             TrieNode::Empty => {}
             TrieNode::Leaf(..) => {
-                self.leaves.borrow_mut().fetch_add(1);
+                self.leaves.borrow_mut().set(self.leaves.get() + 1);
             }
             TrieNode::Branch(child, ..) => {
-                self.branches.borrow_mut().fetch_add(1);
-                self.sum_children.borrow_mut().fetch_add(child.iter().flatten().count() as u64);
+                self.branches.borrow_mut().set(self.branches.get() + 1);
+                self.sum_children
+                    .borrow_mut()
+                    .set(self.sum_children.get() + child.iter().flatten().count() as u64);
             }
             TrieNode::Extension(..) => {
-                self.extensions.borrow_mut().fetch_add(1);
+                self.extensions.borrow_mut().set(self.extensions.get() + 1);
             }
         }
         self.trail.push(Crumb { status: CrumbStatus::Entering, node });
