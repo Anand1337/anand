@@ -159,10 +159,10 @@ pub(crate) fn dump_state_records(
         eprintln!(
             "{},{},{},{},{}",
             num_items_read,
-            branches.get_mut(),
-            extensions.get_mut(),
-            leaves.get_mut(),
-            sum_children.get_mut()
+            branches.get(),
+            extensions.get(),
+            leaves.get(),
+            sum_children.get()
         );
     });
 }
