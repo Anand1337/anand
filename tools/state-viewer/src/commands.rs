@@ -145,6 +145,7 @@ pub(crate) fn dump_state_records(
         let mut sum_children = Rc::new(Cell::new(0u64));
         let mut extensions = Rc::new(Cell::new(0u64));
         let mut leaves = Rc::new(Cell::new(0u64));
+        let mut node_sizes = Rc::new(Cell::new(0u64));
         let mut trie = TrieIterator::new_with_counters(
             &trie,
             &state_root,
@@ -152,6 +153,7 @@ pub(crate) fn dump_state_records(
             sum_children.clone(),
             extensions.clone(),
             leaves.clone(),
+            node_sizes.clone(),
         )
         .unwrap();
         let (num_items_read, sum_sizes) =
@@ -161,13 +163,14 @@ pub(crate) fn dump_state_records(
 
         // I messed up extensions and leaves!
         eprintln!(
-            "{},{},{},{},{},{},",
+            "{},{},{},{},{},{},{},",
             num_items_read,
             sum_sizes,
             branches.get(),
             sum_children.get(),
             extensions.get(),
             leaves.get(),
+            node_sizes.get(),
         );
     });
 }

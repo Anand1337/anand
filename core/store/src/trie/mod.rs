@@ -606,6 +606,20 @@ impl Trie {
         }
     }
 
+    fn retrieve_node_and_len(&self, hash: &CryptoHash) -> Result<(TrieNodeWithSize, u64), StorageError> {
+        if *hash == Trie::empty_root() {
+            return Ok((TrieNodeWithSize::empty(), 0);
+        }
+        let bytes = self.storage.retrieve_raw_bytes(hash)?;
+        match RawTrieNodeWithSize::decode(&bytes) {
+            Ok(value) => Ok((TrieNodeWithSize::from_raw(value), bytes.len() as u64)),
+            Err(_) => Err(StorageError::StorageInconsistentState(format!(
+                "Failed to decode node {}",
+                hash
+            ))),
+        }
+    }
+
     pub fn retrieve_root_node(&self, root: &StateRoot) -> Result<StateRootNode, StorageError> {
         if *root == Trie::empty_root() {
             return Ok(StateRootNode::empty());

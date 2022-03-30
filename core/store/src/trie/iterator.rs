@@ -45,6 +45,7 @@ pub struct TrieIterator<'a> {
     pub sum_children: Rc<Cell<u64>>, // for double checking
     pub extensions: Rc<Cell<u64>>,
     pub leaves: Rc<Cell<u64>>,
+    pub node_sizes: Rc<Cell<u64>>,
 }
 
 pub type TrieItem = (Vec<u8>, Vec<u8>);
@@ -70,6 +71,7 @@ impl<'a> TrieIterator<'a> {
             sum_children: Rc::new(Cell::new(0)),
             extensions: Rc::new(Cell::new(0)),
             leaves: Rc::new(Cell::new(0)),
+            node_sizes: Rc::new(Cell::new(0)),
         };
         let node = trie.retrieve_node(root)?;
         r.descend_into_node(node);
@@ -83,6 +85,7 @@ impl<'a> TrieIterator<'a> {
         sum_children: Rc<Cell<u64>>,
         extensions: Rc<Cell<u64>>,
         leaves: Rc<Cell<u64>>,
+        node_sizes: Rc<Cell<u64>>,
     ) -> Result<Self, StorageError> {
         let mut r = TrieIterator {
             trie,
@@ -93,6 +96,7 @@ impl<'a> TrieIterator<'a> {
             sum_children,
             extensions,
             leaves,
+            node_sizes,
         };
         let node = trie.retrieve_node(root)?;
         r.descend_into_node(node);
@@ -366,8 +370,12 @@ impl<'a> Iterator for TrieIterator<'a> {
                 IterStep::PopTrail => {
                     self.trail.pop();
                 }
-                IterStep::Descend(hash) => match self.trie.retrieve_node(&hash) {
-                    Ok(node) => self.descend_into_node(node),
+                IterStep::Descend(hash) => match self.trie.retrieve_node_and_len(&hash) {
+                    Ok((node, len)) => {
+                        let x = self.node_sizes.get();
+                        self.node_sizes.set(x + len);
+                        self.descend_into_node(node)
+                    }
                     Err(e) => return Some(Err(e)),
                 },
                 IterStep::Continue => {}
