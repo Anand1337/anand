@@ -1,4 +1,5 @@
 use near_primitives::hash::CryptoHash;
+use std::rc::Rc;
 
 use crate::trie::nibble_slice::NibbleSlice;
 use crate::trie::{TrieNode, TrieNodeWithSize, ValueHandle};
@@ -37,10 +38,10 @@ pub struct TrieIterator<'a> {
     trail: Vec<Crumb>,
     pub(crate) key_nibbles: Vec<u8>,
     root: CryptoHash,
-    pub branches: u64,
-    pub sum_children: u64, // for double checking
-    pub extensions: u64,
-    pub leaves: u64,
+    pub branches: Rc<u64>,
+    pub sum_children: Rc<u64>, // for double checking
+    pub extensions: Rc<u64>,
+    pub leaves: Rc<u64>,
 }
 
 pub type TrieItem = (Vec<u8>, Vec<u8>);
@@ -62,10 +63,33 @@ impl<'a> TrieIterator<'a> {
             trail: Vec::with_capacity(8),
             key_nibbles: Vec::with_capacity(64),
             root: *root,
-            branches: 0,
-            sum_children: 0,
-            extensions: 0,
-            leaves: 0,
+            branches: Rc::new(0),
+            sum_children: Rc::new(0),
+            extensions: Rc::new(0),
+            leaves: Rc::new(0),
+        };
+        let node = trie.retrieve_node(root)?;
+        r.descend_into_node(node);
+        Ok(r)
+    }
+
+    pub fn new_with_counters(
+        trie: &'a Trie,
+        root: &CryptoHash,
+        branches: Rc<u64>,
+        sum_children: Rc<u64>,
+        extensions: Rc<u64>,
+        leaves: Rc<u64>,
+    ) -> Result<Self, StorageError> {
+        let mut r = TrieIterator {
+            trie,
+            trail: Vec::with_capacity(8),
+            key_nibbles: Vec::with_capacity(64),
+            root: *root,
+            branches,
+            sum_children,
+            extensions,
+            leaves,
         };
         let node = trie.retrieve_node(root)?;
         r.descend_into_node(node);

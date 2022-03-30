@@ -29,6 +29,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 pub(crate) fn peers(store: Store) {
@@ -115,7 +116,7 @@ pub(crate) fn dump_state_records(
 
     state_roots.into_par_iter().enumerate().for_each(|(shard_id, state_root)| {
         let trie = runtime.get_trie_for_shard(shard_id as u64, header.prev_hash()).unwrap();
-        let mut trie = TrieIterator::new(&trie, &state_root).unwrap();
+        // let mut trie = TrieIterator::new(&trie, &state_root).unwrap();
         // trie.seek(vec![9]).unwrap();
         //
         // let num_items_read = trie
@@ -139,7 +140,19 @@ pub(crate) fn dump_state_records(
         //         }
         //     })
         //     .count();
-
+        let branches = Rc::new(0u64);
+        let sum_children = Rc::new(0u64);
+        let leaves = Rc::new(0u64);
+        let extensions = Rc::new(0u64);
+        let mut trie = TrieIterator::new_with_counters(
+            &trie,
+            &state_root,
+            branches.clone(),
+            sum_children.clone(),
+            leaves.clone(),
+            extensions.clone(),
+        )
+        .unwrap();
         let num_items_read = trie.take(100).count();
 
         eprintln!(
