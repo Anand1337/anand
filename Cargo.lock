@@ -2592,6 +2592,8 @@ dependencies = [
  "prometheus",
  "rand 0.7.3",
  "reed-solomon-erasure",
+ "strum",
+ "strum_macros",
  "tracing",
 ]
 

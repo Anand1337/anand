@@ -176,3 +176,11 @@ pub static CLIENT_MESSAGES_PROCESSING_TIME: Lazy<HistogramVec> = Lazy::new(|| {
     )
     .unwrap()
 });
+pub static PARTIAL_ENCODED_CHUNK_PROCESS_RESULT: Lazy<IntCounterVec> = Lazy::new(|| {
+    try_create_int_counter_vec(
+        "near_partial_encoded_chunk_process_result",
+        "Results of processing partial encoded chunks",
+        &["type"],
+    )
+    .unwrap()
+});

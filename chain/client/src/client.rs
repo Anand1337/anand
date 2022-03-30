@@ -887,6 +887,9 @@ impl Client {
             &mut self.rs,
         )?;
         debug!(target:"client", "process partial encoded chunk {:?}, result: {:?}", chunk_hash, process_result);
+        metrics::PARTIAL_ENCODED_CHUNK_PROCESS_RESULT
+            .with_label_values(&[process_result.as_ref()])
+            .inc();
 
         Ok(self.process_process_partial_encoded_chunk_result(
             pec_v2.into_inner().header,

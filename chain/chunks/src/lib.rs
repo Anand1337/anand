@@ -153,7 +153,7 @@ pub enum ChunkStatus {
     Invalid,
 }
 
-#[derive(Debug)]
+#[derive(Debug, strum::AsRefStr)]
 pub enum ProcessPartialEncodedChunkResult {
     /// The information included in the partial encoded chunk is already known, no processing is needed
     Known,
