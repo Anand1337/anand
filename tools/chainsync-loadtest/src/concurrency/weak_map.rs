@@ -57,6 +57,11 @@ impl<K: Hash + Eq + Clone, V> WeakMap<K, V> {
         return m.get(key).map(|w| w.upgrade()).flatten();
     }
 
+    /*pub fn drain(self: &Arc<Self>) -> Vec<Arc<Ref<K,V>>> {
+        return self.inner.lock().unwrap().drain()
+            .map(|(_,w)|w.upgrade()).flatten().collect();
+    }*/
+
     // get() returns a reference to map[key].
     // Uses new_value to initialize the map entry if missing.
     pub fn get_or_insert(self: &Arc<Self>, key: &K, new_value: impl Fn() -> V) -> Arc<Ref<K, V>> {

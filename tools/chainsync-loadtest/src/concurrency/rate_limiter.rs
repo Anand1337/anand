@@ -19,6 +19,7 @@ impl RateLimiter_ {
     }
 }
 
+#[derive(Clone)]
 pub struct RateLimit {
     pub burst : u64,
     pub qps : f64,
