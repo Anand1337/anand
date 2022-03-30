@@ -79,7 +79,9 @@ impl Stream {
 }
 
 pub trait NodeServer : Sync + Send {
-    // Here is the interface that a node should expose to the network.
+    fn sync_routing_table(&self,ctx:&Ctx,u:RoutingTableUpdate) -> anyhow::Result<()> {
+        Err(anyhow!("unimplemented"))
+    }
 }
 
 pub struct NodeClientConfig {
@@ -120,7 +122,7 @@ pub struct NodeClient {
 type EventLoop = Box<dyn FnOnce(Ctx,Arc<dyn NodeServer>) -> BoxFuture<'static,anyhow::Result<()>> + Send>;
 
 impl NodeClient {
-    async fn connect(ctx:&Ctx, cfg:NodeClientConfig) -> anyhow::Result<(Arc<NodeClient>,EventLoop)> {
+    pub async fn connect(ctx:&Ctx, cfg:NodeClientConfig) -> anyhow::Result<(Arc<NodeClient>,EventLoop)> {
         // TCP connect.
         let peer_addr = cfg.peer_info.addr.ok_or(anyhow!("missing address"))?;
         let stream = ctx.wrap(net::TcpStream::connect(peer_addr)).await??;
@@ -158,7 +160,10 @@ impl NodeClient {
         );
         'handshake: loop {
             cli.stream.write(ctx,&PeerMessage::Handshake(msg.clone())).await.context("stream.write(Handshake)")?;
-            match cli.stream.read(ctx).await.context("stream.read(Handshake)")? {
+            info!("read next");
+            let recv_msg = cli.stream.read(ctx).await.context("stream.read(Handshake)")?;
+            info!("recv_msg = {:?}",recv_msg);
+            match recv_msg {
                 PeerMessage::Handshake(h) => {
                     if !cli.cfg.allow_peer_mismatch {
                         let (got,want) = (&h.target_peer_id,&cli.my_id); 
@@ -190,12 +195,14 @@ impl NodeClient {
                         msg.partial_edge_info = PartialEdgeInfo::new(&cli.my_id, &peer_info.id, 1, &cli.cfg.near.network_config.secret_key);
                     }
                 }
-                unexpected_msg => { return Err(anyhow!("unexpected message : {:?}",unexpected_msg)); }
+                unexpected_msg => {
+                    info!("unexpected message during handshake, ignoring : {:?}",unexpected_msg);
+                }
             }
         }
         let event_loop = Box::new({
             let cli = cli.clone();
-            |ctx:Ctx,server| async move {
+            |ctx:Ctx,server:Arc<dyn NodeServer>| async move {
                 let ctx = ctx.with_cancel();
                 if let Err(_) = cli.event_loop_ctx.set(ctx.clone()) {
                     panic!("cli.event_loop_ctx.set() failed unexpectedly");
@@ -227,6 +234,11 @@ impl NodeClient {
                                     });
                                 }
                                 _ => {}
+                            }
+                            PeerMessage::SyncRoutingTable(u) => {
+                                if let Err(err) = server.sync_routing_table(&ctx,u) {
+                                    info!("serve.sync_routing_table(): {:#}",err);
+                                }
                             }
                             unexpected_msg => { return Err(anyhow!("unexpected message : {:?}",unexpected_msg)); }
                         }
