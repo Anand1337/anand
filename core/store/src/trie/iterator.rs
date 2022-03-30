@@ -141,7 +141,7 @@ impl<'a> TrieIterator<'a> {
             TrieNode::Leaf(..) => self.leaves += 1,
             TrieNode::Branch(child, value) => {
                 self.branches += 1;
-                self.sum_children += child.iter().flatten().count();
+                self.sum_children += child.iter().flatten().count() as u64;
             }
             TrieNode::Extension(..) => self.extensions += 1,
         }
