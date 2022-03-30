@@ -135,16 +135,16 @@ impl<'a> TrieIterator<'a> {
     }
 
     fn descend_into_node(&mut self, node: TrieNodeWithSize) {
-        self.trail.push(Crumb { status: CrumbStatus::Entering, node });
         match &node.node {
             TrieNode::Empty => {}
             TrieNode::Leaf(..) => self.leaves += 1,
-            TrieNode::Branch(child, value) => {
+            TrieNode::Branch(child, ..) => {
                 self.branches += 1;
                 self.sum_children += child.iter().flatten().count() as u64;
             }
             TrieNode::Extension(..) => self.extensions += 1,
         }
+        self.trail.push(Crumb { status: CrumbStatus::Entering, node });
     }
 
     fn key(&self) -> Vec<u8> {
