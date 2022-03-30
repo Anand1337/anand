@@ -154,7 +154,7 @@ pub(crate) fn dump_state_records(
             extensions.clone(),
         )
         .unwrap();
-        let num_items_read = trie.take(100).count();
+        let num_items_read = trie.count();
 
         eprintln!(
             "{},{},{},{},{}",
