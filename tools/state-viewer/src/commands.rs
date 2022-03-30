@@ -113,7 +113,9 @@ pub(crate) fn dump_state_records(
     println!("Storage roots are {:?}, block height is {}", state_roots, header.height());
     let mut csv_file = csv_file.map(|filename| std::fs::File::create(filename).unwrap());
     let csv_file_mutex = Arc::new(Mutex::new(csv_file.as_mut()));
-    maybe_add_to_csv(&csv_file_mutex, "ShardId,KeyLen,ValueLen");
+    eprintln!(
+        "shard_id,num_items_read,sum_sizes,branches,sum_children,extensions,leaves,node_sizes,"
+    );
 
     state_roots.into_par_iter().enumerate().for_each(|(shard_id, state_root)| {
         let trie = runtime.get_trie_for_shard(shard_id as u64, header.prev_hash()).unwrap();
@@ -163,7 +165,8 @@ pub(crate) fn dump_state_records(
 
         // I messed up extensions and leaves!
         eprintln!(
-            "{},{},{},{},{},{},{},",
+            "{},{},{},{},{},{},{},{},",
+            shard_id,
             num_items_read,
             sum_sizes,
             branches.get(),
