@@ -606,9 +606,12 @@ impl Trie {
         }
     }
 
-    fn retrieve_node_and_len(&self, hash: &CryptoHash) -> Result<(TrieNodeWithSize, u64), StorageError> {
+    fn retrieve_node_and_len(
+        &self,
+        hash: &CryptoHash,
+    ) -> Result<(TrieNodeWithSize, u64), StorageError> {
         if *hash == Trie::empty_root() {
-            return Ok((TrieNodeWithSize::empty(), 0);
+            return Ok((TrieNodeWithSize::empty(), 0));
         }
         let bytes = self.storage.retrieve_raw_bytes(hash)?;
         match RawTrieNodeWithSize::decode(&bytes) {
