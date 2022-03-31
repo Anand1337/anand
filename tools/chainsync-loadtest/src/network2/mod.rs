@@ -5,5 +5,5 @@ mod stream;
 
 pub use stream::Stream;
 pub use client_manager::{ClientManager,ClientManagerConfig};
-pub use client::{NodeClient,NodeClientConfig,NodeServer,UnimplementedNodeServer};
+pub use client::{EventLoop,NodeClient,NodeClientConfig,NodeServer,UnimplementedNodeServer};
 pub use discover::{discover_peers,DiscoverPeersResult};

@@ -14,7 +14,7 @@ use tracing::metadata::LevelFilter;
 use tracing::{info};
 use tracing_subscriber::EnvFilter;
 
-use concurrency::{Ctx, RateLimit};
+use concurrency::{Ctx, RateLimit, Scope};
 use crate::network2 as network;
 
 use near_primitives::hash::CryptoHash;
@@ -70,8 +70,7 @@ pub fn main() -> anyhow::Result<()> {
 
     info!("#boot nodes = {}", near_config.network_config.boot_nodes.len());
     let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(async move{
-        let ctx = Ctx::background();
+    rt.block_on(Scope::run(&Ctx::background(),|ctx,s|async move {
         let mut peers = network::discover_peers(
             &ctx,
             near_config.clone(),
@@ -79,15 +78,18 @@ pub fn main() -> anyhow::Result<()> {
             3,
             1000,
         ).await?;
-        let network = network::ClientManager::new(network::ClientManagerConfig{
+        let (network,event_loop) = network::ClientManager::start(network::ClientManagerConfig{
             near: near_config,
             known_peers: peers.drain().collect(),
             conn_count: 10,
             handshake_timeout: time::Duration::from_secs(5),
             per_conn_rate_limit: RateLimit{burst:cmd.qps_limit as u64 ,qps:cmd.qps_limit as f64},
-        }); 
+        });
+        let server = Arc::new(network::UnimplementedNodeServer());
+        s.spawn_weak(|ctx|event_loop(ctx,server));
+
         fetch_chain::run(ctx.clone(), network, start_block_hash, cmd.block_limit).await?;
         info!("Fetch completed");
         Ok(())
-    })
+    }))
 }

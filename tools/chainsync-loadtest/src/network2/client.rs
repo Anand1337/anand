@@ -73,7 +73,7 @@ pub struct NodeClient {
     stats : Stats,
 }
 
-type EventLoop = Box<dyn FnOnce(Ctx,Arc<dyn NodeServer>) -> BoxFuture<'static,anyhow::Result<()>> + Send>;
+pub type EventLoop = Box<dyn FnOnce(Ctx,Arc<dyn NodeServer>) -> BoxFuture<'static,anyhow::Result<()>> + Send>;
 
 impl NodeClient {
     pub async fn connect(ctx:&Ctx, cfg:NodeClientConfig) -> anyhow::Result<(Arc<NodeClient>,EventLoop)> {
