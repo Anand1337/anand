@@ -1541,6 +1541,7 @@ impl ClientActor {
                 act.log_summary(ctx);
             },
         );
+        debug!(target: "stats", "{}", self.client.detailed_upcoming_blocks_info().unwrap_or(String::from("Upcoming block info failed.")));
     }
 }
 
