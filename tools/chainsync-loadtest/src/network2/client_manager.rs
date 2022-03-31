@@ -8,11 +8,13 @@ use std::sync::{Arc};
 use std::sync::atomic::{AtomicU64,Ordering};
 use std::future::Future;
 
-use parking_lot::{Mutex};
+use parking_lot::{Mutex,RwLock};
 use futures::future::{BoxFuture,FutureExt};
 use bytes::{BytesMut,BufMut};
 use bytesize::{GIB, MIB};
 use borsh::{BorshDeserialize, BorshSerialize};
+use rand::{Rng,thread_rng};
+use rand::seq::{IteratorRandom};
 use tokio_util::codec::{Decoder,Encoder};
 use tracing::metadata;
 use tracing::{info};
@@ -21,7 +23,8 @@ use tokio::time;
 use tokio::net;
 use tokio::io;
 use tokio::io::{AsyncReadExt,AsyncWriteExt};
-use tokio::sync::{Semaphore,Mutex as AsyncMutex};
+use tokio::sync::{Semaphore,Mutex as AsyncMutex,Notify};
+use tokio::sync::watch;
 use anyhow::{anyhow,Context};
 
 use nearcore::config::{NearConfig};
@@ -54,10 +57,8 @@ pub struct ClientManagerConfig {
 pub struct ClientManager {
     cfg : ClientManagerConfig,
     peers_queue : Mutex<Vec<(std::net::SocketAddr,PeerId)>>,
-    conn_peers : Mutex<HashMap<PeerId,Arc<NodeClient>>>,
-    // Arc is required to use acquire_owned() instead of acquire().
-    // And we need acquire_owned() to pass a permit to a coroutine.
-    conn_peers_sem : Arc<Semaphore>,
+    clients: RwLock<HashMap<usize,Arc<NodeClient>>>,
+    clients_notify: Notify,
     // Obtains a list of PeerInfos, that we managed to perform a handshake with.
     //
     // maintain a pool of connections of size at least n
@@ -69,44 +70,51 @@ impl ClientManager {
     pub fn new(cfg :ClientManagerConfig) -> Arc<ClientManager> {
         Arc::new(ClientManager{
             peers_queue: Mutex::new(cfg.known_peers.clone()),
-            conn_peers: Mutex::new(HashMap::new()),
-            conn_peers_sem: Arc::new(Semaphore::new(cfg.conn_count)),
+            clients: RwLock::new(HashMap::new()), 
+            clients_notify: Notify::new(),
             cfg,
         })
     }
 
-    pub async fn any_peer() -> Arc<NodeClient> {
-        panic!("unimplemented");
+    pub async fn any(&self,ctx:&Ctx) -> anyhow::Result<Arc<NodeClient>> {
+        loop {
+            if let Some((_,v)) = self.clients.read().iter().choose(&mut thread_rng()) {
+                return Ok(v.clone());
+            }
+            ctx.wrap(self.clients_notify.notified()).await?;
+        }
     }
 
     pub async fn run(self:&Arc<Self>,ctx:&Ctx, server: &Arc<dyn NodeServer>) -> anyhow::Result<()> {
         let self_ = self.clone();
         let server = server.clone();
         Scope::run(ctx,|ctx,s|async move{
-            loop {
-                let self_ = self_.clone();
-                let permit = ctx.wrap(self_.conn_peers_sem.clone().acquire_owned()).await?;
-                let (addr,id) = self_.peers_queue.lock().pop().ok_or(anyhow!("list of known peers has been exhausted"))?;
-                let server = server.clone();
-                s.spawn_weak(|ctx|async move{
-                    let permit = permit;
-                    // TODO: detect missing address earlier - either skip the peer, or fail
-                    // PeerManager::new().
-                    let (client,event_loop) = NodeClient::connect(&ctx,NodeClientConfig{
-                        near: self_.cfg.near.clone(),
-                        peer_addr: addr,
-                        peer_id: Some(id.clone()),
-                        rate_limit: self_.cfg.per_conn_rate_limit.clone(),
-                        allow_protocol_mismatch: false,
-                        allow_genesis_mismatch: false,
-                    }).await?;
-                    self_.conn_peers.lock().insert(id.clone(),client);
-                    let err = event_loop(ctx,server).await;
-                    self_.conn_peers.lock().remove(&id);
-                    // TODO: ignore/log only expected errors.
-                    Ok(())
+            for i in 0..self_.cfg.conn_count {
+                s.spawn({
+                    let self_ = self_.clone();
+                    let server = server.clone();
+                    |ctx,s|async move{
+                        loop {
+                            let (addr,id) = self_.peers_queue.lock().pop().ok_or(anyhow!("list of known peers has been exhausted"))?;
+                            let (client,event_loop) = NodeClient::connect(&ctx,NodeClientConfig{
+                                near: self_.cfg.near.clone(),
+                                peer_addr: addr,
+                                peer_id: Some(id.clone()),
+                                rate_limit: self_.cfg.per_conn_rate_limit.clone(),
+                                allow_protocol_mismatch: false,
+                                allow_genesis_mismatch: false,
+                            }).await?;
+                            self_.clients.write().insert(i,client.clone());
+                            if let Err(err) = event_loop(ctx.clone(),server.clone()).await {
+                                // TODO: ignore/log only expected errors.
+                                info!("event_loop(): {:#}",err);
+                            }
+                            self_.clients.write().remove(&i);
+                        }
+                    }
                 });
             }
+            Ok(())
         }).await
     }
 }
