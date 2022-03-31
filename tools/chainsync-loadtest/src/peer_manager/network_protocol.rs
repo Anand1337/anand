@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 /// Contains types that belong to the `network protocol.
 ///
 /// WARNING WARNING WARNING

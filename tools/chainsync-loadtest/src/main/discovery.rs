@@ -28,7 +28,6 @@ use near_network_primitives::types::{EdgeState,PeerInfo,PartialEdgeInfo,PeerChai
 use near_primitives::types::{AccountId};
 use near_primitives::network::{PeerId};
 use near_primitives::version::{PEER_MIN_ALLOWED_PROTOCOL_VERSION,PROTOCOL_VERSION};
-use crate::peer_manager::peer::codec::{Codec};
 use crate::peer_manager::types::{PeerMessage,Handshake,HandshakeFailureReason,RoutingTableUpdate};
 use crate::concurrency::{Ctx,Scope,RateLimit,Once,noop,Spawnable,spawnable};
 use crate::network2 as network;

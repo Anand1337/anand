@@ -244,15 +244,15 @@ impl NodeClient {
         Ok(ctx.wrap(event_loop_ctx.wrap(recv)).await??) 
     }
 
-    pub async fn fetch_block_headers(self:&Arc<Self>,ctx:&Ctx,hash:CryptoHash) -> anyhow::Result<Vec<BlockHeader>> {
+    pub async fn fetch_block_headers(self:&Arc<Self>,ctx:&Ctx,hash:&CryptoHash) -> anyhow::Result<Vec<BlockHeader>> {
         let msg = PeerMessage::BlockHeadersRequest(vec![hash.clone()]);
-        let recv = self.block_headers.get_or_insert(&hash,Once::new);
+        let recv = self.block_headers.get_or_insert(hash,Once::new);
         self.call(ctx,msg,recv.wait()).await
     }
 
-    pub async fn fetch_block(self:&Arc<Self>,ctx:&Ctx,hash:CryptoHash)  -> anyhow::Result<Block> {
+    pub async fn fetch_block(self:&Arc<Self>,ctx:&Ctx,hash:&CryptoHash)  -> anyhow::Result<Block> {
         let msg = PeerMessage::BlockRequest(hash.clone());
-        let recv = self.blocks.get_or_insert(&hash,Once::new);
+        let recv = self.blocks.get_or_insert(hash,Once::new);
         self.call(ctx,msg,recv.wait()).await
     }
 

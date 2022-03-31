@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use near_network_primitives::types::MAX_NUM_PEERS;
 use near_primitives::network::PeerId;
 use std::collections::hash_map::Entry;
