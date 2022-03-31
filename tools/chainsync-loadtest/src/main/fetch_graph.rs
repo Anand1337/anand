@@ -1,12 +1,11 @@
 use crate::network2 as network;
 use clap::{Clap};
-use crate::concurrency::{Ctx,Scope,RateLimit};
-use near_network_primitives::types::{PeerInfo};
-use near_primitives::network::{PeerId};
+use crate::concurrency::{Ctx,Scope,RateLimit,Once};
 use crate::peer_manager::types::{RoutingTableUpdate};
 use tracing::metadata;
 use tracing::{info};
 use std::sync::{Arc};
+use std::collections::{HashSet,HashMap};
 
 fn init_logging() {
     let env_filter = tracing_subscriber::EnvFilter::from_default_env().add_directive(metadata::LevelFilter::INFO.into());
@@ -25,11 +24,16 @@ struct Cmd {
     pub addr:String,
 }
 
-struct Server();
+struct Server {
+    routing_table : Once<RoutingTableUpdate>,
+}
 
 impl network::NodeServer for Server {
     fn sync_routing_table(&self,_ctx:&Ctx,u:RoutingTableUpdate) -> anyhow::Result<()> {
-        info!("u.edges.len() = {}",u.edges.len());
+        if u.accounts.len()>0 {
+            info!("u.edges.len() = {}",u.edges.len());
+            let _ = self.routing_table.set(u);
+        }
         Ok(())
     }
 }
@@ -39,26 +43,39 @@ pub fn main() -> anyhow::Result<()> {
     let cmd = Cmd::parse();
     let cfg = Arc::new(crate::config::download(&cmd.chain_id)?);
     let rt = tokio::runtime::Runtime::new()?;
+    let ctx = Ctx::background();
     rt.block_on(async move{
-        Scope::run(&Ctx::background(),|ctx,s|async move{
-            let account_id = "dupa123".parse()?;
-            let node_signer =
-                near_crypto::InMemorySigner::from_random(account_id, near_crypto::KeyType::ED25519);
-            let peer_id = PeerId::new(node_signer.public_key.clone());
+        let addr : std::net::SocketAddr = cmd.addr.parse()?;
+        Scope::run(&ctx,|ctx,s|async move{
             let (cli,event_loop) = network::NodeClient::connect(&ctx,network::NodeClientConfig{
                 near: cfg,
-                peer_info: PeerInfo{
-                    account_id: None,
-                    addr: Some(cmd.addr.parse()?),
-                    id: peer_id,
-                },
+                peer_addr: addr,
+                peer_id: None,
                 rate_limit: RateLimit{burst:100,qps:100.},
-                allow_peer_mismatch: true,
                 allow_protocol_mismatch: false,
                 allow_genesis_mismatch: false,
             }).await?;
-            s.spawn_weak(|ctx|event_loop(ctx,Arc::new(Server())));
+            let server = Arc::new(Server{routing_table:Once::new()});
+            s.spawn_weak(|ctx|event_loop(ctx,server.clone()));
             info!("connected");
+            /*for peer_info in cli.fetch_peers(&ctx).await? {
+                info!("peer = {}",peer_info);
+            }*/
+            let graph = ctx.wrap(server.routing_table.wait()).await?;
+            let graph = crate::graph::Graph::new(&graph);
+            let mut start = HashSet::new();
+            start.insert(cli.peer_id.clone());
+            let (dist,unknown_nodes) = graph.dist_from(&start);
+            info!("unknown_nodes = {}",unknown_nodes);
+            info!("edges = {:?}",graph.edges.get(&cli.peer_id));
+            let mut hist = HashMap::<usize,usize>::new();
+            for (_,v) in &dist {
+                *hist.entry(*v).or_default() += 1;
+            }
+            for (k,v) in &hist {
+                info!("dist[{}] = {}",k,v);
+            }
+            info!("done");
             Ok(())
         }).await
     })

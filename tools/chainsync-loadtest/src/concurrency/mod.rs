@@ -12,5 +12,5 @@ mod scope_test;
 pub use ctx::{Ctx, CtxWithCancel};
 pub use once::{Once};
 pub use rate_limiter::{RateLimit,RateLimiter};
-pub use scope::{Scope};
+pub use scope::{Scope,Spawnable,spawnable,noop};
 pub use weak_map::{WeakMap};

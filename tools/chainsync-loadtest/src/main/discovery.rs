@@ -30,7 +30,7 @@ use near_primitives::network::{PeerId};
 use near_primitives::version::{PEER_MIN_ALLOWED_PROTOCOL_VERSION,PROTOCOL_VERSION};
 use crate::peer_manager::peer::codec::{Codec};
 use crate::peer_manager::types::{PeerMessage,Handshake,HandshakeFailureReason,RoutingTableUpdate};
-use crate::concurrency::{Ctx,Scope,RateLimit,Once};
+use crate::concurrency::{Ctx,Scope,RateLimit,Once,noop,Spawnable,spawnable};
 use crate::network2 as network;
 use near_jsonrpc_primitives::types::network_info::{RpcNetworkInfoResponse};
 use near_jsonrpc_primitives::types::validator::RpcValidatorResponse;
@@ -90,10 +90,10 @@ async fn ask_for_peers(ctx:&Ctx, cfg :Arc<NearConfig>, peer_info:PeerInfo, peers
             let addr = peer_info.addr.expect("missing addr");
             let (cli,event_loop) = network::NodeClient::connect(&ctx,network::NodeClientConfig{
                 near: cfg.clone(),
-                peer_info: peer_info.clone(),
+                peer_addr: addr,
+                peer_id: None,
                 rate_limit: RateLimit{burst:10,qps:10.},
                 allow_protocol_mismatch:true,
-                allow_peer_mismatch:true,
                 allow_genesis_mismatch:false,
             }).await?;
             // TODO: distinguish between these by augmenting the error.
@@ -140,19 +140,6 @@ struct Scanner {
     stats:Stats,
 }
 
-type Spawnable = Box<dyn FnOnce(Ctx,Arc<Scope>) -> BoxFuture<'static,anyhow::Result<()>> + Send>;
-
-fn noop() -> Spawnable {
-    spawnable(|_ctx,_s| async { Ok(()) })
-}
-
-fn spawnable<F,G>(g:G) -> Spawnable where
-    G:FnOnce(Ctx,Arc<Scope>) -> F + 'static + Send,
-    F:Future<Output=anyhow::Result<()>> + 'static + Send,
-{
-    return Box::new(|ctx,s|g(ctx,s).boxed());
-}
-
 impl Scanner {
     fn new(cfg:Arc<NearConfig>, per_peer_timeout:time::Duration, per_peer_requests:usize, inflight_limit:usize) -> Arc<Self> {
         Arc::new(Self{
@@ -180,7 +167,10 @@ impl Scanner {
             let permit = self.sem.acquire().await;
             self.stats.ask_for_peers_calls.fetch_add(1,Ordering::Relaxed);
             let mut result = ask_for_peers(&ctx.with_timeout(self.per_peer_timeout),self.cfg.clone(),info.clone(),self.per_peer_requests).await;
-            match fetch_network_info(&ctx.with_timeout(time::Duration::from_secs(2)),addr.ip()).await {
+            match crate::diagnostics::fetch_network_info(
+                &ctx.with_timeout(time::Duration::from_secs(2)),
+                std::net::SocketAddr::new(addr.ip(),3030),
+            ).await {
                 Ok(ni) => {
                     // info!("accounts.len() = {}",ni.known_producers.len());
                     result.network_info = Some(ni);
@@ -196,121 +186,13 @@ impl Scanner {
     }
 }
 
-async fn fetch_network_info(ctx :&Ctx, ip: std::net::IpAddr) -> anyhow::Result<RpcNetworkInfoResponse> {
-    let uri = hyper::Uri::builder()
-        .scheme("http")
-        .authority(std::net::SocketAddr::new(ip,3030).to_string())
-        .path_and_query("/")
-        .build()?;
-    let req = serde_json::json!({
-        "jsonrpc": "2.0",
-        "id": "dontcare",
-        "method": "network_info",
-        "params": [],
-    });
-    let req = hyper::Request::builder()
-        .method(hyper::Method::POST)
-        .header("Content-Type","application/json")
-        .uri(uri)
-        .body(hyper::Body::from(serde_json::to_string(&req)?))?;
-    
-    let resp = ctx.wrap(hyper::Client::new().request(req)).await??;
-    let resp = ctx.wrap(hyper::body::to_bytes(resp)).await??;
-    //info!("resp = {}",std::str::from_utf8(&resp).unwrap());
-    let resp = serde_json::from_slice::<message::Response>(&*resp)?;
-    let resp = match resp.result {
-        Ok(resp) => resp,
-        Err(err) => { return Err(anyhow!(serde_json::to_string(&err)?)) }
-    };
-    return Ok(serde_json::from_value::<RpcNetworkInfoResponse>(resp)?);
-}
-
-async fn fetch_validators(uri: hyper::Uri) -> anyhow::Result<RpcValidatorResponse> {
-    let req = serde_json::json!({
-        "jsonrpc": "2.0",
-        "method": "validators",
-        "id": "dontcare",
-        "params": [null],
-    });
-    let req = hyper::Request::builder()
-        .method(hyper::Method::POST)
-        .header("Content-Type","application/json")
-        .uri(uri)
-        .body(hyper::Body::from(serde_json::to_string(&req)?))?;
-    
-    let resp = hyper::Client::new().request(req).await?;
-    let resp = hyper::body::to_bytes(resp).await?;
-    let resp = serde_json::from_slice::<message::Response>(&*resp)?;
-    let resp = match resp.result {
-        Ok(resp) => resp,
-        Err(err) => { return Err(anyhow!(serde_json::to_string(&err)?)) }
-    };
-    return Ok(serde_json::from_value::<RpcValidatorResponse>(resp)?);
-}
-
-struct Graph {
-    edges : HashMap<PeerId,HashSet<PeerId>>,
-}
-
-impl Graph {
-    fn node_count(&self) -> usize { self.edges.len() }
-    fn isolated_node_count(&self) -> usize { self.edges.iter().filter(|(k,v)|v.is_empty()).count() }
-
-    fn new(graph: &RoutingTableUpdate) -> Graph {
-        let mut edges : HashMap<PeerId,HashSet<PeerId>> = HashMap::new();
-        let mut edges_list = graph.edges.clone();
-        edges_list.sort_by_key(|v|v.nonce());
-        for e in &edges_list {
-            let (p0,p1) = e.key();
-            match e.edge_type() {
-                EdgeState::Active => {
-                    edges.entry(p0.clone()).or_default().insert(p1.clone());
-                    edges.entry(p1.clone()).or_default().insert(p0.clone());
-                }
-                EdgeState::Removed => {
-                    edges.entry(p0.clone()).or_default().remove(p1);
-                    edges.entry(p1.clone()).or_default().remove(p0);
-                }
-            }
-        }
-        return Graph{edges}
-    }
-
-    fn dist_from(&self, start: &HashSet<PeerId>) -> (HashMap<PeerId,usize>,usize) {
-        let mut dist : HashMap<PeerId,usize> = HashMap::new();
-        let mut queue = vec![];
-        let mut unknown_nodes = 0;
-        for p in start {
-            if self.edges.contains_key(&p) {
-                dist.insert(p.clone(),1);
-                queue.push(p);
-            } else {
-                unknown_nodes += 1;
-            }
-        }
-        let mut i = 0;
-        while i<queue.len() {
-            let v = queue[i];
-            i += 1;
-            for w in self.edges.get(v).iter().map(|s|s.iter()).flatten() {
-                if dist.contains_key(w) { continue }
-                dist.insert(w.clone(),dist.get(v).unwrap()+1);
-                queue.push(w);
-            }
-        }
-        return (dist,unknown_nodes);
-    }
-}
-
-
-
 pub fn main() -> anyhow::Result<()> {
     init_logging();
     let cmd = Cmd::parse();
     let cfg = Arc::new(crate::config::download(&cmd.chain_id)?);
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async move{
-        let vi = fetch_validators(hyper::Uri::from_static("http://rpc.mainnet.near.org")).await?;
+        let vi = crate::diagnostics::fetch_validators(hyper::Uri::from_static("http://rpc.mainnet.near.org")).await?;
         let mut validators : HashMap<AccountId,PublicKey> = HashMap::new();
         for v in &vi.validator_info.current_validators {
             validators.insert(v.account_id.clone(),v.public_key.clone());
@@ -386,7 +268,7 @@ pub fn main() -> anyhow::Result<()> {
                 if info.addr.is_some() { addrs.insert(info.id.clone()); }
             }
         }
-        let graph = Graph::new(&graph.ok_or(anyhow!("no peer provided a graph"))?);
+        let graph = crate::graph::Graph::new(&graph.ok_or(anyhow!("no peer provided a graph"))?);
         let (dist,unknown_nodes) = graph.dist_from(&handshakes);
         let mut dist_hist : HashMap<usize,usize> = HashMap::new();
         for (_,v) in &dist { *dist_hist.entry(*v).or_default() += 1; }

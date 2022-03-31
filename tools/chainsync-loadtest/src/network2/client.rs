@@ -1,27 +1,10 @@
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-use std::fmt;
-use std::ops::{Deref};
-use std::collections::{HashSet,HashMap};
-use std::pin::{Pin};
 use std::sync::{Arc};
 use std::sync::atomic::{AtomicU64,Ordering};
 use std::future::Future;
 
-use parking_lot::{Mutex};
 use futures::future::{BoxFuture,FutureExt};
-use bytes::{BytesMut,BufMut};
-use bytesize::{GIB, MIB};
-use borsh::{BorshDeserialize, BorshSerialize};
-use tokio_util::codec::{Decoder,Encoder};
-use tracing::metadata;
 use tracing::{info};
-use clap::{Clap};
-use tokio::time;
 use tokio::net;
-use tokio::io;
-use tokio::io::{AsyncReadExt,AsyncWriteExt};
-use tokio::sync::{Semaphore,Mutex as AsyncMutex};
 use anyhow::{anyhow,Context};
 
 use nearcore::config::{NearConfig};
@@ -30,70 +13,32 @@ use near_network_primitives::types::{PeerInfo,PartialEdgeInfo,PeerChainInfoV2,
     AccountOrPeerIdOrHash, RawRoutedMessage, RoutedMessageBody,
 };
 use near_primitives::network::{PeerId};
-use near_primitives::version::{PEER_MIN_ALLOWED_PROTOCOL_VERSION,PROTOCOL_VERSION};
+use near_primitives::version::{PROTOCOL_VERSION};
 use near_primitives::hash::CryptoHash;
 use near_primitives::block::{Block, BlockHeader};
 use near_primitives::sharding::{ChunkHash, ShardChunkHeader};
-use crate::peer_manager::peer::codec::{Codec};
 use crate::peer_manager::types::{PeerMessage,Handshake,HandshakeFailureReason,RoutingTableUpdate};
-use crate::concurrency::{Ctx,CtxWithCancel,Scope,RateLimit,RateLimiter,WeakMap,Once};
-
-// TODO: use the network protocol knowledge from here to reimplement the loadtest without using the
-// PeerManager at all: do a discovery and connect directly to peers. If discovery is too expensive
-// to run every time, dump the peer_info: hash@addr for each relevant peer and then reuse it at
-// startup.
-
-/// Maximum size of network message in encoded format.
-/// We encode length as `u32`, and therefore maximum size can't be larger than `u32::MAX`.
-const NETWORK_MESSAGE_MAX_SIZE_BYTES: usize = 512 * MIB as usize;
-
-struct Stream {
-    reader : AsyncMutex<io::BufReader<io::ReadHalf<net::TcpStream>>>,
-    writer : AsyncMutex<io::BufWriter<io::WriteHalf<net::TcpStream>>>,
-}
-
-impl Stream {
-    fn new(stream: net::TcpStream) -> Self {
-        let (reader,writer) = io::split(stream);
-        Self{
-            reader: AsyncMutex::new(io::BufReader::new(reader)),
-            writer: AsyncMutex::new(io::BufWriter::new(writer)),
-        }
-    }
-    
-    async fn read(&self, ctx: &Ctx) -> anyhow::Result<PeerMessage> {
-        let mut reader = ctx.wrap(self.reader.lock()).await?;
-        let n = ctx.wrap(reader.read_u32_le()).await?? as usize;
-		// TODO: if this check fails, the stream is broken, because we read some bytes already.
-		if n>NETWORK_MESSAGE_MAX_SIZE_BYTES { return Err(anyhow!("message size too large")); }
-        let mut buf = BytesMut::new();
-	    buf.resize(n,0);	
-        ctx.wrap(reader.read_exact(&mut buf[..])).await??;
-        Ok(PeerMessage::try_from_slice(&buf[..])?)
-    }
-    
-    async fn write(&self, ctx: &Ctx, msg: &PeerMessage) -> anyhow::Result<()> {
-        let msg = msg.try_to_vec()?;
-        let mut writer = ctx.wrap(self.writer.lock()).await?; 
-        // TODO: If writing fails in the middle, then the stream is broken.
-        ctx.wrap(writer.write_u32_le(msg.len() as u32)).await??;
-        ctx.wrap(writer.write_all(&msg[..])).await??;
-        ctx.wrap(writer.flush()).await??;
-        Ok(())
-    } 
-}
+use crate::concurrency::{Ctx,CtxWithCancel,RateLimit,RateLimiter,WeakMap,Once};
+use crate::network2::{Stream};
 
 pub trait NodeServer : Sync + Send {
-    fn sync_routing_table(&self,ctx:&Ctx,u:RoutingTableUpdate) -> anyhow::Result<()> {
+    fn sync_routing_table(&self,_:&Ctx,_:RoutingTableUpdate) -> anyhow::Result<()> {
+        Err(anyhow!("unimplemented"))
+    }
+    fn fetch_peers(&self,_:&Ctx) -> anyhow::Result<Vec<PeerInfo>> {
         Err(anyhow!("unimplemented"))
     }
 }
 
+pub struct UnimplementedNodeServer();
+impl NodeServer for UnimplementedNodeServer {}
+
 pub struct NodeClientConfig {
     pub near : Arc<NearConfig>,
-    pub peer_info : PeerInfo,
+    pub peer_addr : std::net::SocketAddr,
+    pub peer_id : Option<PeerId>, // expected peer_id
+    
     pub rate_limit : RateLimit,
-    pub allow_peer_mismatch : bool,
     pub allow_protocol_mismatch : bool,
     pub allow_genesis_mismatch : bool,
 }
@@ -114,7 +59,8 @@ struct Stats {
 
 pub struct NodeClient {
     cfg : NodeClientConfig,
-    my_id : PeerId,
+    pub my_id : PeerId,
+    pub peer_id : PeerId,
     event_loop_ctx : Once<CtxWithCancel>,
 
     block_headers: Arc<WeakMap<CryptoHash, Once<Vec<BlockHeader>>>>,
@@ -132,14 +78,80 @@ type EventLoop = Box<dyn FnOnce(Ctx,Arc<dyn NodeServer>) -> BoxFuture<'static,an
 impl NodeClient {
     pub async fn connect(ctx:&Ctx, cfg:NodeClientConfig) -> anyhow::Result<(Arc<NodeClient>,EventLoop)> {
         // TCP connect.
-        let peer_addr = cfg.peer_info.addr.ok_or(anyhow!("missing address"))?;
-        let stream = ctx.wrap(net::TcpStream::connect(peer_addr)).await??;
+        let stream = ctx.wrap(net::TcpStream::connect(cfg.peer_addr)).await??;
         let my_id = PeerId::new(cfg.near.network_config.public_key.clone());
         let my_addr = cfg.near.network_config.addr.unwrap_or(stream.local_addr()?);
-
         let stream = Stream::new(stream); 
+
+        // Handshake
+        let fake_peer_id = ||PeerId::new(near_crypto::InMemorySigner::from_random("node".parse().unwrap(), near_crypto::KeyType::ED25519).public_key);
+        let peer_id = cfg.peer_id.clone().unwrap_or_else(fake_peer_id);
+
+        let edge_info = PartialEdgeInfo::new(&my_id, &peer_id, 1, &cfg.near.network_config.secret_key);
+        let genesis_id = crate::config::genesis_id(&cfg.near.client_config.chain_id);
+        let mut msg = Handshake::new(
+            PROTOCOL_VERSION,
+            my_id.clone(),
+            peer_id,
+            Some(my_addr.port()), // required 
+            PeerChainInfoV2 {
+                genesis_id: genesis_id.clone(), 
+                height: 0,
+                tracked_shards: Default::default(),
+                archival: false,
+            },
+            edge_info,
+        );
+        let mut rt_updates = vec![];
+        let peer_id = async { loop {
+            stream.write(ctx,&PeerMessage::Handshake(msg.clone())).await.context("stream.write(Handshake)")?;
+            let recv_msg = stream.read(ctx).await.context("stream.read(Handshake)")?;
+            match recv_msg {
+                PeerMessage::Handshake(h) => {
+                    let (got,want) = (&h.target_peer_id,&my_id); 
+                    if got!=want { return Err(anyhow!("my peer id mismatch: got = {:?}, want {:?}",got,want)); }
+                    if let Some(want) = cfg.peer_id.as_ref() {
+                        let got = &h.sender_peer_id;
+                        if got!=want { return Err(anyhow!("peer id mismatch: got = {:?}, want {:?}",got,want)); }
+                    }
+                    if !cfg.allow_genesis_mismatch {
+                        let (got,want) = (&h.sender_chain_info.genesis_id,&genesis_id);
+                        if got!=want { return Err(anyhow!("genesis mismatch: got = {:?}, want {:?}",got,want)); }
+                    }
+                    return Ok(h.sender_peer_id);
+                }
+                PeerMessage::HandshakeFailure(peer_info,reason) => match reason {
+                    HandshakeFailureReason::ProtocolVersionMismatch{version,oldest_supported_version} => {
+                        // TODO: narrow down the situations when we should agree.
+                        msg.protocol_version = version;
+                        msg.oldest_supported_version = oldest_supported_version;
+                    },
+                    HandshakeFailureReason::GenesisMismatch(peer_genesis_id) => {
+                        if !cfg.allow_genesis_mismatch {
+                            return Err(anyhow!("genesis mismatch: got {:?} want {:?}",peer_genesis_id,genesis_id));
+                        }
+                        msg.sender_chain_info.genesis_id = peer_genesis_id;
+                    }
+                    HandshakeFailureReason::InvalidTarget => {
+                        if let Some(want) = cfg.peer_id.as_ref() {
+                            return Err(anyhow!("peer_id mismatch: got {} want {}",peer_info.id,want));
+                        }
+                        msg.target_peer_id = peer_info.id.clone();
+                        msg.partial_edge_info = PartialEdgeInfo::new(&my_id, &peer_info.id, 1, &cfg.near.network_config.secret_key);
+                    }
+                }
+                // TODO: do not resend handshake upon unexpected messages
+                PeerMessage::SyncRoutingTable(u) => {
+                    rt_updates.push(u)
+                }
+                unexpected_msg => {
+                    info!("unexpected message during handshake, ignoring : {:?}",unexpected_msg);
+                }
+            }
+        }}.await?;
         let cli = Arc::new(NodeClient{
             my_id,
+            peer_id,
             event_loop_ctx: Once::new(),
             stream,
             block_headers: WeakMap::new(),
@@ -150,65 +162,6 @@ impl NodeClient {
             stats: Stats::default(),
             cfg,
         });
-
-        // Handshake
-        let edge_info = PartialEdgeInfo::new(&cli.my_id, &cli.cfg.peer_info.id, 1, &cli.cfg.near.network_config.secret_key);
-        let genesis_id = crate::config::genesis_id(&cli.cfg.near.client_config.chain_id);
-        let mut msg = Handshake::new(
-            PROTOCOL_VERSION,
-            cli.my_id.clone(),
-            cli.cfg.peer_info.id.clone(),
-            Some(my_addr.port()), // required 
-            PeerChainInfoV2 {
-                genesis_id: genesis_id.clone(), 
-                height: 0,
-                tracked_shards: Default::default(),
-                archival: false,
-            },
-            edge_info,
-        );
-        'handshake: loop {
-            cli.stream.write(ctx,&PeerMessage::Handshake(msg.clone())).await.context("stream.write(Handshake)")?;
-            info!("read next");
-            let recv_msg = cli.stream.read(ctx).await.context("stream.read(Handshake)")?;
-            info!("recv_msg = {:?}",recv_msg);
-            match recv_msg {
-                PeerMessage::Handshake(h) => {
-                    if !cli.cfg.allow_peer_mismatch {
-                        let (got,want) = (&h.target_peer_id,&cli.my_id); 
-                        if got!=want { return Err(anyhow!("my peer id mismatch: got = {:?}, want {:?}",got,want)); }
-                    }
-                    if !cli.cfg.allow_genesis_mismatch {
-                        let (got,want) = (&h.sender_chain_info.genesis_id,&genesis_id);
-                        if got!=want { return Err(anyhow!("genesis mismatch: got = {:?}, want {:?}",got,want)); }
-                    }
-                    break 'handshake;
-                }
-                PeerMessage::HandshakeFailure(peer_info,reason) => match reason {
-                    HandshakeFailureReason::ProtocolVersionMismatch{version,oldest_supported_version} => {
-                        // TODO: narrow down the situations when we should agree.
-                        msg.protocol_version = version;
-                        msg.oldest_supported_version = oldest_supported_version;
-                    },
-                    HandshakeFailureReason::GenesisMismatch(peer_genesis_id) => {
-                        if !cli.cfg.allow_genesis_mismatch {
-                            return Err(anyhow!("genesis mismatch: got {:?} want {:?}",peer_genesis_id,genesis_id));
-                        }
-                        msg.sender_chain_info.genesis_id = peer_genesis_id;
-                    }
-                    HandshakeFailureReason::InvalidTarget => {
-                        if !cli.cfg.allow_peer_mismatch {
-                            return Err(anyhow!("peer_id mismatch: got {} want {}",peer_info.id,cli.cfg.peer_info.id));
-                        }
-                        msg.target_peer_id = peer_info.id.clone();
-                        msg.partial_edge_info = PartialEdgeInfo::new(&cli.my_id, &peer_info.id, 1, &cli.cfg.near.network_config.secret_key);
-                    }
-                }
-                unexpected_msg => {
-                    info!("unexpected message during handshake, ignoring : {:?}",unexpected_msg);
-                }
-            }
-        }
         let event_loop = Box::new({
             let cli = cli.clone();
             |ctx:Ctx,server:Arc<dyn NodeServer>| async move {
@@ -217,6 +170,11 @@ impl NodeClient {
                     panic!("cli.event_loop_ctx.set() failed unexpectedly");
                 }
                 let res = async {
+                    for u in rt_updates {
+                        if let Err(err) = server.sync_routing_table(&ctx,u) {
+                            info!("serve.sync_routing_table(): {:#}",err);
+                        }
+                    }
                     // TODO: consider graceful disconnect (informing the peer)
                     // event loop
                     // + monitoring of the peer responsiveness.
@@ -247,9 +205,17 @@ impl NodeClient {
                             PeerMessage::PeersResponse(infos) => {
                                 cli.peers.get(&()).map(|once|once.set(infos));
                             }
+                            // TODO: the requests should be handled asynchronously
+                            // TODO: implement throttling (too many inflight/too many qps)
+                            PeerMessage::PeersRequest{} => {
+                                match server.fetch_peers(&ctx) {
+                                    Ok(infos) => { cli.stream.write(&ctx,&PeerMessage::PeersResponse(infos)).await?; }
+                                    Err(err) => { info!("server.fetch_peers(): {:#}",err); }
+                                }
+                            }
                             PeerMessage::SyncRoutingTable(u) => {
                                 if let Err(err) = server.sync_routing_table(&ctx,u) {
-                                    info!("serve.sync_routing_table(): {:#}",err);
+                                    info!("server.sync_routing_table(): {:#}",err);
                                 }
                             }
                             unexpected_msg => { return Err(anyhow!("unexpected message : {:?}",unexpected_msg)); }
@@ -263,6 +229,7 @@ impl NodeClient {
         return Ok((cli,event_loop));
     }
 }
+
 
 impl NodeClient {
     pub async fn call<T>(self:&Arc<Self>,ctx:&Ctx,msg:PeerMessage,recv:impl Future<Output=T>) -> anyhow::Result<T> {
@@ -291,7 +258,7 @@ impl NodeClient {
 
     pub async fn fetch_chunk(self:&Arc<Self>,ctx:&Ctx,ch:&ShardChunkHeader) -> anyhow::Result<PartialEncodedChunkResponseMsg> {
         let msg = RawRoutedMessage{
-            target: AccountOrPeerIdOrHash::PeerId(self.cfg.peer_info.id.clone()),
+            target: AccountOrPeerIdOrHash::PeerId(self.peer_id.clone()),
             body: RoutedMessageBody::PartialEncodedChunkRequest(PartialEncodedChunkRequestMsg {
                 chunk_hash: ch.chunk_hash(),
                 part_ords: (0..self.cfg.parts_per_chunk()).collect(),
@@ -307,72 +274,5 @@ impl NodeClient {
         let msg = PeerMessage::PeersRequest{};
         let recv = self.peers.get_or_insert(&(),Once::new);
         self.call(ctx,msg,recv.wait()).await
-    }
-}
-
-pub struct NetworkConfig {
-    pub near : Arc<NearConfig>,
-    pub known_peers : Vec<PeerInfo>,
-    pub conn_count : usize,
-    pub per_conn_rate_limit : RateLimit,
-}
-
-pub struct Network {
-    cfg : NetworkConfig,
-    peers_queue : Mutex<Vec<PeerInfo>>,
-    conn_peers : Mutex<HashMap<PeerId,Arc<NodeClient>>>,
-    // Arc is required to use acquire_owned() instead of acquire().
-    // And we need acquire_owned() to pass a permit to a coroutine.
-    conn_peers_sem : Arc<Semaphore>,
-    // Obtains a list of PeerInfos, that we managed to perform a handshake with.
-    //
-    // maintain a pool of connections of size at least n
-    // that is good enough: last x requests have latency at most M at y%.
-    // spawn new connection otherwise.
-}
-
-impl Network {
-    pub fn new(cfg :NetworkConfig) -> Arc<Network> {
-        Arc::new(Network{
-            peers_queue: Mutex::new(cfg.known_peers.clone()),
-            conn_peers: Mutex::new(HashMap::new()),
-            conn_peers_sem: Arc::new(Semaphore::new(cfg.conn_count)),
-            cfg,
-        })
-    }
-
-    pub async fn any_peer() -> Arc<NodeClient> {
-        panic!("unimplemented");
-    }
-
-    pub async fn run(self:&Arc<Self>,ctx:&Ctx, server: &Arc<dyn NodeServer>) -> anyhow::Result<()> {
-        let self_ = self.clone();
-        let server = server.clone();
-        Scope::run(ctx,|ctx,s|async move{
-            loop {
-                let self_ = self_.clone();
-                let permit = ctx.wrap(self_.conn_peers_sem.clone().acquire_owned()).await?;
-                let pi = self_.peers_queue.lock().pop().ok_or(anyhow!("list of known peers has been exhausted"))?;
-                let server = server.clone();
-                s.spawn_weak(|ctx|async move{
-                    let permit = permit;
-                    // TODO: detect missing address earlier - either skip the peer, or fail
-                    // PeerManager::new().
-                    let (client,event_loop) = NodeClient::connect(&ctx,NodeClientConfig{
-                        near: self_.cfg.near.clone(),
-                        peer_info: pi.clone(),
-                        rate_limit: self_.cfg.per_conn_rate_limit.clone(),
-                        allow_peer_mismatch: false,
-                        allow_protocol_mismatch: false,
-                        allow_genesis_mismatch: false,
-                    }).await?;
-                    self_.conn_peers.lock().insert(pi.id.clone(),client);
-                    let err = event_loop(ctx,server).await;
-                    self_.conn_peers.lock().remove(&pi.id);
-                    // TODO: ignore/log only expected errors.
-                    Ok(())
-                });
-            }
-        }).await
     }
 }

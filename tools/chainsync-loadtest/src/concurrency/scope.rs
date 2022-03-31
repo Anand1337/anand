@@ -1,6 +1,7 @@
 use crate::concurrency::{ctx, Ctx, CtxWithCancel};
 use std::future::Future;
 use std::sync::{Arc, Mutex};
+use futures::future::{BoxFuture,FutureExt};
 
 // WaitGroup is an atomic counter which can be awaited to become 0.
 pub(super) struct WaitGroup {
@@ -42,6 +43,19 @@ impl WaitGroup {
         }
         self.empty.notify_waiters();
     }
+}
+
+pub type Spawnable = Box<dyn FnOnce(Ctx,Arc<Scope>) -> BoxFuture<'static,anyhow::Result<()>> + Send>;
+
+pub fn noop() -> Spawnable {
+    spawnable(|_ctx,_s| async { Ok(()) })
+}
+
+pub fn spawnable<F,G>(g:G) -> Spawnable where
+    G:FnOnce(Ctx,Arc<Scope>) -> F + 'static + Send,
+    F:Future<Output=anyhow::Result<()>> + 'static + Send,
+{
+    return Box::new(|ctx,s|g(ctx,s).boxed());
 }
 
 struct ScopeState {
