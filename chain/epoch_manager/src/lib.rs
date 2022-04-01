@@ -1495,7 +1495,10 @@ impl EpochManager {
             self.store
                 .get_ser(ColEpochInfo, AGGREGATOR_KEY)
                 .map_err(EpochError::from)?
-                .unwrap_or_else(|| EpochInfoAggregator::new(epoch_id.clone(), *last_block_hash))
+                .unwrap_or_else(|| {
+                    info!(target:"stats", "update epoch info aggregator not in storage");
+                    EpochInfoAggregator::new(epoch_id.clone(), *last_block_hash)
+                })
         };
         info!(target:"stats", "update epoch info aggregator 2");
         if &aggregator.epoch_id != epoch_id {
@@ -1506,9 +1509,9 @@ impl EpochManager {
         let mut new_aggregator = EpochInfoAggregator::new(epoch_id.clone(), *last_block_hash);
         let mut cur_hash = *last_block_hash;
         let mut overwrite = false;
-        info!(target:"stats", "update epoch info aggregator {:?} {:?} {:?} {:?}", cur_hash, aggregator.last_block_hash, epoch_id, aggregator.epoch_id);
+        info!(target:"stats", "update epoch info aggregator {:?} {:?} {:?} {:?} {:?} {:?}", cur_hash, aggregator.last_block_hash, cur_hash != aggregator.last_block_hash, 
+              epoch_id, aggregator.epoch_id, epoch_change);
         while cur_hash != aggregator.last_block_hash || epoch_change {
-            info!(target:"stats", "update epoch info aggregator {:?} {:?} {:?} {:?}", cur_hash, aggregator.last_block_hash, epoch_id, aggregator.epoch_id);
             // Avoid cloning
             let prev_hash = *self.get_block_info(&cur_hash)?.prev_hash();
             let prev_height = self.get_block_info(&prev_hash).map(|info| *info.height());
@@ -1516,6 +1519,7 @@ impl EpochManager {
             let block_info = self.get_block_info(&cur_hash)?;
             if block_info.epoch_id() != epoch_id || block_info.prev_hash() == &CryptoHash::default()
             {
+                info!(target:"stats", "update epoch info aggregator stopped at epoch boundary");
                 // This means that we reached the previous epoch and still hasn't seen
                 // `aggregator.last_block_hash` and therefore implies either a fork has happened
                 // or we are at the start of an epoch. In this case, the new aggregator should
