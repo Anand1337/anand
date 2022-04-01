@@ -1023,7 +1023,7 @@ impl EpochManager {
         &mut self,
         epoch_identifier: ValidatorInfoIdentifier,
     ) -> Result<EpochValidatorInfo, EpochError> {
-        info!(target:"epoch_manger", "get validator info starts {:?}", epoch_identifier);
+        info!(target:"epoch_manager", "get validator info starts {:?}", epoch_identifier);
         let epoch_id = match epoch_identifier {
             ValidatorInfoIdentifier::EpochId(ref id) => id.clone(),
             ValidatorInfoIdentifier::BlockHash(ref b) => self.get_block_info(b)?.epoch_id().clone(),
@@ -1042,7 +1042,7 @@ impl EpochManager {
             }
         }
 
-        info!(target:"epoch_manger", "get validator info 1");
+        info!(target:"epoch_manager", "get validator info 1");
         // This ugly code arises because of the incompatible types between `block_tracker` in `EpochInfoAggregator`
         // and `validator_block_chunk_stats` in `EpochSummary`. Rust currently has no support for Either type
         // in std.
@@ -1132,7 +1132,7 @@ impl EpochManager {
             }
         };
 
-        info!(target:"epoch_manger", "get validator info 2");
+        info!(target:"epoch_manager", "get validator info 2");
         let next_epoch_info = self.get_epoch_info(&next_epoch_id)?;
         let mut next_validator_to_shard = (0..next_epoch_info.validators_len())
             .map(|_| HashSet::default())
@@ -1144,7 +1144,7 @@ impl EpochManager {
                 next_validator_to_shard[*validator_id as usize].insert(shard_id as u64);
             }
         }
-        info!(target:"epoch_manger", "get validator info 3");
+        info!(target:"epoch_manager", "get validator info 3");
         let next_validators = next_epoch_info
             .validators_iter()
             .enumerate()
@@ -1167,7 +1167,7 @@ impl EpochManager {
             .map(|(account_id, reason)| ValidatorKickoutView { account_id, reason })
             .collect();
 
-        info!(target:"epoch_manger", "get validator info end");
+        info!(target:"epoch_manager", "get validator info end");
         Ok(EpochValidatorInfo {
             current_validators,
             next_validators,
