@@ -266,10 +266,10 @@ pub enum DBCol {
     /// - *Column type*: StateChangesForSplitStates
     ColStateChangesForSplitStates = 49,
 
-    ColState128MIB = 50,
-    ColState256MIB = 51,
-    ColState512MIB = 52,
-    ColState1024MIB = 53,
+    ColStateNoRC = 50,
+    ColState4KBCache = 51,
+    ColState8KBCache = 52,
+    ColState32KBCache = 53,
 }
 
 impl std::fmt::Display for DBCol {
@@ -327,10 +327,10 @@ impl std::fmt::Display for DBCol {
             Self::ColStateChangesForSplitStates => {
                 "state changes indexed by block hash and shard id"
             }
-            Self::ColState128MIB => "blockchain state (128MB)",
-            Self::ColState256MIB => "blockchain state (256MB)",
-            Self::ColState512MIB => "blockchain state (512MB)",
-            Self::ColState1024MIB => "blockchain state (1024MB)",
+            Self::ColStateNoRC => "blockchain state (No RC)",
+            Self::ColState4KBCache => "blockchain state (4KB cache)",
+            Self::ColState8KBCache => "blockchain state (8KB cache)",
+            Self::ColState32KBCache => "blockchain state (32KB cache)",
         };
         write!(formatter, "{}", desc)
     }
@@ -383,10 +383,9 @@ pub static SKIP_COL_GC: [bool; DBCol::COUNT] = {
 pub static IS_COL_RC: [bool; DBCol::COUNT] = {
     let mut col_rc = [false; DBCol::COUNT];
     col_rc[DBCol::ColState as usize] = true;
-    col_rc[DBCol::ColState128MIB as usize] = true;
-    col_rc[DBCol::ColState256MIB as usize] = true;
-    col_rc[DBCol::ColState512MIB as usize] = true;
-    col_rc[DBCol::ColState1024MIB as usize] = true;
+    col_rc[DBCol::ColState4KBCache as usize] = true;
+    col_rc[DBCol::ColState8KBCache as usize] = true;
+    col_rc[DBCol::ColState32KBCache as usize] = true;
     col_rc[DBCol::ColTransactions as usize] = true;
     col_rc[DBCol::ColReceipts as usize] = true;
     col_rc[DBCol::ColReceiptIdToShardId as usize] = true;
@@ -870,9 +869,14 @@ fn rocksdb_read_options() -> ReadOptions {
     read_options
 }
 
-fn rocksdb_block_based_options(cache_size: usize) -> BlockBasedOptions {
+fn rocksdb_block_based_options(col: DBCol, cache_size: usize) -> BlockBasedOptions {
     let mut block_opts = BlockBasedOptions::default();
-    block_opts.set_block_size(16 * bytesize::KIB as usize);
+    match col {
+        DBCol::ColState4KBCache => block_opts.set_block_size(4 * bytesize::KIB as usize),
+        DBCol::ColState8KBCache => block_opts.set_block_size(8 * bytesize::KIB as usize),
+        DBCol::ColState32KBCache => block_opts.set_block_size(32 * bytesize::KIB as usize),
+        _ => block_opts.set_block_size(16 * bytesize::KIB as usize),
+    }
     // We create block_cache for each of 47 columns, so the total cache size is 32 * 47 = 1504mb
     block_opts.set_block_cache(&Cache::new_lru_cache(cache_size).unwrap());
     block_opts.set_pin_l0_filter_and_index_blocks_in_cache(true);
@@ -894,7 +898,7 @@ fn rocksdb_column_options(col: DBCol) -> Options {
     set_compression_options(&mut opts);
     opts.set_level_compaction_dynamic_level_bytes(true);
     let cache_size = choose_cache_size(col);
-    opts.set_block_based_table_factory(&rocksdb_block_based_options(cache_size));
+    opts.set_block_based_table_factory(&rocksdb_block_based_options(col, cache_size));
     // Note that this function changes a lot of rustdb parameters including:
     //      write_buffer_size = memtable_memory_budget / 4
     //      min_write_buffer_number_to_merge = 2
@@ -909,28 +913,7 @@ fn rocksdb_column_options(col: DBCol) -> Options {
     //      https://github.com/facebook/rocksdb/blob/c18c4a081c74251798ad2a1abf83bad417518481/options/options.cc#L588.
     let memtable_memory_budget = 128 * bytesize::MIB as usize;
     opts.optimize_level_style_compaction(memtable_memory_budget);
-    match col {
-        DBCol::ColState128MIB => {
-            opts.set_max_bytes_for_level_base(256 * bytesize::MIB);
-            opts.set_target_file_size_base(128 * bytesize::MIB);
-        }
-        DBCol::ColState256MIB => {
-            opts.set_max_bytes_for_level_base(512 * bytesize::MIB);
-            opts.set_target_file_size_base(256 * bytesize::MIB);
-        }
-        DBCol::ColState512MIB => {
-            opts.set_max_bytes_for_level_base(1024 * bytesize::MIB);
-            opts.set_target_file_size_base(512 * bytesize::MIB);
-        }
-        DBCol::ColState1024MIB => {
-            opts.set_max_bytes_for_level_base(2048 * bytesize::MIB);
-            opts.set_target_file_size_base(1024 * bytesize::MIB);
-        }
-        _ => {
-            opts.set_max_bytes_for_level_base(128 * bytesize::MIB);
-            opts.set_target_file_size_base(64 * bytesize::MIB);
-        }
-    }
+    opts.set_target_file_size_base(64 * bytesize::MIB);
     if col.is_rc() {
         opts.set_merge_operator("refcount merge", RocksDB::refcount_merge, RocksDB::refcount_merge);
         opts.set_compaction_filter("empty value filter", RocksDB::empty_value_compaction_filter);

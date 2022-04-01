@@ -2402,10 +2402,10 @@ impl<'a> ChainStoreUpdate<'a> {
                 store_update.delete(col, key);
             }
             DBCol::ColState
-            | DBCol::ColState128MIB
-            | DBCol::ColState256MIB
-            | DBCol::ColState512MIB
-            | DBCol::ColState1024MIB => {
+            | DBCol::ColStateNoRC
+            | DBCol::ColState4KBCache
+            | DBCol::ColState8KBCache
+            | DBCol::ColState32KBCache => {
                 panic!("Actual gc happens elsewhere, call inc_gc_col_state to increase gc count");
             }
             DBCol::ColTrieChanges => {

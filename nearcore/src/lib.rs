@@ -416,9 +416,10 @@ pub fn start_with_config_and_synchronization(
                 store_update.commit().unwrap();
                 store_update = store.store_update();
             }
-            store_update.set(DBCol::ColState128MIB, &key, &value);
-            store_update.set(DBCol::ColState256MIB, &key, &value);
-            store_update.set(DBCol::ColState512MIB, &key, &value);
+            store_update.set(DBCol::ColStateNoRC, &key, &value);
+            store_update.set(DBCol::ColState4KBCache, &key, &value);
+            store_update.set(DBCol::ColState8KBCache, &key, &value);
+            store_update.set(DBCol::ColState32KBCache, &key, &value);
         }
         info!("committing changes!");
         store_update.commit().unwrap();
