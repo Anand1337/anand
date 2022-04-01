@@ -1527,6 +1527,7 @@ impl EpochManager {
                 overwrite = true;
                 break;
             }
+            info!(target:"stats", "{:?} {:?} {:?}", cur_hash, prev_hash, block_info.epoch_id());
             new_aggregator.update(block_info, &epoch_info, prev_height?);
             cur_hash = *block_info.prev_hash();
         }
