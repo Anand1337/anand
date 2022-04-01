@@ -1579,7 +1579,9 @@ impl RuntimeAdapter for NightshadeRuntime {
         &self,
         epoch_id: ValidatorInfoIdentifier,
     ) -> Result<EpochValidatorInfo, Error> {
+        info!(target:"stats", "waiting for lock");
         let mut epoch_manager = self.epoch_manager.as_ref().write().expect(POISONED_LOCK_ERR);
+        info!(target:"stats", "waitint for end");
         epoch_manager.get_validator_info(epoch_id).map_err(|e| e.into())
     }
 
