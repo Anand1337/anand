@@ -1506,7 +1506,7 @@ impl EpochManager {
         let mut new_aggregator = EpochInfoAggregator::new(epoch_id.clone(), *last_block_hash);
         let mut cur_hash = *last_block_hash;
         let mut overwrite = false;
-        info!(target:"stats", "update epoch info aggregator {:?} {:?} {:?} {:?}", cur_hash, aggregator.last_block_hash, epcoh_id, aggregator.epoch_id);
+        info!(target:"stats", "update epoch info aggregator {:?} {:?} {:?} {:?}", cur_hash, aggregator.last_block_hash, epoch_id, aggregator.epoch_id);
         while cur_hash != aggregator.last_block_hash || epoch_change {
             // Avoid cloning
             let prev_hash = *self.get_block_info(&cur_hash)?.prev_hash();
