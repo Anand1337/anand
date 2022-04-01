@@ -1508,6 +1508,7 @@ impl EpochManager {
         let mut overwrite = false;
         info!(target:"stats", "update epoch info aggregator {:?} {:?} {:?} {:?}", cur_hash, aggregator.last_block_hash, epoch_id, aggregator.epoch_id);
         while cur_hash != aggregator.last_block_hash || epoch_change {
+            info!(target:"stats", "update epoch info aggregator {:?} {:?} {:?} {:?}", cur_hash, aggregator.last_block_hash, epoch_id, aggregator.epoch_id);
             // Avoid cloning
             let prev_hash = *self.get_block_info(&cur_hash)?.prev_hash();
             let prev_height = self.get_block_info(&prev_hash).map(|info| *info.height());
