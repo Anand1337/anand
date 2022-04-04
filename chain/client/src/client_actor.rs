@@ -1631,6 +1631,7 @@ impl ClientActor {
             None
         };
 
+        /*
         let epoch_identifier = ValidatorInfoIdentifier::BlockHash(head.last_block_hash);
         let validator_epoch_stats = self
             .client
@@ -1638,14 +1639,15 @@ impl ClientActor {
             .get_validator_info(epoch_identifier)
             .map(get_validator_epoch_stats)
             .unwrap_or_default();
+         */
         self.info_helper.info(
             self.client.chain.store().get_genesis_height(),
             &head,
             &self.client.sync_status,
             &self.node_id,
             &self.network_info,
-            validator_info,
-            validator_epoch_stats,
+            None,
+            vec![],
             self.client
                 .runtime_adapter
                 .get_epoch_height_from_prev_block(&head.prev_block_hash)
