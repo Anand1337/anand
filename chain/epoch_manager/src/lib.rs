@@ -1504,6 +1504,7 @@ impl EpochManager {
                 })
         };
         if &aggregator.epoch_id != epoch_id {
+            info!(target:"stats", "epoch id changed {:?} {:?}", aggregator.epoch_id, epoch_id);
             aggregator = EpochInfoAggregator::new(epoch_id.clone(), *last_block_hash);
             epoch_change = true;
         }
