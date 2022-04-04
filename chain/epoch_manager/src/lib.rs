@@ -1483,7 +1483,6 @@ impl EpochManager {
         last_block_hash: &CryptoHash,
         copy_only: bool,
     ) -> Result<EpochInfoAggregator, EpochError> {
-        info!(target:"stats", "update epoch info aggregator starts");
         let epoch_info_aggregator_cache = if copy_only {
             self.epoch_info_aggregator.clone()
         } else {
@@ -1491,10 +1490,8 @@ impl EpochManager {
         };
         let mut epoch_change = false;
         let mut aggregator = if let Some(aggregator) = epoch_info_aggregator_cache {
-            info!(target:"stats", "update epoch info aggregator in cache");
             aggregator
         } else {
-            info!(target:"stats", "update epoch info aggregator not in cache");
             self.store
                 .get_ser(ColEpochInfo, AGGREGATOR_KEY)
                 .map_err(EpochError::from)?
@@ -1504,7 +1501,6 @@ impl EpochManager {
                     EpochInfoAggregator::new(epoch_id.clone(), *last_block_hash)
                 })
         };
-        info!(target:"stats", "update epoch info aggregator 2");
         if &aggregator.epoch_id != epoch_id {
             aggregator = EpochInfoAggregator::new(epoch_id.clone(), *last_block_hash);
             epoch_change = true;
@@ -1531,11 +1527,9 @@ impl EpochManager {
                 overwrite = true;
                 break;
             }
-            info!(target:"stats", "{:?} {:?} {:?}", cur_hash, prev_hash, block_info.epoch_id());
             new_aggregator.update(block_info, &epoch_info, prev_height?);
             cur_hash = *block_info.prev_hash();
         }
-        info!(target:"stats", "update epoch info aggregator 3");
         aggregator.merge(new_aggregator, overwrite);
         info!(target:"stats", "update epoch info aggregator done");
 
