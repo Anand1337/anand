@@ -435,6 +435,7 @@ impl EpochManager {
         last_block_hash: &CryptoHash,
         rng_seed: RngSeed,
     ) -> Result<(), EpochError> {
+        info!(target:"stats", "finalize epoch");
         let epoch_summary = self.collect_blocks_info(block_info, last_block_hash)?;
         let epoch_info = self.get_epoch_info(block_info.epoch_id())?;
         let epoch_protocol_version = epoch_info.protocol_version();
@@ -1490,6 +1491,7 @@ impl EpochManager {
         };
         let mut epoch_change = false;
         let mut aggregator = if let Some(aggregator) = epoch_info_aggregator_cache {
+            info!(target:"stats", "aggregator cache is empty");
             aggregator
         } else {
             self.store
