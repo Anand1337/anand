@@ -1491,12 +1491,12 @@ impl EpochManager {
             aggregator
         } else {
             info!(target:"stats", "update epoch info aggregator not in cache");
-            epoch_change = true;
             self.store
                 .get_ser(ColEpochInfo, AGGREGATOR_KEY)
                 .map_err(EpochError::from)?
                 .unwrap_or_else(|| {
                     info!(target:"stats", "update epoch info aggregator not in storage");
+                    epoch_change = true;
                     EpochInfoAggregator::new(epoch_id.clone(), *last_block_hash)
                 })
         };
