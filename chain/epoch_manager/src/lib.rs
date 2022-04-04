@@ -1023,7 +1023,6 @@ impl EpochManager {
         &mut self,
         epoch_identifier: ValidatorInfoIdentifier,
     ) -> Result<EpochValidatorInfo, EpochError> {
-        info!(target:"stats", "get validator info starts {:?}", epoch_identifier);
         let epoch_id = match epoch_identifier {
             ValidatorInfoIdentifier::EpochId(ref id) => id.clone(),
             ValidatorInfoIdentifier::BlockHash(ref b) => self.get_block_info(b)?.epoch_id().clone(),
@@ -1042,7 +1041,6 @@ impl EpochManager {
             }
         }
 
-        info!(target:"stats", "get validator info 1");
         // This ugly code arises because of the incompatible types between `block_tracker` in `EpochInfoAggregator`
         // and `validator_block_chunk_stats` in `EpochSummary`. Rust currently has no support for Either type
         // in std.
@@ -1088,7 +1086,7 @@ impl EpochManager {
             ValidatorInfoIdentifier::BlockHash(ref h) => {
                 let aggregator = self.get_and_update_epoch_info_aggregator(&epoch_id, h, true)?;
                 if self.epoch_info_aggregator.is_none() {
-                    warn!("Storing aggregator as it was empty.");
+                    info!(target:"stats", "Storing aggregator as it was empty.");
                     self.epoch_info_aggregator = Some(aggregator.clone());
                 };
                 let cur_validators = cur_epoch_info
@@ -1484,8 +1482,10 @@ impl EpochManager {
         copy_only: bool,
     ) -> Result<EpochInfoAggregator, EpochError> {
         let epoch_info_aggregator_cache = if copy_only {
+            info!(target:"stats", "copy");
             self.epoch_info_aggregator.clone()
         } else {
+            info!(target:"stats", "take");
             self.epoch_info_aggregator.take()
         };
         let mut epoch_change = false;
@@ -1509,8 +1509,8 @@ impl EpochManager {
         let mut new_aggregator = EpochInfoAggregator::new(epoch_id.clone(), *last_block_hash);
         let mut cur_hash = *last_block_hash;
         let mut overwrite = false;
-        info!(target:"stats", "update epoch info aggregator {:?} {:?} {:?} {:?} {:?} {:?}", cur_hash, aggregator.last_block_hash, cur_hash != aggregator.last_block_hash, 
-              epoch_id, aggregator.epoch_id, epoch_change);
+        info!(target:"stats", "update epoch info aggregator {:?} {:?} {:?} {:?} {:?} {:?} {:?}", cur_hash, aggregator.last_block_hash, cur_hash != aggregator.last_block_hash, 
+              epoch_id, aggregator.epoch_id, epoch_change, copy_only);
         while cur_hash != aggregator.last_block_hash || epoch_change {
             // Avoid cloning
             let prev_hash = *self.get_block_info(&cur_hash)?.prev_hash();
