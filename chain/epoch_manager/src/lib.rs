@@ -1087,6 +1087,10 @@ impl EpochManager {
             }
             ValidatorInfoIdentifier::BlockHash(ref h) => {
                 let aggregator = self.get_and_update_epoch_info_aggregator(&epoch_id, h, true)?;
+                if self.epoch_info_aggregator.is_none() {
+                    warn!("Storing aggregator as it was empty.");
+                    self.epoch_info_aggregator = Some(aggregator.clone());
+                };
                 let cur_validators = cur_epoch_info
                     .validators_iter()
                     .enumerate()
