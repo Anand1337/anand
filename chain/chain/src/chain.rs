@@ -48,6 +48,7 @@ use near_store::{ColState, ColStateHeaders, ColStateParts, ShardTries, StoreUpda
 
 use near_primitives::state_record::StateRecord;
 
+use crate::blocks_delay_tracker::BlocksDelayTracker;
 use crate::lightclient::get_epoch_block_producers_view;
 use crate::migrations::check_if_block_is_first_with_chunk_of_version;
 use crate::missing_chunks::{BlockLike, MissingChunksPool};
@@ -417,6 +418,7 @@ pub struct Chain {
     pub block_economics_config: BlockEconomicsConfig,
     pub doomslug_threshold_mode: DoomslugThresholdMode,
     pending_states_to_patch: Option<Vec<StateRecord>>,
+    pub blocks_delay_tracker: BlocksDelayTracker,
 }
 
 impl ChainAccess for Chain {
@@ -473,6 +475,7 @@ impl Chain {
             block_economics_config: BlockEconomicsConfig::from(chain_genesis),
             doomslug_threshold_mode,
             pending_states_to_patch: None,
+            blocks_delay_tracker: BlocksDelayTracker::default(),
         })
     }
 
@@ -592,6 +595,7 @@ impl Chain {
             block_economics_config: BlockEconomicsConfig::from(chain_genesis),
             doomslug_threshold_mode,
             pending_states_to_patch: None,
+            blocks_delay_tracker: BlocksDelayTracker::default(),
         })
     }
 
@@ -988,6 +992,7 @@ impl Chain {
         block_orphaned_with_missing_chunks: &mut dyn FnMut(OrphanMissingChunks),
         on_challenge: &mut dyn FnMut(ChallengeBody),
     ) -> Result<Option<Tip>, Error> {
+        self.blocks_delay_tracker.mark_block_received(block.get_inner(), Clock::instant());
         let block_hash = *block.hash();
         let res = self.process_block_single(
             me,
@@ -1401,7 +1406,9 @@ impl Chain {
                                 false
                             };
 
-                            let orphan = Orphan { block, provenance, added: Clock::instant() };
+                            let time = Clock::instant();
+                            self.blocks_delay_tracker.mark_block_orphaned(block.hash(), time);
+                            let orphan = Orphan { block, provenance, added: time };
                             self.orphans.add(orphan, requested_missing_chunks);
 
                             debug!(
@@ -1426,7 +1433,9 @@ impl Chain {
                             missing_chunks,
                             block_hash,
                         });
-                        let orphan = Orphan { block, provenance, added: Clock::instant() };
+                        let time = Clock::instant();
+                        self.blocks_delay_tracker.mark_block_has_missing_chunks(block.hash(), time);
+                        let orphan = Orphan { block, provenance, added: time };
                         self.blocks_with_missing_chunks
                             .add_block_with_missing_chunks(orphan, missing_chunk_hashes.clone());
                         debug!(
@@ -1585,6 +1594,7 @@ impl Chain {
         let orphans = self.blocks_with_missing_chunks.ready_blocks();
         for orphan in orphans {
             let block_hash = *orphan.block.header().hash();
+            let time = Clock::instant();
             let res = self.process_block_single(
                 me,
                 orphan.block,
@@ -1597,6 +1607,8 @@ impl Chain {
             match res {
                 Ok(_) => {
                     debug!(target: "chain", "Block with missing chunks is accepted; me: {:?}", me);
+                    self.blocks_delay_tracker
+                        .mark_block_completed_missing_chunks(&block_hash, time);
                     new_blocks_accepted.push(block_hash);
                 }
                 Err(_) => {
@@ -1662,6 +1674,7 @@ impl Chain {
                 debug!(target: "chain", "Check orphans: found {} orphans", orphans.len());
                 for orphan in orphans.into_iter() {
                     let block_hash = orphan.hash();
+                    self.blocks_delay_tracker.mark_block_unorphaned(&block_hash, Clock::instant());
                     let res = self.process_block_single(
                         me,
                         orphan.block,
