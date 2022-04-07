@@ -116,7 +116,9 @@ impl BorshDeserialize for Account {
         // See test_account_size
         let deserialized_account = LegacyAccount::deserialize(buf)?;
         if buf.len() != 0 {
-            panic!("Tried deserializing a buffer that is not exactly the size of an account");
+            use io::{Error, ErrorKind};
+            return Err(Error::new(ErrorKind::InvalidData, "Can't read"))
+            // panic!("Tried deserializing a buffer that is not exactly the size of an account");
         }
         Ok(Account {
             amount: deserialized_account.amount,

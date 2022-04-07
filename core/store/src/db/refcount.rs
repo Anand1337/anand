@@ -115,6 +115,19 @@ impl RocksDB {
         if column.is_rc() {
             value.and_then(|vec| decode_value_with_rc(&vec).0.map(|v| v.to_vec()))
         } else {
+            if value.is_some() {
+                let data = value.as_ref().unwrap();
+                let mut x = data.len() >= 8;
+                if x {
+                    x = x && data[data.len() - 8] == 1;
+                    for i in data.len() - 7..data.len() {
+                        x = x && data[i] == 0;
+                    }
+                    if x {
+                        return Some(data[..data.len() - 8].to_vec())
+                    }
+                }
+            }
             value
         }
     }

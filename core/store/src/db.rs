@@ -72,7 +72,7 @@ pub enum DBCol {
     /// Column that stores the Trie state.
     /// - *Rows*: trie_node_or_value_hash (CryptoHash)
     /// - *Content type*: Serializd RawTrieNodeWithSize or value ()
-    ColState = 5,
+    ColState = 50,
     /// Mapping from BlockChunk to ChunkExtra
     /// - *Rows*: BlockChunk (block_hash, shard_uid)
     /// - *Content type*: [near_primitives::types::ChunkExtra]
@@ -266,7 +266,7 @@ pub enum DBCol {
     /// - *Column type*: StateChangesForSplitStates
     ColStateChangesForSplitStates = 49,
 
-    ColStateNoRC = 50,
+    ColStateNoRC = 5,
     ColState4KBCache = 51,
     ColState8KBCache = 52,
     ColState32KBCache = 53,
@@ -382,7 +382,7 @@ pub static SKIP_COL_GC: [bool; DBCol::COUNT] = {
 
 pub static IS_COL_RC: [bool; DBCol::COUNT] = {
     let mut col_rc = [false; DBCol::COUNT];
-    col_rc[DBCol::ColState as usize] = true;
+    // col_rc[DBCol::ColState as usize] = true;
     col_rc[DBCol::ColState4KBCache as usize] = true;
     col_rc[DBCol::ColState8KBCache as usize] = true;
     col_rc[DBCol::ColState32KBCache as usize] = true;
@@ -702,7 +702,7 @@ impl Database for RocksDB {
                 },
                 DBOp::UpdateRefcount { col, key, value } => unsafe {
                     assert!(col.is_rc());
-                    batch.merge_cf(&*self.cfs[col as usize], key, value);
+                    // batch.merge_cf(&*self.cfs[col as usize], key, value);
                 },
                 DBOp::Delete { col, key } => unsafe {
                     batch.delete_cf(&*self.cfs[col as usize], key);
@@ -914,10 +914,10 @@ fn rocksdb_column_options(col: DBCol) -> Options {
     let memtable_memory_budget = 128 * bytesize::MIB as usize;
     opts.optimize_level_style_compaction(memtable_memory_budget);
     opts.set_target_file_size_base(64 * bytesize::MIB);
-    if col.is_rc() {
+    /*if col.is_rc() {
         opts.set_merge_operator("refcount merge", RocksDB::refcount_merge, RocksDB::refcount_merge);
         opts.set_compaction_filter("empty value filter", RocksDB::empty_value_compaction_filter);
-    }
+    }*/
     opts
 }
 

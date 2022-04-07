@@ -538,6 +538,7 @@ impl NightshadeRuntime {
         };
 
         let instant = Instant::now();
+        println!("IN222");
         let apply_result = self
             .runtime
             .apply(
@@ -563,6 +564,7 @@ impl NightshadeRuntime {
                 RuntimeError::ReceiptValidationError(e) => panic!("{}", e),
                 RuntimeError::ValidatorError(e) => e.into(),
             })?;
+        println!("OUT222");
         let elapsed = instant.elapsed();
 
         let total_gas_burnt =
@@ -1367,7 +1369,8 @@ impl RuntimeAdapter for NightshadeRuntime {
     ) -> Result<ApplyTransactionResult, Error> {
         let trie = self.get_trie_for_shard(shard_id, prev_block_hash)?;
         let trie = if generate_storage_proof { trie.recording_reads() } else { trie };
-        match self.process_state_update(
+        println!("IN111");
+        let result = match self.process_state_update(
             trie,
             *state_root,
             shard_id,
@@ -1393,7 +1396,9 @@ impl RuntimeAdapter for NightshadeRuntime {
                 }
                 _ => Err(e),
             },
-        }
+        };
+        println!("OUT111");
+        result
     }
 
     fn check_state_transition(

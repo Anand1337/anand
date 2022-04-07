@@ -329,22 +329,50 @@ pub fn create_store_with_config(path: &Path, store_config: StoreConfig) -> Store
 /// Reads an object from Trie.
 /// # Errors
 /// see StorageError
-pub fn get<T: BorshDeserialize>(
+pub fn get<T: BorshDeserialize + std::fmt::Debug>(
     state_update: &TrieUpdate,
     key: &TrieKey,
 ) -> Result<Option<T>, StorageError> {
-    state_update.get(key).and_then(|opt| {
+    println!("INNN");
+    let result = state_update.get(key).and_then(|opt| {
         opt.map_or_else(
             || Ok(None),
-            |data| {
-                T::try_from_slice(&data)
+            |mut data| {
+                use backtrace::Backtrace;
+                println!("{:?}", Backtrace::new());
+
+                let mut x = data.len() >= 8;
+                if x {
+                    x = x && data[data.len() - 8] == 1;
+                    for i in data.len() - 7..data.len() {
+                        x = x && data[i] == 0;
+                    }
+                    println!("IN {:?} {}", data, x);
+                    if x {
+                        data = (&data[..data.len() - 8]).to_vec();
+                    }
+                }
+                let mut res = T::try_from_slice(&data)
                     .map_err(|_| {
-                        StorageError::StorageInconsistentState("Failed to deserialize".to_string())
+                        StorageError::StorageInconsistentState("Failed to deserialize 1".to_string())
                     })
-                    .map(Some)
+                    .map(Some);
+                /*if res.is_err() && data.len() >= 8 {
+                    println!("IN2");
+                    res = T::try_from_slice(&data[0..data.len() - 8])
+                        .map_err(|_| {
+                            StorageError::StorageInconsistentState("Failed to deserialize 2".to_string())
+                        })
+                        .map(Some);
+                    println!("OUT2 {:?}", res);
+                }*/
+                println!("OUT");
+                res
             },
         )
-    })
+    });
+    println!("OUTT");
+    result
 }
 
 /// Writes an object into Trie.

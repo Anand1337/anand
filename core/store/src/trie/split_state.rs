@@ -318,7 +318,7 @@ pub fn get_delayed_receipts(
         delayed_receipt_indices.first_index += 1;
 
         let receipt = Receipt::try_from_slice(&data).map_err(|_| {
-            StorageError::StorageInconsistentState("Failed to deserialize".to_string())
+            StorageError::StorageInconsistentState("Failed to deserialize 2".to_string())
         })?;
         receipts.push(receipt);
     }

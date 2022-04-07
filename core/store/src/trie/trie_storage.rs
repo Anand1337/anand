@@ -93,6 +93,7 @@ impl TrieStorage for TrieRecordingStorage {
         if let Some(val) = self.recorded.borrow().get(hash) {
             return Ok(val.as_slice().into());
         }
+        println!("IN_TRIE_RECORDING_STORAGE");
         let key = TrieCachingStorage::get_key_from_shard_uid_and_hash(self.shard_uid, hash);
         let val = self
             .store
@@ -100,8 +101,10 @@ impl TrieStorage for TrieRecordingStorage {
             .map_err(|_| StorageError::StorageInternalError)?;
         if let Some(val) = val {
             self.recorded.borrow_mut().insert(*hash, val.clone());
+            println!("OUT_TRIE_RECORDING_STORAGE");
             Ok(val.into())
         } else {
+            println!("ERR_TRIE_RECORDING_STORAGE");
             Err(StorageError::StorageInconsistentState("Trie node missing".to_string()))
         }
     }
@@ -233,11 +236,13 @@ impl TrieStorage for TrieCachingStorage {
             None => {
                 // If value is not present in cache, get it from the storage.
                 let key = Self::get_key_from_shard_uid_and_hash(self.shard_uid, hash);
+                println!("IN_TRIE_CACHING_STORAGE");
                 let val = self
                     .store
                     .get(ColState, key.as_ref())
                     .map_err(|_| StorageError::StorageInternalError)?
                     .ok_or_else(|| {
+                        println!("ERR_TRIE_CACHING_STORAGE");
                         StorageError::StorageInconsistentState("Trie node missing".to_string())
                     })?;
                 let val: Arc<[u8]> = val.into();

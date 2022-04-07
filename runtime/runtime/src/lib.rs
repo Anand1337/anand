@@ -514,7 +514,9 @@ impl Runtime {
             receipt_hash: receipt.get_hash(),
         });
 
+        println!("IN_APPLY_ACTION_RECEIPT");
         let mut account = get_account(state_update, account_id)?;
+        println!("OUT_APPLY_ACTION_RECEIPT");
         let mut actor_id = receipt.predecessor_id.clone();
         let mut result = ActionResult::default();
         let exec_fee =
@@ -901,6 +903,7 @@ impl Runtime {
                         remove_postponed_receipt(state_update, account_id, receipt_id);
                         // Executing the receipt. It will read all the input data and clean it up
                         // from the state.
+                        println!("IN_PROCESS_RECEIPT_RECEIPT_ENUM_DATA");
                         return self
                             .apply_action_receipt(
                                 state_update,
@@ -955,6 +958,7 @@ impl Runtime {
                 if pending_data_count == 0 {
                     // All input data is available. Executing the receipt. It will cleanup
                     // input data from the state.
+                    println!("IN_PROCESS_RECEIPT_RECEIPT_ENUM_ACTION");
                     return self
                         .apply_action_receipt(
                             state_update,
