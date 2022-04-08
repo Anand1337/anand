@@ -352,6 +352,7 @@ pub fn migrate_23_to_24(path: &Path, near_config: &NearConfig) {
             .expect("File with receipts restored after apply_chunks fix have to be correct");
         for receipt in restored_receipts.get(&0u64).unwrap().iter() {
             let bytes = receipt.try_to_vec().expect("Borsh cannot fail");
+            debug_assert!(DBCol::ColReceipts.is_rc());
             store_update.update_refcount(ColReceipts, receipt.get_hash().as_ref(), &bytes, 1);
         }
         store_update.commit().unwrap();

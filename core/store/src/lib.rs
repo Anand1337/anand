@@ -228,6 +228,7 @@ impl StoreUpdate {
                 DBOp::Insert { col, key, value } => self.transaction.put(col, &key, &value),
                 DBOp::Delete { col, key } => self.transaction.delete(col, &key),
                 DBOp::UpdateRefcount { col, key, value } => {
+                    debug_assert!(col.is_rc());
                     self.transaction.update_refcount(col, &key, &value)
                 }
                 DBOp::DeleteAll { col } => self.transaction.delete_all(col),
@@ -338,7 +339,9 @@ pub fn get<T: BorshDeserialize>(
             || Ok(None),
             |data| {
                 T::try_from_slice(&data)
-                    .map_err(|_| {
+                    .map_err(|err| {
+                        use backtrace::Backtrace;
+                        println!("{} {:?}", err, Backtrace::new());
                         StorageError::StorageInconsistentState("Failed to deserialize".to_string())
                     })
                     .map(Some)

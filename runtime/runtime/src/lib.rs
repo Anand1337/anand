@@ -1186,6 +1186,10 @@ impl Runtime {
         let trie = Rc::new(trie);
         let initial_state = TrieUpdate::new(trie.clone(), root);
         let mut state_update = TrieUpdate::new(trie.clone(), root);
+        let opt = state_update.get(&TrieKey::DelayedReceiptIndices);
+        if opt.is_ok() {
+            println!("{:?}", opt.unwrap());
+        }
 
         let mut stats = ApplyStats::default();
 
@@ -1260,8 +1264,10 @@ impl Runtime {
             outcomes.push(outcome_with_id);
         }
 
+        println!("IN");
         let mut delayed_receipts_indices: DelayedReceiptIndices =
             get(&state_update, &TrieKey::DelayedReceiptIndices)?.unwrap_or_default();
+        println!("OUT");
         let initial_delayed_receipt_indices = delayed_receipts_indices.clone();
 
         let mut process_receipt = |receipt: &Receipt,
