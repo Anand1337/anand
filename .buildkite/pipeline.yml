@@ -3,156 +3,156 @@ env:
   RUSTFLAGS: -D warnings
 
 steps:
-  - label: "cargo test integration-tests*"
-    command: |
-      source ~/.cargo/env && set -eux
-      cargo test --locked -p 'integration-tests'
+  # - label: "cargo test integration-tests*"
+  #   command: |
+  #     source ~/.cargo/env && set -eux
+  #     cargo test --locked -p 'integration-tests'
 
-    timeout: 60
-    agents:
-    - "distro=amazonlinux"
-    branches: "!master"
+  #   timeout: 60
+  #   agents:
+  #   - "distro=amazonlinux"
+  #   branches: "!master"
 
-  - label: "cargo test not integration-tests*"
-    command: |
-      docker rm -f $(docker ps --filter "publish=6379" -q) | true
-      docker run -d -p 6379:6379 -d redis
-      source ~/.cargo/env && set -eux
-      cargo test --locked --workspace -p '*' --exclude 'integration-tests*'
+  # - label: "cargo test not integration-tests*"
+  #   command: |
+  #     docker rm -f $(docker ps --filter "publish=6379" -q) | true
+  #     docker run -d -p 6379:6379 -d redis
+  #     source ~/.cargo/env && set -eux
+  #     cargo test --locked --workspace -p '*' --exclude 'integration-tests*'
 
-    timeout: 60
-    agents:
-    - "distro=amazonlinux"
-    branches: "!master"
+  #   timeout: 60
+  #   agents:
+  #   - "distro=amazonlinux"
+  #   branches: "!master"
 
-  - label: "cargo test nightly integration-tests*"
-    command: |
-      source ~/.cargo/env && set -eux
-      cargo test --features nightly_protocol,nightly_protocol_features,test_features -p 'integration-tests'
+  # - label: "cargo test nightly integration-tests*"
+  #   command: |
+  #     source ~/.cargo/env && set -eux
+  #     cargo test --features nightly_protocol,nightly_protocol_features,test_features -p 'integration-tests'
 
-    timeout: 60
-    agents:
-    - "distro=amazonlinux"
-    branches: "!master"
+  #   timeout: 60
+  #   agents:
+  #   - "distro=amazonlinux"
+  #   branches: "!master"
 
-  - label: "cargo test nightly not integration-tests*"
-    command: |
-      docker rm -f $(docker ps --filter "publish=6379" -q) | true
-      docker run -d -p 6379:6379 -d redis
-      source ~/.cargo/env && set -eux
-      cargo test --workspace --features nightly_protocol,nightly_protocol_features,test_features -p '*' --exclude 'integration-tests*'
+  # - label: "cargo test nightly not integration-tests*"
+  #   command: |
+  #     docker rm -f $(docker ps --filter "publish=6379" -q) | true
+  #     docker run -d -p 6379:6379 -d redis
+  #     source ~/.cargo/env && set -eux
+  #     cargo test --workspace --features nightly_protocol,nightly_protocol_features,test_features -p '*' --exclude 'integration-tests*'
 
-    timeout: 60
-    agents:
-    - "distro=amazonlinux"
-    branches: "!master"
+  #   timeout: 60
+  #   agents:
+  #   - "distro=amazonlinux"
+  #   branches: "!master"
 
-  - label: "sanity checks"
-    command: |
-      source ~/.cargo/env && set -eux
-      rustc --version && cargo --version
-      cargo run -p themis --release
-      if [ -e deny.toml ]; then
-        cargo-deny --all-features check bans
-      fi
-      cargo check --workspace --all-targets --all-features
-      cargo check -p neard --features test_features
-      cargo check -p neard --features sandbox
+  # - label: "sanity checks"
+  #   command: |
+  #     source ~/.cargo/env && set -eux
+  #     rustc --version && cargo --version
+  #     cargo run -p themis --release
+  #     if [ -e deny.toml ]; then
+  #       cargo-deny --all-features check bans
+  #     fi
+  #     cargo check --workspace --all-targets --all-features
+  #     cargo check -p neard --features test_features
+  #     cargo check -p neard --features sandbox
 
-      cargo build -p neard --bin neard --features nightly_protocol,nightly_protocol_features
-      cd pytest
-      python3 -m pip install --user -r requirements.txt
-      python3 tests/sanity/spin_up_cluster.py
-      cd ..
-      # Note: We’re not running spin_up_cluster.py for non-nightly
-      # because spinning up non-nightly clusters is already covered
-      # by other steps in the CI, e.g. upgradable.
+  #     cargo build -p neard --bin neard --features nightly_protocol,nightly_protocol_features
+  #     cd pytest
+  #     python3 -m pip install --user -r requirements.txt
+  #     python3 tests/sanity/spin_up_cluster.py
+  #     cd ..
+  #     # Note: We’re not running spin_up_cluster.py for non-nightly
+  #     # because spinning up non-nightly clusters is already covered
+  #     # by other steps in the CI, e.g. upgradable.
 
-      cargo build -p neard --bin neard
-      python3 scripts/state/update_res.py check
+  #     cargo build -p neard --bin neard
+  #     python3 scripts/state/update_res.py check
 
-      python3 scripts/check_nightly.py
-      python3 scripts/check_pytests.py
-      python3 scripts/check_fuzzing.py
+  #     python3 scripts/check_nightly.py
+  #     python3 scripts/check_pytests.py
+  #     python3 scripts/check_fuzzing.py
 
-      ./scripts/formatting --check
+  #     ./scripts/formatting --check
 
-      rm target/rpc_errors_schema.json
-      cargo check -p near-jsonrpc --features dump_errors_schema
-      if ! git --no-pager diff --no-index chain/jsonrpc/res/rpc_errors_schema.json target/rpc_errors_schema.json; then
-          set +x
-          echo 'The RPC errors schema reflects outdated typing structure; please run'
-          echo '    ./chain/jsonrpc/build_errors_schema.sh'
-          exit 1
-      fi >&2
-    timeout: 30
-    agents:
-    - "distro=amazonlinux"
-    branches: "!master"
+  #     rm target/rpc_errors_schema.json
+  #     cargo check -p near-jsonrpc --features dump_errors_schema
+  #     if ! git --no-pager diff --no-index chain/jsonrpc/res/rpc_errors_schema.json target/rpc_errors_schema.json; then
+  #         set +x
+  #         echo 'The RPC errors schema reflects outdated typing structure; please run'
+  #         echo '    ./chain/jsonrpc/build_errors_schema.sh'
+  #         exit 1
+  #     fi >&2
+  #   timeout: 30
+  #   agents:
+  #   - "distro=amazonlinux"
+  #   branches: "!master"
 
-  - label: "nearlib test"
-    command: |
-      source ~/.cargo/env && set -eux
-      source ~/.nvm/nvm.sh
-      scripts/test_nearlib.sh
-    timeout: 20
-    agents:
-    - "distro=amazonlinux"
-    branches: "!master"
+  # - label: "nearlib test"
+  #   command: |
+  #     source ~/.cargo/env && set -eux
+  #     source ~/.nvm/nvm.sh
+  #     scripts/test_nearlib.sh
+  #   timeout: 20
+  #   agents:
+  #   - "distro=amazonlinux"
+  #   branches: "!master"
 
-  - label: "backward compatible"
-    command: |
-      source ~/.cargo/env && set -eux
-      cd pytest
-      pip3 install --user -r requirements.txt
-      pwd
-      ls ..
-      python3 tests/sanity/backward_compatible.py
-      ls ../target/debug
-    branches: "!master !beta !stable"
-    timeout: 30
-    agents:
-    - "distro=amazonlinux"
+  # - label: "backward compatible"
+  #   command: |
+  #     source ~/.cargo/env && set -eux
+  #     cd pytest
+  #     pip3 install --user -r requirements.txt
+  #     pwd
+  #     ls ..
+  #     python3 tests/sanity/backward_compatible.py
+  #     ls ../target/debug
+  #   branches: "!master !beta !stable"
+  #   timeout: 30
+  #   agents:
+  #   - "distro=amazonlinux"
 
-  - label: "upgradable"
-    command: |
-      source ~/.cargo/env && set -eux
-      cd pytest
-      pip3 install --user -r requirements.txt
-      python3 tests/sanity/upgradable.py
-    branches: "!master"
-    timeout: 30
-    agents:
-    - "distro=amazonlinux"
+  # - label: "upgradable"
+  #   command: |
+  #     source ~/.cargo/env && set -eux
+  #     cd pytest
+  #     pip3 install --user -r requirements.txt
+  #     python3 tests/sanity/upgradable.py
+  #   branches: "!master"
+  #   timeout: 30
+  #   agents:
+  #   - "distro=amazonlinux"
 
-  - label: "db migration"
-    command: |
-      source ~/.cargo/env && set -eux
-      cd pytest
-      pip3 install --user -r requirements.txt
-      python3 tests/sanity/db_migration.py
-    branches: "!master !beta !stable"
-    timeout: 30
-    agents:
-    - "distro=amazonlinux"
+  # - label: "db migration"
+  #   command: |
+  #     source ~/.cargo/env && set -eux
+  #     cd pytest
+  #     pip3 install --user -r requirements.txt
+  #     python3 tests/sanity/db_migration.py
+  #   branches: "!master !beta !stable"
+  #   timeout: 30
+  #   agents:
+  #   - "distro=amazonlinux"
 
-  - label: "runtime params estimate"
-    command: |
-      source ~/.cargo/env && set -eux
-      cd runtime/runtime-params-estimator/test-contract
-      ./build.sh
-      cd ..
-      cargo run --release --package runtime-params-estimator --bin runtime-params-estimator -- --accounts-num 20000 --additional-accounts-num 200000 --iters 1 --warmup-iters 1 --metric time
+  # - label: "runtime params estimate"
+  #   command: |
+  #     source ~/.cargo/env && set -eux
+  #     cd runtime/runtime-params-estimator/test-contract
+  #     ./build.sh
+  #     cd ..
+  #     cargo run --release --package runtime-params-estimator --bin runtime-params-estimator -- --accounts-num 20000 --additional-accounts-num 200000 --iters 1 --warmup-iters 1 --metric time
 
-    branches: "!master !beta !stable"
-    timeout: 60
-    agents:
-    - "distro=amazonlinux"
+  #   branches: "!master !beta !stable"
+  #   timeout: 60
+  #   agents:
+  #   - "distro=amazonlinux"
 
   - label: "Continuous Estimation"
     command: |
       source ~/.cargo/env && set -eux
-      PREV_BUILD=$(curl --silent "https://api.buildkite.com/v2/organizations/nearprotocol/pipelines/runtime-params-estimator/builds?per_page=1" -H "Authorization: Token $BUILDKITE_AGENT_ACCESS_TOKEN" | jq -r ''.[] | .id'')'
+      PREV_BUILD=$(curl --silent "https://api.buildkite.com/v2/organizations/nearprotocol/pipelines/runtime-params-estimator/builds?per_page=1" -H "Authorization: Token $BUILDKITE_AGENT_ACCESS_TOKEN" | jq -r ''.[] | .id'')
       buildkite-agent artifact download estimations.sqlite ./ --build ${PREV_BUILD}
       cargo run --release -p estimator-warehouse -- --db estimations.sqlite estimate
       ./target/release/estimator-warehouse --db estimations.sqlite check --metric icount
