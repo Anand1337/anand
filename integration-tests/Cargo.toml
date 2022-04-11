@@ -15,7 +15,7 @@ name = "start_mock_network"
 actix = "=0.11.0-beta.2"
 actix-rt = "2"
 base64 = "0.11"
-borsh = "0.9"
+borsh = { path="/home/ubuntu/borsh/borsh" }
 chrono = { version = "0.4.4", features = ["serde"] }
 clap = { version = "3.1.6", features = ["derive"] }
 futures = "0.3"

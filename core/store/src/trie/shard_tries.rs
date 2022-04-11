@@ -120,7 +120,6 @@ impl ShardTries {
                 shard_uid,
                 trie_node_or_value_hash,
             );
-            debug_assert!(DBCol::ColState.is_rc());
             store_update.update_refcount(
                 DBCol::ColState,
                 key.as_ref(),
@@ -145,7 +144,6 @@ impl ShardTries {
                 shard_uid,
                 trie_node_or_value_hash,
             );
-            debug_assert!(DBCol::ColState.is_rc());
             store_update.update_refcount(
                 DBCol::ColState,
                 key.as_ref(),
@@ -247,7 +245,6 @@ impl ShardTries {
                 shard_uid,
                 &trie_node_or_value_hash,
             );
-            debug_assert!(DBCol::ColState.is_rc());
             store_update.update_refcount(
                 DBCol::ColState,
                 key.as_ref(),

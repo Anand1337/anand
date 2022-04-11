@@ -20,7 +20,7 @@ rand = "0.7"
 strum = { version = "0.20", features = ["derive"] }
 fs2 = "0.4"
 tracing = "0.1.13"
-borsh = "0.9"
+borsh = { path="/home/ubuntu/borsh/borsh" }
 thiserror = "1"
 lru = "0.7.2"
 once_cell = "1.5.2"

@@ -15,7 +15,7 @@ This crate implements the specification of the interface that Near blockchain ex
 """
 
 [dependencies]
-borsh = "0.9"
+borsh = { path="/home/ubuntu/borsh/borsh" }
 serde = { version = "1", features = ["derive"] }
 wasmparser = "0.78"
 memoffset = "0.6"

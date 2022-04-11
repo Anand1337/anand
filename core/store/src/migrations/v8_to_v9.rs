@@ -24,7 +24,6 @@ where
     let mut store_update = store.store_update();
 
     for (key, value) in values {
-        debug_assert!(column.is_rc());
         store_update.update_refcount(column, key.as_ref(), &value, 1);
         batch_size += key.as_ref().len() + value.len() + 8;
         if batch_size > batch_size_limit {

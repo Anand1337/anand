@@ -95,7 +95,7 @@ impl Trie {
         loop {
             path.push(handle);
             let TrieNodeWithSize { node, memory_usage } = memory.destroy(handle);
-            let children_memory_usage = memory_usage - node.memory_usage_direct(memory);
+            let children_memory_usage = memory_usage - std::cmp::min(memory_usage, node.memory_usage_direct(memory));
             match node {
                 TrieNode::Empty => {
                     let value_handle = memory.store_value(value.take().unwrap());
@@ -321,7 +321,7 @@ impl Trie {
         loop {
             path.push(handle);
             let TrieNodeWithSize { node, memory_usage } = memory.destroy(handle);
-            let children_memory_usage = memory_usage - node.memory_usage_direct(memory);
+            let children_memory_usage = memory_usage - std::cmp::min(memory_usage, node.memory_usage_direct(memory));
             match node {
                 TrieNode::Empty => {
                     memory.store_at(handle, TrieNodeWithSize::empty());
@@ -504,7 +504,7 @@ impl Trie {
             NodeHandle::InMemory(h) => h,
         };
         let TrieNodeWithSize { node, memory_usage } = memory.destroy(child);
-        let child_child_memory_usage = memory_usage - node.memory_usage_direct(memory);
+        let child_child_memory_usage = memory_usage - std::cmp::min(memory_usage, node.memory_usage_direct(memory));
         match node {
             TrieNode::Empty => {
                 memory.store_at(handle, TrieNodeWithSize::empty());

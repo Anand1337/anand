@@ -16,7 +16,7 @@ internal_unstable = []
 deepsize_feature = ["deepsize"]
 
 [dependencies]
-borsh = { version = "0.9", optional = true }
+borsh = { path = "/home/ubuntu/borsh/borsh", optional = true }
 serde = { version = "1", optional = true }
 deepsize = { version = "0.2.0", optional = true }
 

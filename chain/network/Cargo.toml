@@ -9,7 +9,7 @@ publish = false
 
 [dependencies]
 actix = "=0.11.0-beta.2"
-borsh = { version = "0.9", features = ["rc"] }
+borsh = { path = "/home/ubuntu/borsh/borsh", features = ["rc"] }
 bytes = "1"
 bytesize = "1.1"
 conqueue = "0.4.0"

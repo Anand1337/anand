@@ -185,6 +185,7 @@ impl StoreUpdate {
     }
 
     pub fn set(&mut self, column: DBCol, key: &[u8], value: &[u8]) {
+        debug_assert!(!column.is_rc());
         self.transaction.put(column, key, value)
     }
 
@@ -201,6 +202,7 @@ impl StoreUpdate {
     }
 
     pub fn delete(&mut self, column: DBCol, key: &[u8]) {
+        debug_assert!(!column.is_rc());
         self.transaction.delete(column, key);
     }
 
@@ -228,7 +230,6 @@ impl StoreUpdate {
                 DBOp::Insert { col, key, value } => self.transaction.put(col, &key, &value),
                 DBOp::Delete { col, key } => self.transaction.delete(col, &key),
                 DBOp::UpdateRefcount { col, key, value } => {
-                    debug_assert!(col.is_rc());
                     self.transaction.update_refcount(col, &key, &value)
                 }
                 DBOp::DeleteAll { col } => self.transaction.delete_all(col),

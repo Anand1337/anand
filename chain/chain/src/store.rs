@@ -2266,7 +2266,6 @@ impl<'a> ChainStoreUpdate<'a> {
             Ok(receipt_ids) => {
                 for receipt_id in receipt_ids {
                     let key: Vec<u8> = receipt_id.into();
-                    debug_assert!(ColReceiptIdToShardId.is_rc());
                     store_update.update_refcount(ColReceiptIdToShardId, &key, &[], -1);
                     self.chain_store.receipt_id_to_shard_id.pop(&key);
                     self.inc_gc(ColReceiptIdToShardId);
@@ -2373,12 +2372,10 @@ impl<'a> ChainStoreUpdate<'a> {
                 panic!("Must use gc_outgoing_receipts");
             }
             DBCol::ColTransactions => {
-                debug_assert!(col.is_rc());
                 store_update.update_refcount(col, key, &[], -1);
                 self.chain_store.transactions.pop(key);
             }
             DBCol::ColReceipts => {
-                debug_assert!(col.is_rc());
                 store_update.update_refcount(col, key, &[], -1);
                 self.chain_store.receipts.pop(key);
             }
@@ -2696,14 +2693,12 @@ impl<'a> ChainStoreUpdate<'a> {
             // Increase transaction refcounts for all included txs
             for tx in chunk.transactions().iter() {
                 let bytes = tx.try_to_vec().expect("Borsh cannot fail");
-                debug_assert!(ColTransactions.is_rc());
                 store_update.update_refcount(ColTransactions, tx.get_hash().as_ref(), &bytes, 1);
             }
 
             // Increase receipt refcounts for all included receipts
             for receipt in chunk.receipts().iter() {
                 let bytes = receipt.try_to_vec().expect("Borsh cannot fail");
-                debug_assert!(ColReceipts.is_rc());
                 store_update.update_refcount(ColReceipts, receipt.get_hash().as_ref(), &bytes, 1);
             }
 
@@ -2766,7 +2761,6 @@ impl<'a> ChainStoreUpdate<'a> {
         }
         for (receipt_id, shard_id) in self.chain_store_cache_update.receipt_id_to_shard_id.iter() {
             let data = shard_id.try_to_vec()?;
-            debug_assert!(ColReceiptIdToShardId.is_rc());
             store_update.update_refcount(ColReceiptIdToShardId, receipt_id.as_ref(), &data, 1);
         }
         for (block_hash, refcount) in self.chain_store_cache_update.block_refcounts.iter() {

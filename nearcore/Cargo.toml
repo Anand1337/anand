@@ -27,7 +27,7 @@ rayon = "1.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dirs = "3"
-borsh = "0.9"
+borsh = { path="/home/ubuntu/borsh/borsh" }
 thiserror = "1.0"
 tokio = { version = "1.1", features = ["fs"] }
 tracing = "0.1.13"

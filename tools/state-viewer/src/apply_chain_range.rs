@@ -360,6 +360,7 @@ pub fn apply_chain_range(
         tgas_burned: AtomicU64::new(0),
     };
     let process_height = |height| {
+        println!("Applying block at height: {}", height);
         apply_block_from_range(
             height,
             shard_id,

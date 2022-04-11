@@ -13,7 +13,7 @@ description = "This is an internal crate for common cryptographic types"
 [dependencies]
 arrayref = "0.3"
 blake2 = "0.9.1"
-borsh = "0.9"
+borsh = { path="/home/ubuntu/borsh/borsh" }
 bs58 = "0.4"
 c2-chacha = "0.3"
 curve25519-dalek = "3"
