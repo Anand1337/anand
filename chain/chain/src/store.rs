@@ -2403,9 +2403,9 @@ impl<'a> ChainStoreUpdate<'a> {
             }
             DBCol::ColState
             | DBCol::ColStateNoRC
-            | DBCol::ColState4KBCache
-            | DBCol::ColState8KBCache
-            | DBCol::ColState32KBCache => {
+            | DBCol::ColState4KBBlockSize
+            | DBCol::ColState8KBBlockSize
+            | DBCol::ColState32KBBlockSize => {
                 panic!("Actual gc happens elsewhere, call inc_gc_col_state to increase gc count");
             }
             DBCol::ColTrieChanges => {

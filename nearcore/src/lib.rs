@@ -406,23 +406,27 @@ pub fn start_with_config_and_synchronization(
 
         info!("PATH: {:?}", path);
 
-        let mut store_update = store.store_update();
+        // let mut store_update = store.store_update();
         let mut i: u64 = 0;
         for (key, value) in store.iter(DBCol::ColState) {
             i += 1;
+            println!("@@@ {:?}", value);
+            if i >= 30 {
+                break;
+            }
             let batch_size = 1000;
             if i % batch_size == 0 {
                 println!("Processed {} keys in column {} ({})", i, DBCol::ColState, DBCol::ColState as usize);
-                store_update.commit().unwrap();
-                store_update = store.store_update();
+                // store_update.commit().unwrap();
+                // store_update = store.store_update();
             }
-            store_update.set(DBCol::ColStateNoRC, &key, &value);
-            store_update.set(DBCol::ColState4KBCache, &key, &value);
-            store_update.set(DBCol::ColState8KBCache, &key, &value);
-            store_update.set(DBCol::ColState32KBCache, &key, &value);
+            /*store_update.set(DBCol::ColStateNoRC, &key, &value);
+            store_update.set(DBCol::ColState4KBBlockSize, &key, &value);
+            store_update.set(DBCol::ColState8KBBlockSize, &key, &value);
+            store_update.set(DBCol::ColState32KBBlockSize, &key, &value);*/
         }
         info!("committing changes!");
-        store_update.commit().unwrap();
+        // store_update.commit().unwrap();
 
         info!("DONE!");
         panic!("### END ###");

@@ -267,9 +267,9 @@ pub enum DBCol {
     ColStateChangesForSplitStates = 49,
 
     ColStateNoRC = 50,
-    ColState4KBCache = 51,
-    ColState8KBCache = 52,
-    ColState32KBCache = 53,
+    ColState4KBBlockSize = 51,
+    ColState8KBBlockSize = 52,
+    ColState32KBBlockSize = 53,
 }
 
 impl std::fmt::Display for DBCol {
@@ -328,9 +328,9 @@ impl std::fmt::Display for DBCol {
                 "state changes indexed by block hash and shard id"
             }
             Self::ColStateNoRC => "blockchain state (No RC)",
-            Self::ColState4KBCache => "blockchain state (4KB cache)",
-            Self::ColState8KBCache => "blockchain state (8KB cache)",
-            Self::ColState32KBCache => "blockchain state (32KB cache)",
+            Self::ColState4KBBlockSize => "blockchain state (4KB cache)",
+            Self::ColState8KBBlockSize => "blockchain state (8KB cache)",
+            Self::ColState32KBBlockSize => "blockchain state (32KB cache)",
         };
         write!(formatter, "{}", desc)
     }
@@ -383,9 +383,9 @@ pub static SKIP_COL_GC: [bool; DBCol::COUNT] = {
 pub static IS_COL_RC: [bool; DBCol::COUNT] = {
     let mut col_rc = [false; DBCol::COUNT];
     col_rc[DBCol::ColState as usize] = true;
-    col_rc[DBCol::ColState4KBCache as usize] = true;
-    col_rc[DBCol::ColState8KBCache as usize] = true;
-    col_rc[DBCol::ColState32KBCache as usize] = true;
+    col_rc[DBCol::ColState4KBBlockSize as usize] = true;
+    col_rc[DBCol::ColState8KBBlockSize as usize] = true;
+    col_rc[DBCol::ColState32KBBlockSize as usize] = true;
     col_rc[DBCol::ColTransactions as usize] = true;
     col_rc[DBCol::ColReceipts as usize] = true;
     col_rc[DBCol::ColReceiptIdToShardId as usize] = true;
@@ -872,9 +872,9 @@ fn rocksdb_read_options() -> ReadOptions {
 fn rocksdb_block_based_options(col: DBCol, cache_size: usize) -> BlockBasedOptions {
     let mut block_opts = BlockBasedOptions::default();
     match col {
-        DBCol::ColState4KBCache => block_opts.set_block_size(4 * bytesize::KIB as usize),
-        DBCol::ColState8KBCache => block_opts.set_block_size(8 * bytesize::KIB as usize),
-        DBCol::ColState32KBCache => block_opts.set_block_size(32 * bytesize::KIB as usize),
+        DBCol::ColState4KBBlockSize => block_opts.set_block_size(4 * bytesize::KIB as usize),
+        DBCol::ColState8KBBlockSize => block_opts.set_block_size(8 * bytesize::KIB as usize),
+        DBCol::ColState32KBBlockSize => block_opts.set_block_size(32 * bytesize::KIB as usize),
         _ => block_opts.set_block_size(16 * bytesize::KIB as usize),
     }
     // We create block_cache for each of 47 columns, so the total cache size is 32 * 47 = 1504mb
