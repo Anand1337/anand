@@ -17,6 +17,7 @@ use crate::{DBCol, Store, StoreUpdate};
 
 // Refcount from i32 to i64
 pub(crate) fn col_state_refcount_8byte(store: &Store, store_update: &mut StoreUpdate) {
+    panic!("col_state_refcount_8byte");
     for (k, v) in store.iter_without_rc_logic(DBCol::ColState) {
         if v.len() < 4 {
             store_update.delete(DBCol::ColState, &k);

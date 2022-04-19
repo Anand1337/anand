@@ -79,6 +79,7 @@ impl ShardTries {
     }
 
     pub fn update_cache(&self, transaction: &DBTransaction) -> std::io::Result<()> {
+        panic!("update_cache");
         let mut caches = self.0.caches.write().expect(POISONED_LOCK_ERR);
         let mut shards = HashMap::new();
         for op in &transaction.ops {
@@ -120,11 +121,10 @@ impl ShardTries {
                 shard_uid,
                 trie_node_or_value_hash,
             );
-            store_update.update_refcount(
-                DBCol::ColState,
+            store_update.set(
+                DBCol::ColStateNoRC,
                 key.as_ref(),
                 trie_node_or_value,
-                -(*rc as i64),
             );
         }
         Ok(())
@@ -144,11 +144,10 @@ impl ShardTries {
                 shard_uid,
                 trie_node_or_value_hash,
             );
-            store_update.update_refcount(
-                DBCol::ColState,
+            store_update.set(
+                DBCol::ColStateNoRC,
                 key.as_ref(),
                 trie_node_or_value,
-                *rc as i64,
             );
         }
         Ok(())
@@ -245,11 +244,10 @@ impl ShardTries {
                 shard_uid,
                 &trie_node_or_value_hash,
             );
-            store_update.update_refcount(
-                DBCol::ColState,
+            store_update.set(
+                DBCol::ColStateNoRC,
                 key.as_ref(),
                 &trie_node_or_value,
-                rc as i64,
             );
         }
         (store_update, trie_changes.new_root)

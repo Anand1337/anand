@@ -103,6 +103,8 @@ impl RocksDB {
         _key: &[u8],
         value: &[u8],
     ) -> Decision {
+        return Decision::Keep;
+        panic!("empty_value_compaction_filter");
         if value.is_empty() {
             Decision::Remove
         } else {

@@ -255,6 +255,7 @@ impl StoreUpdate {
             "Transaction overwrites itself: {:?}",
             self
         );
+        println!("INNNNNNN");
         if let Some(tries) = self.tries {
             assert_eq!(
                 tries.get_store().storage.deref() as *const _,

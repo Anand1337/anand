@@ -17,6 +17,7 @@ pub struct StateDump {
 
 impl StateDump {
     pub fn from_dir(dir: &Path, target_store_path: &Path) -> Self {
+        panic!("from_dir");
         let store = create_store(target_store_path);
         let state_file = dir.join(STATE_DUMP_FILE);
         store.load_from_file(ColState, state_file.as_path()).expect("Failed to read state dump");
@@ -30,6 +31,7 @@ impl StateDump {
     }
 
     pub fn save_to_dir(self, dir: PathBuf) -> std::result::Result<(), Box<dyn std::error::Error>> {
+        panic!("save_to_dir");
         let mut dump_path = dir.clone();
         dump_path.push(STATE_DUMP_FILE);
         self.store.save_to_file(ColState, dump_path.as_path())?;

@@ -2206,6 +2206,7 @@ impl<'a> ChainStoreUpdate<'a> {
     }
 
     pub fn inc_gc_col_state(&mut self) {
+        panic!("inc_gc_col_state");
         self.inc_gc(ColState);
     }
 

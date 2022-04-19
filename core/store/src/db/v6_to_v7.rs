@@ -49,6 +49,7 @@ fn merge_refcounted_records_v6(result: &mut Vec<u8>, val: &[u8]) {
 fn rocksdb_column_options_v6(col: DBCol) -> Options {
     let mut opts = rocksdb_column_options(DBCol::ColDbVersion);
 
+    panic!("rocksdb_column_options_v6");
     if col == DBCol::ColState {
         opts.set_merge_operator("refcount merge", refcount_merge_v6, refcount_merge_v6);
         opts.set_compaction_filter("empty value filter", RocksDB::empty_value_compaction_filter);
