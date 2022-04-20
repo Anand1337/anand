@@ -1097,11 +1097,12 @@ def stake_available_amount(node_account, last_staking):
         # Make several attempts just in case the RPC node doesn't respond.
         for attempt in range(3):
             try:
-                stake_amount = node_account.get_amount_yoctonear()
+                balance = node_account.get_amount_yoctonear()
                 logger.info(
-                    f'Amount of {node_account.key.account_id} is {stake_amount}'
-                )
-                if stake_amount > (10**3) * NEAR_IN_YOCTONEAR:
+                    f'Amount of {node_account.key.account_id} is {balance}')
+                if balance > (10**3) * NEAR_IN_YOCTONEAR:
+                    # Reserve some tokens to pay for the transactions.
+                    stake_amount = balance - (10**2) * NEAR_IN_YOCTONEAR
                     logger.info(
                         f'Staking {stake_amount} for {node_account.key.account_id}'
                     )
@@ -1110,5 +1111,5 @@ def stake_available_amount(node_account, last_staking):
                     f'Staked {stake_amount} for {node_account.key.account_id}')
                 return time.time()
             except Exception as e:
-                logger.info('Failed to stake')
+                logger.info(f'Failed to stake: {e}')
     return None
