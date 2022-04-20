@@ -1099,7 +1099,7 @@ def stake_available_amount(node_account, last_staking):
             try:
                 balance = node_account.get_amount_yoctonear()
                 logger.info(
-                    f'Amount of {node_account.key.account_id} is {balance}')
+                    f'Balance of {node_account.key.account_id} is {balance}')
                 if balance > (10**3) * NEAR_IN_YOCTONEAR:
                     # Reserve some tokens to pay for the transactions.
                     stake_amount = balance - (10**2) * NEAR_IN_YOCTONEAR
