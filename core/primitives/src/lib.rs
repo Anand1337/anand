@@ -34,3 +34,4 @@ pub mod utils;
 pub mod validator_signer;
 pub mod version;
 pub mod views;
+pub mod math;
