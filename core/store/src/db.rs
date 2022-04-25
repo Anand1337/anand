@@ -2,6 +2,7 @@ use super::StoreConfig;
 use crate::db::refcount::merge_refcounted_records;
 use crate::DBCol;
 use near_primitives::version::DbVersion;
+use near_primitives::math::FastDistribution;
 use once_cell::sync::Lazy;
 use rocksdb::checkpoint::Checkpoint;
 use rocksdb::{
@@ -16,6 +17,7 @@ use std::sync::{Condvar, Mutex, RwLock};
 use std::{cmp, fmt};
 use strum::EnumCount;
 use tracing::{error, info, warn};
+use std::cell::RefCell;
 
 pub(crate) mod refcount;
 
@@ -95,6 +97,7 @@ pub struct RocksDB {
     check_free_space_counter: std::sync::atomic::AtomicU16,
     check_free_space_interval: u16,
     free_space_threshold: bytesize::ByteSize,
+    latency_get: RefCell<FastDistribution>,
 
     // RAII-style of keeping track of the number of instances of RocksDB in a global variable.
     _instance_counter: InstanceCounter,
@@ -246,6 +249,7 @@ impl RocksDBOptions {
             check_free_space_interval: self.check_free_space_interval,
             check_free_space_counter: std::sync::atomic::AtomicU16::new(0),
             free_space_threshold: self.free_space_threshold,
+            latency_get: RefCell::new(FastDistribution::new(0, 10_000)),
             _instance_counter: InstanceCounter::new(),
         })
     }
@@ -288,6 +292,7 @@ impl RocksDBOptions {
             check_free_space_interval: self.check_free_space_interval,
             check_free_space_counter: std::sync::atomic::AtomicU16::new(0),
             free_space_threshold: self.free_space_threshold,
+            latency_get: RefCell::new(FastDistribution::new(0, 10_000)),
             _instance_counter: InstanceCounter::new(),
         })
     }
@@ -323,9 +328,12 @@ pub(crate) trait Database: Sync + Send {
 
 impl Database for RocksDB {
     fn get(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError> {
+        let start_time = std::time::Instant::now();
         let read_options = rocksdb_read_options();
         let result = self.db.get_cf_opt(unsafe { &*self.cfs[col as usize] }, key, &read_options)?;
-        Ok(RocksDB::get_with_rc_logic(col, result))
+        let result = Ok(RocksDB::get_with_rc_logic(col, result));
+        self.update_latency_get_and_print_if_needed(start_time.elapsed().as_micros());
+        result
     }
 
     fn iter_raw_bytes<'a>(
@@ -678,6 +686,17 @@ impl RocksDB {
     /// Synchronously flush all Memtables to SST files on disk
     pub fn flush(&self) -> Result<(), DBError> {
         self.db.flush().map_err(DBError::from)
+    }
+
+    fn update_latency_get_and_print_if_needed(&self, latency_us: u128) {
+        let latency_us = std::cmp::min(10_000, latency_us);
+        if let Ok(mut latency_get) = self.latency_get.try_borrow_mut() {
+            let _ = latency_get.add(latency_us as i32);
+            if latency_get.total_count() > 10_000 {
+                println!("latency: {:?}", latency_get.get_distribution(&vec![50., 90., 95., 99.]));
+                latency_get.clear();
+            }
+        }
     }
 }
 
