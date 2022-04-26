@@ -17,7 +17,7 @@ use std::sync::{Condvar, Mutex, RwLock};
 use std::{cmp, fmt};
 use strum::EnumCount;
 use tracing::{error, info, warn};
-use std::cell::RefCell;
+use atomic_refcell::AtomicRefCell;
 
 pub(crate) mod refcount;
 
@@ -97,7 +97,7 @@ pub struct RocksDB {
     check_free_space_counter: std::sync::atomic::AtomicU16,
     check_free_space_interval: u16,
     free_space_threshold: bytesize::ByteSize,
-    latency_get: RefCell<FastDistribution>,
+    latency_get: AtomicRefCell<FastDistribution>,
 
     // RAII-style of keeping track of the number of instances of RocksDB in a global variable.
     _instance_counter: InstanceCounter,
@@ -249,7 +249,7 @@ impl RocksDBOptions {
             check_free_space_interval: self.check_free_space_interval,
             check_free_space_counter: std::sync::atomic::AtomicU16::new(0),
             free_space_threshold: self.free_space_threshold,
-            latency_get: RefCell::new(FastDistribution::new(0, 10_000)),
+            latency_get: AtomicRefCell::new(FastDistribution::new(0, 10_000)),
             _instance_counter: InstanceCounter::new(),
         })
     }
@@ -292,7 +292,7 @@ impl RocksDBOptions {
             check_free_space_interval: self.check_free_space_interval,
             check_free_space_counter: std::sync::atomic::AtomicU16::new(0),
             free_space_threshold: self.free_space_threshold,
-            latency_get: RefCell::new(FastDistribution::new(0, 10_000)),
+            latency_get: AtomicRefCell::new(FastDistribution::new(0, 10_000)),
             _instance_counter: InstanceCounter::new(),
         })
     }
