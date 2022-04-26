@@ -691,7 +691,7 @@ impl RocksDB {
     fn update_latency_get_and_print_if_needed(&self, latency_us: u128) {
         let latency_us = std::cmp::min(10_000, latency_us);
         if let Ok(mut latency_get) = self.latency_get.try_borrow_mut() {
-            if latency_us < 30 {
+            if latency_us < 15 {
                 latency_get.1 += 1;
             } else {
                 let _ = latency_get.0.add(latency_us as i32);
