@@ -9,7 +9,7 @@ impl FastDistribution {
     pub fn new(min_val: i32, max_val: i32) -> Self {
         assert!(min_val <= max_val, "Incorrect distribution range: {} {}", min_val, max_val);
         let size = (max_val - min_val + 1) as usize;
-        assert!(size <= 10_000, "Too big range for fast distribution: {} {}", min_val, max_val);
+        assert!(size <= 10_001, "Too big range for fast distribution: {} {}", min_val, max_val);
         FastDistribution {
             min_val: min_val,
             max_val: max_val,
