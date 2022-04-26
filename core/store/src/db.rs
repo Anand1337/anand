@@ -97,7 +97,7 @@ pub struct RocksDB {
     check_free_space_counter: std::sync::atomic::AtomicU16,
     check_free_space_interval: u16,
     free_space_threshold: bytesize::ByteSize,
-    latency_get: AtomicRefCell<FastDistribution>,
+    latency_get: AtomicRefCell<(FastDistribution, u64)>,
 
     // RAII-style of keeping track of the number of instances of RocksDB in a global variable.
     _instance_counter: InstanceCounter,
@@ -249,7 +249,7 @@ impl RocksDBOptions {
             check_free_space_interval: self.check_free_space_interval,
             check_free_space_counter: std::sync::atomic::AtomicU16::new(0),
             free_space_threshold: self.free_space_threshold,
-            latency_get: AtomicRefCell::new(FastDistribution::new(0, 10_000)),
+            latency_get: AtomicRefCell::new((FastDistribution::new(0, 10_000), 0)),
             _instance_counter: InstanceCounter::new(),
         })
     }
@@ -292,7 +292,7 @@ impl RocksDBOptions {
             check_free_space_interval: self.check_free_space_interval,
             check_free_space_counter: std::sync::atomic::AtomicU16::new(0),
             free_space_threshold: self.free_space_threshold,
-            latency_get: AtomicRefCell::new(FastDistribution::new(0, 10_000)),
+            latency_get: AtomicRefCell::new((FastDistribution::new(0, 10_000), 0)),
             _instance_counter: InstanceCounter::new(),
         })
     }
@@ -691,10 +691,19 @@ impl RocksDB {
     fn update_latency_get_and_print_if_needed(&self, latency_us: u128) {
         let latency_us = std::cmp::min(10_000, latency_us);
         if let Ok(mut latency_get) = self.latency_get.try_borrow_mut() {
-            let _ = latency_get.add(latency_us as i32);
-            if latency_get.total_count() > 10_000 {
-                println!("latency: {:?}", latency_get.get_distribution(&vec![50., 90., 95., 99.]));
-                latency_get.clear();
+            if latency_us < 30 {
+                latency_get.1 += 1;
+            } else {
+                let _ = latency_get.0.add(latency_us as i32);
+            }
+            let fast_calls = latency_get.1;
+            let slow_calls = latency_get.0.total_count();
+            if fast_calls + slow_calls > 100_000 {
+                println!("fast calls: {} slow calls: {} ratio: {:.2} slow latency: {:?}",
+                         fast_calls, slow_calls, fast_calls as f64 / slow_calls as f64,
+                         latency_get.0.get_distribution(&vec![50., 90., 95., 99.]));
+                latency_get.0.clear();
+                latency_get.1 = 0;
             }
         }
     }
