@@ -94,9 +94,16 @@ impl TrieStorage for TrieRecordingStorage {
             return Ok(val.as_slice().into());
         }
         let key = TrieCachingStorage::get_key_from_shard_uid_and_hash(self.shard_uid, hash);
+        let state_column = match self.shard_uid.shard_id {
+            0 => DBCol::State0,
+            1 => DBCol::State1,
+            2 => DBCol::State2,
+            3 => DBCol::State3,
+            x => panic!("unkown column: {}", x),
+        };
         let val = self
             .store
-            .get(DBCol::State, key.as_ref())
+            .get(state_column, key.as_ref())
             .map_err(|_| StorageError::StorageInternalError)?;
         if let Some(val) = val {
             self.recorded.borrow_mut().insert(*hash, val.clone());
@@ -246,9 +253,16 @@ impl TrieStorage for TrieCachingStorage {
             None => {
                 // If value is not present in cache, get it from the storage.
                 let key = Self::get_key_from_shard_uid_and_hash(self.shard_uid, hash);
+                let state_column = match self.shard_uid.shard_id {
+                    0 => DBCol::State0,
+                    1 => DBCol::State1,
+                    2 => DBCol::State2,
+                    3 => DBCol::State3,
+                    x => panic!("unkown column: {}", x),
+                };
                 let val = self
                     .store
-                    .get(DBCol::State, key.as_ref())
+                    .get(state_column, key.as_ref())
                     .map_err(|_| StorageError::StorageInternalError)?
                     .ok_or_else(|| {
                         StorageError::StorageInconsistentState("Trie node missing".to_string())

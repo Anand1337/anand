@@ -233,6 +233,11 @@ pub enum DBCol {
     /// - *Rows*: BlockShardId (BlockHash || ShardId) - 40 bytes
     /// - *Column type*: StateChangesForSplitStates
     StateChangesForSplitStates = 49,
+
+    State0 = 50,
+    State1 = 51,
+    State2 = 52,
+    State3 = 53,
 }
 
 impl DBCol {
@@ -303,7 +308,7 @@ const OPTIONAL_GC_COLUMNS: [bool; DBCol::COUNT] = col_set(&[
 ]);
 
 const RC_COLUMNS: [bool; DBCol::COUNT] =
-    col_set(&[DBCol::State, DBCol::Transactions, DBCol::Receipts, DBCol::ReceiptIdToShardId]);
+    col_set(&[DBCol::State, DBCol::State0, DBCol::State1, DBCol::State2, DBCol::State3, DBCol::Transactions, DBCol::Receipts, DBCol::ReceiptIdToShardId]);
 
 const fn col_set(cols: &[DBCol]) -> [bool; DBCol::COUNT] {
     let mut res = [false; DBCol::COUNT];
@@ -324,6 +329,10 @@ impl fmt::Display for DBCol {
             Self::BlockHeader => "block header data",
             Self::BlockHeight => "block height",
             Self::State => "blockchain state",
+            Self::State0 => "blockchain state (shard 0)",
+            Self::State1 => "blockchain state (shard 1)",
+            Self::State2 => "blockchain state (shard 2)",
+            Self::State3 => "blockchain state (shard 3)",
             Self::ChunkExtra => "extra information of trunk",
             Self::TransactionResult => "transaction results",
             Self::OutgoingReceipts => "outgoing receipts",

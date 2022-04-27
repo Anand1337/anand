@@ -2130,7 +2130,7 @@ impl<'a> ChainStoreUpdate<'a> {
                                 DBCol::TrieChanges,
                                 &get_block_shard_uid(&block_hash, &shard_uid),
                             );
-                            self.inc_gc_col_state();
+                            self.inc_gc_col_state(shard_uid.shard_id);
                         }
                     }
                 }
@@ -2147,7 +2147,7 @@ impl<'a> ChainStoreUpdate<'a> {
                                 DBCol::TrieChanges,
                                 &get_block_shard_uid(&block_hash, &shard_uid),
                             );
-                            self.inc_gc_col_state();
+                            self.inc_gc_col_state(shard_uid.shard_id);
                         }
                     }
                     // Set `block_hash` on previous one
@@ -2251,8 +2251,15 @@ impl<'a> ChainStoreUpdate<'a> {
         Ok(())
     }
 
-    pub fn inc_gc_col_state(&mut self) {
-        self.inc_gc(DBCol::State);
+    pub fn inc_gc_col_state(&mut self, shard_id: u32) {
+        let state_column = match shard_id {
+            0 => DBCol::State0,
+            1 => DBCol::State1,
+            2 => DBCol::State2,
+            3 => DBCol::State3,
+            x => panic!("unkown column: {}", x),
+        };
+        self.inc_gc(state_column);
     }
 
     fn inc_gc(&mut self, col: DBCol) {
@@ -2447,7 +2454,7 @@ impl<'a> ChainStoreUpdate<'a> {
             DBCol::StateParts => {
                 store_update.delete(col, key);
             }
-            DBCol::State => {
+            DBCol::State | DBCol::State0 | DBCol::State1 | DBCol::State2 | DBCol::State3  => {
                 panic!("Actual gc happens elsewhere, call inc_gc_col_state to increase gc count");
             }
             DBCol::TrieChanges => {

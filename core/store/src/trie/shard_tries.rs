@@ -84,14 +84,14 @@ impl ShardTries {
         let mut shards = HashMap::new();
         for op in &transaction.ops {
             match op {
-                DBOp::UpdateRefcount { col, ref key, ref value } if *col == DBCol::State => {
+                DBOp::UpdateRefcount { col, ref key, ref value } if *col == DBCol::State0 || *col == DBCol::State1 || *col == DBCol::State2 || *col == DBCol::State3 => {
                     let (shard_uid, hash) =
                         TrieCachingStorage::get_shard_uid_and_hash_from_key(key)?;
                     shards.entry(shard_uid).or_insert(vec![]).push((hash, Some(value)));
                 }
-                DBOp::Insert { col, .. } if *col == DBCol::State => unreachable!(),
-                DBOp::Delete { col, .. } if *col == DBCol::State => unreachable!(),
-                DBOp::DeleteAll { col } if *col == DBCol::State => {
+                DBOp::Insert { col, .. } if *col == DBCol::State0 || *col == DBCol::State1 || *col == DBCol::State2 || *col == DBCol::State3 => unreachable!(),
+                DBOp::Delete { col, .. } if *col == DBCol::State0 || *col == DBCol::State1 || *col == DBCol::State2 || *col == DBCol::State3 => unreachable!(),
+                DBOp::DeleteAll { col } if *col == DBCol::State0 || *col == DBCol::State1 || *col == DBCol::State2 || *col == DBCol::State3 => {
                     // Delete is possible in reset_data_pre_state_sync
                     for (_, cache) in caches.iter() {
                         cache.clear();
@@ -121,8 +121,15 @@ impl ShardTries {
                 shard_uid,
                 trie_node_or_value_hash,
             );
+            let state_column = match shard_uid.shard_id {
+                0 => DBCol::State0,
+                1 => DBCol::State1,
+                2 => DBCol::State2,
+                3 => DBCol::State3,
+                x => panic!("unkown column: {}", x),
+            };
             store_update.update_refcount(
-                DBCol::State,
+                state_column,
                 key.as_ref(),
                 trie_node_or_value,
                 -(*rc as i64),
@@ -144,8 +151,15 @@ impl ShardTries {
                 shard_uid,
                 trie_node_or_value_hash,
             );
+            let state_column = match shard_uid.shard_id {
+                0 => DBCol::State0,
+                1 => DBCol::State1,
+                2 => DBCol::State2,
+                3 => DBCol::State3,
+                x => panic!("unkown column: {}", x),
+            };
             store_update.update_refcount(
-                DBCol::State,
+                state_column,
                 key.as_ref(),
                 trie_node_or_value,
                 *rc as i64,
@@ -244,8 +258,15 @@ impl ShardTries {
                 shard_uid,
                 &trie_node_or_value_hash,
             );
+            let state_column = match shard_uid.shard_id {
+                0 => DBCol::State0,
+                1 => DBCol::State1,
+                2 => DBCol::State2,
+                3 => DBCol::State3,
+                x => panic!("unkown column: {}", x),
+            };
             store_update.update_refcount(
-                DBCol::State,
+                state_column,
                 key.as_ref(),
                 &trie_node_or_value,
                 rc as i64,

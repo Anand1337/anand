@@ -1245,6 +1245,7 @@ impl Chain {
         let tries = self.runtime_adapter.get_tries();
         let mut chain_store_update = self.mut_store().store_update();
         let mut store_update = StoreUpdate::new_with_tries(tries);
+        panic!("IN");
         store_update.delete_all(DBCol::State);
         chain_store_update.merge(store_update);
 

@@ -19,6 +19,7 @@ impl StateDump {
     pub fn from_dir(dir: &Path, target_store_path: &Path) -> Self {
         let store = create_store(target_store_path);
         let state_file = dir.join(STATE_DUMP_FILE);
+        panic!("IN");
         store
             .load_from_file(DBCol::State, state_file.as_path())
             .expect("Failed to read state dump");
@@ -34,6 +35,7 @@ impl StateDump {
     pub fn save_to_dir(self, dir: PathBuf) -> std::result::Result<(), Box<dyn std::error::Error>> {
         let mut dump_path = dir.clone();
         dump_path.push(STATE_DUMP_FILE);
+        panic!("IN");
         self.store.save_to_file(DBCol::State, dump_path.as_path())?;
         {
             let mut roots_files = dir.clone();
