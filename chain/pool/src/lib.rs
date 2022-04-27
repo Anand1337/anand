@@ -8,6 +8,7 @@ use near_primitives::hash::{hash, CryptoHash};
 use near_primitives::transaction::SignedTransaction;
 use near_primitives::types::AccountId;
 use std::ops::Bound;
+use tracing::debug;
 
 mod metrics;
 pub mod types;
@@ -50,6 +51,7 @@ impl TransactionPool {
             return false;
         }
         metrics::TRANSACTION_POOL_TOTAL.inc();
+        debug!(target: "txpool", current_metric_value=metrics::TRANSACTION_POOL_TOTAL.get(),  unique_transactions_num=self.unique_transactions.len(), transactions_num=self.transactions.len(), "Incremented TRANSACTION_POOL_TOTAL");
 
         let signer_id = &signed_transaction.transaction.signer_id;
         let signer_public_key = &signed_transaction.transaction.public_key;
@@ -93,6 +95,7 @@ impl TransactionPool {
             for hash in &hashes {
                 if self.unique_transactions.remove(&hash) {
                     metrics::TRANSACTION_POOL_TOTAL.dec();
+                    debug!(target: "txpool", current_metric_value=metrics::TRANSACTION_POOL_TOTAL.get(),  unique_transactions_num=self.unique_transactions.len(), transactions_num=self.transactions.len(), "Decremented #1 TRANSACTION_POOL_TOTAL");
                 }
             }
         }
@@ -180,6 +183,7 @@ impl<'a> PoolIterator for PoolIteratorWrapper<'a> {
                     for hash in sorted_group.removed_transaction_hashes {
                         if self.pool.unique_transactions.remove(&hash) {
                             metrics::TRANSACTION_POOL_TOTAL.dec();
+                            debug!(target: "txpool", current_metric_value=metrics::TRANSACTION_POOL_TOTAL.get(),  sorted_groups_len=self.sorted_groups.len(), unique_transactions_num=self.pool.unique_transactions.len(), transactions_num=self.pool.transactions.len(), "Decremented #2 TRANSACTION_POOL_TOTAL");
                         }
                     }
                 } else {
@@ -197,10 +201,12 @@ impl<'a> PoolIterator for PoolIteratorWrapper<'a> {
 /// removed from the pool's unique_transactions.
 impl<'a> Drop for PoolIteratorWrapper<'a> {
     fn drop(&mut self) {
+        debug!(target: "txpool", sorted_groups_len=self.sorted_groups.len(), "drop()");
         for group in self.sorted_groups.drain(..) {
             for hash in group.removed_transaction_hashes {
                 if self.pool.unique_transactions.remove(&hash) {
                     metrics::TRANSACTION_POOL_TOTAL.dec();
+                    debug!(target: "txpool", current_metric_value=metrics::TRANSACTION_POOL_TOTAL.get(),  unique_transactions_num=self.pool.unique_transactions.len(), transactions_num=self.pool.transactions.len(), "Decremented #3 TRANSACTION_POOL_TOTAL");
                 }
             }
             if !group.transactions.is_empty() {
