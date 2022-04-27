@@ -248,6 +248,7 @@ impl Client {
     }
 
     pub fn remove_transactions_for_block(&mut self, me: AccountId, block: &Block) {
+        debug!(target: "txpool", "Client::remove_transactions_for_block()");
         for (shard_id, chunk_header) in block.chunks().iter().enumerate() {
             let shard_id = shard_id as ShardId;
             if block.header().height() == chunk_header.height_included() {
@@ -271,6 +272,7 @@ impl Client {
     }
 
     pub fn reintroduce_transactions_for_block(&mut self, me: AccountId, block: &Block) {
+        debug!(target: "txpool", "Client::reintroduce_transactions_for_block()");
         for (shard_id, chunk_header) in block.chunks().iter().enumerate() {
             let shard_id = shard_id as ShardId;
             if block.header().height() == chunk_header.height_included() {
@@ -688,6 +690,7 @@ impl Client {
         chunk_extra: &ChunkExtra,
         prev_block_header: &BlockHeader,
     ) -> Result<Vec<SignedTransaction>, Error> {
+        debug!(target: "txpool", shard_id, "Client::prepare_transactions()");
         let Self { chain, shards_mgr, runtime_adapter, .. } = self;
 
         let next_epoch_id =
@@ -1507,6 +1510,7 @@ impl Client {
     fn forward_tx(&self, epoch_id: &EpochId, tx: &SignedTransaction) -> Result<(), Error> {
         let shard_id =
             self.runtime_adapter.account_id_to_shard_id(&tx.transaction.signer_id, epoch_id)?;
+        debug!(target: "txpool", shard_id, "Client::forward_tx()");
         let head = self.chain.head()?;
         let maybe_next_epoch_id = self.get_next_epoch_id_if_at_boundary(&head)?;
 
