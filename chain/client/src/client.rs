@@ -1557,6 +1557,7 @@ impl Client {
         is_forwarded: bool,
         check_only: bool,
     ) -> NetworkClientResponses {
+        debug!(target: "txpool", "Client::process_tx()");
         unwrap_or_return!(self.process_tx_internal(&tx, is_forwarded, check_only), {
             let me = self.validator_signer.as_ref().map(|vs| vs.validator_id());
             warn!(target: "client", "I'm: {:?} Dropping tx: {:?}", me, tx);
@@ -1603,6 +1604,7 @@ impl Client {
         is_forwarded: bool,
         check_only: bool,
     ) -> Result<NetworkClientResponses, Error> {
+        debug!(target: "txpool", "Client::process_tx_internal()");
         let head = self.chain.head()?;
         let me = self.validator_signer.as_ref().map(|vs| vs.validator_id());
         let cur_block_header = self.chain.head_header()?.clone();

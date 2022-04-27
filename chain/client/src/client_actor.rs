@@ -404,6 +404,7 @@ impl ClientActor {
                 };
             }
             NetworkClientMessages::Transaction { transaction, is_forwarded, check_only } => {
+                debug!(target: "txpool", is_forwarded, "ClientActor::handle_client_messages() :: NetworkClientMessages::Transaction");
                 self.client.process_tx(transaction, is_forwarded, check_only)
             }
             NetworkClientMessages::Block(block, peer_id, was_requested) => {
