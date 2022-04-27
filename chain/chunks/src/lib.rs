@@ -21,7 +21,6 @@
 //! non-validator receives a partial encoded chunk is by requesting it.
 //!
 //! ** Requesting for chunks
-//! `ShardManager` keeps a request pool that stores all requests for chunks that are not completed
 //! yet. The requests are managed at the chunk level, instead of individual parts and receipts.
 //! A new request can be added by calling function `request_chunk_single`. If it is not
 //! in the pool yet, `request_partial_encoded_chunk` will be called, which checks which parts or
@@ -935,6 +934,7 @@ impl ShardsManager {
 
     /// Returns true if transaction is not in the pool before call
     pub fn insert_transaction(&mut self, shard_id: ShardId, tx: SignedTransaction) -> bool {
+        debug!(target: "txpool", shard_id, "ShardsManager::insert_transaction()");
         self.pool_for_shard(shard_id).insert_transaction(tx, shard_id)
     }
 
@@ -943,7 +943,7 @@ impl ShardsManager {
         shard_id: ShardId,
         transactions: &Vec<SignedTransaction>,
     ) {
-        debug!(target: "txpool", shard_id, "remove_transactions");
+        debug!(target: "txpool", shard_id, "ShardsManager::remove_transactions()");
         if let Some(pool) = self.tx_pools.get_mut(&shard_id) {
             pool.remove_transactions(transactions, shard_id)
         }
@@ -961,7 +961,7 @@ impl ShardsManager {
     }
 
     fn pool_for_shard(&mut self, shard_id: ShardId) -> &mut TransactionPool {
-        debug!(target: "txpool", shard_id, "pool_for_shard");
+        debug!(target: "txpool", shard_id, "ShardsManager::pool_for_shard()");
         self.tx_pools.entry(shard_id).or_insert_with(|| {
             TransactionPool::new(ShardsManager::random_seed(&self.rng_seed, shard_id))
         })
@@ -972,7 +972,7 @@ impl ShardsManager {
         shard_id: ShardId,
         transactions: &Vec<SignedTransaction>,
     ) {
-        debug!(target: "txpool", shard_id, "reintroduce_transactions");
+        debug!(target: "txpool", shard_id, "ShardsManager::reintroduce_transactions()");
         self.pool_for_shard(shard_id).reintroduce_transactions(transactions.clone(), shard_id);
     }
 

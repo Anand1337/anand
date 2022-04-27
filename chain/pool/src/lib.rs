@@ -29,7 +29,7 @@ pub struct TransactionPool {
 
 impl TransactionPool {
     pub fn new(key_seed: RngSeed) -> Self {
-        debug!(target: "txpool", "TransactionPool::new");
+        debug!(target: "txpool", "TransactionPool::new()");
         Self {
             key_seed,
             transactions: BTreeMap::new(),
@@ -51,6 +51,7 @@ impl TransactionPool {
         signed_transaction: SignedTransaction,
         shard_id: ShardId,
     ) -> bool {
+        debug!(target: "txpool", shard_id, "TransactionPool::insert_transaction()");
         let l1 = self.len();
         if !self.unique_transactions.insert(signed_transaction.get_hash()) {
             let l2 = self.len();
@@ -80,6 +81,7 @@ impl TransactionPool {
     /// Quick reconciliation step - evict all transactions that already in the block
     /// or became invalid after it.
     pub fn remove_transactions(&mut self, transactions: &[SignedTransaction], shard_id: ShardId) {
+        debug!(target: "txpool", shard_id, "TransactionPool::remove_transactions()");
         let l1 = self.len();
         let mut grouped_transactions = HashMap::new();
         for tx in transactions {
@@ -124,6 +126,7 @@ impl TransactionPool {
         transactions: Vec<SignedTransaction>,
         shard_id: ShardId,
     ) {
+        debug!(target: "txpool", shard_id, "TransactionPool::reintroduce_transactions()");
         for tx in transactions {
             self.insert_transaction(tx, shard_id);
         }
