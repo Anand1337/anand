@@ -6,7 +6,7 @@ use near_crypto::PublicKey;
 use near_primitives::epoch_manager::RngSeed;
 use near_primitives::hash::{hash, CryptoHash};
 use near_primitives::transaction::SignedTransaction;
-use near_primitives::types::AccountId;
+use near_primitives::types::{AccountId, ShardId};
 use std::ops::Bound;
 use tracing::debug;
 
@@ -29,6 +29,7 @@ pub struct TransactionPool {
 
 impl TransactionPool {
     pub fn new(key_seed: RngSeed) -> Self {
+        debug!(target: "txpool", "TransactionPool::new");
         Self {
             key_seed,
             transactions: BTreeMap::new(),
@@ -45,7 +46,11 @@ impl TransactionPool {
     }
 
     /// Insert a signed transaction into the pool that passed validation.
-    pub fn insert_transaction(&mut self, signed_transaction: SignedTransaction) -> bool {
+    pub fn insert_transaction(
+        &mut self,
+        signed_transaction: SignedTransaction,
+        shard_id: ShardId,
+    ) -> bool {
         let l1 = self.len();
         if !self.unique_transactions.insert(signed_transaction.get_hash()) {
             let l2 = self.len();
@@ -61,20 +66,20 @@ impl TransactionPool {
             .or_insert_with(Vec::new)
             .push(signed_transaction);
         metrics::TRANSACTION_POOL_TOTAL.inc();
-        debug!(target: "txpool", current_metric_value=metrics::TRANSACTION_POOL_TOTAL.get(),  unique_transactions_num=self.unique_transactions.len(), transactions_num=self.transactions.len(), "Incremented TRANSACTION_POOL_TOTAL");
+        debug!(target: "txpool", current_metric_value=metrics::TRANSACTION_POOL_TOTAL.get(),  shard_id, unique_transactions_num=self.unique_transactions.len(), transactions_num=self.transactions.len(), "Incremented TRANSACTION_POOL_TOTAL");
         true
     }
 
     /// Returns a pool iterator wrapper that implements an iterator like trait to iterate over
     /// transaction groups in the proper order defined by the protocol.
     /// When the iterator is dropped, all remaining groups are inserted back into the pool.
-    pub fn pool_iterator(&mut self) -> PoolIteratorWrapper<'_> {
-        PoolIteratorWrapper::new(self)
+    pub fn pool_iterator(&mut self, shard_id: ShardId) -> PoolIteratorWrapper<'_> {
+        PoolIteratorWrapper::new(self, shard_id)
     }
 
     /// Quick reconciliation step - evict all transactions that already in the block
     /// or became invalid after it.
-    pub fn remove_transactions(&mut self, transactions: &[SignedTransaction]) {
+    pub fn remove_transactions(&mut self, transactions: &[SignedTransaction], shard_id: ShardId) {
         let l1 = self.len();
         let mut grouped_transactions = HashMap::new();
         for tx in transactions {
@@ -104,7 +109,7 @@ impl TransactionPool {
                     let l4 = self.len();
                     assert!(l4 < l3);
                     metrics::TRANSACTION_POOL_TOTAL.dec();
-                    debug!(target: "txpool", current_metric_value=metrics::TRANSACTION_POOL_TOTAL.get(),  unique_transactions_num=self.unique_transactions.len(), transactions_num=self.transactions.len(), "Decremented #1 TRANSACTION_POOL_TOTAL");
+                    debug!(target: "txpool", current_metric_value=metrics::TRANSACTION_POOL_TOTAL.get(),  shard_id, unique_transactions_num=self.unique_transactions.len(), transactions_num=self.transactions.len(), "Decremented #1 TRANSACTION_POOL_TOTAL");
                 } else {
                     let l4 = self.len();
                     assert_eq!(l3, l4);
@@ -114,9 +119,13 @@ impl TransactionPool {
     }
 
     /// Reintroduce transactions back during the chain reorg
-    pub fn reintroduce_transactions(&mut self, transactions: Vec<SignedTransaction>) {
+    pub fn reintroduce_transactions(
+        &mut self,
+        transactions: Vec<SignedTransaction>,
+        shard_id: ShardId,
+    ) {
         for tx in transactions {
-            self.insert_transaction(tx);
+            self.insert_transaction(tx, shard_id);
         }
     }
 
@@ -134,11 +143,13 @@ pub struct PoolIteratorWrapper<'a> {
 
     /// Queue of transaction groups. Each group there is sorted by nonce.
     sorted_groups: VecDeque<TransactionGroup>,
+
+    shard_id: ShardId,
 }
 
 impl<'a> PoolIteratorWrapper<'a> {
-    pub fn new(pool: &'a mut TransactionPool) -> Self {
-        Self { pool, sorted_groups: Default::default() }
+    pub fn new(pool: &'a mut TransactionPool, shard_id: ShardId) -> Self {
+        Self { pool, sorted_groups: Default::default(), shard_id }
     }
 }
 
@@ -197,7 +208,7 @@ impl<'a> PoolIterator for PoolIteratorWrapper<'a> {
                             let l4 = self.pool.len();
                             assert!(l4 < l3);
                             metrics::TRANSACTION_POOL_TOTAL.dec();
-                            debug!(target: "txpool", current_metric_value=metrics::TRANSACTION_POOL_TOTAL.get(),  sorted_groups_len=self.sorted_groups.len(), unique_transactions_num=self.pool.unique_transactions.len(), transactions_num=self.pool.transactions.len(), "Decremented #2 TRANSACTION_POOL_TOTAL");
+                            debug!(target: "txpool", shard_id=self.shard_id, current_metric_value=metrics::TRANSACTION_POOL_TOTAL.get(),  sorted_groups_len=self.sorted_groups.len(), unique_transactions_num=self.pool.unique_transactions.len(), transactions_num=self.pool.transactions.len(), "Decremented #2 TRANSACTION_POOL_TOTAL");
                         } else {
                             let l4 = self.pool.len();
                             assert_eq!(l3, l4);
@@ -218,7 +229,7 @@ impl<'a> PoolIterator for PoolIteratorWrapper<'a> {
 /// removed from the pool's unique_transactions.
 impl<'a> Drop for PoolIteratorWrapper<'a> {
     fn drop(&mut self) {
-        debug!(target: "txpool", sorted_groups_len=self.sorted_groups.len(), "drop()");
+        debug!(target: "txpool",shard_id=self.shard_id,  sorted_groups_len=self.sorted_groups.len(), "drop()");
         for group in self.sorted_groups.drain(..) {
             for hash in group.removed_transaction_hashes {
                 let l1 = self.pool.len();

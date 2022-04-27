@@ -518,7 +518,8 @@ impl ShardsManager {
     }
 
     pub fn get_pool_iterator(&mut self, shard_id: ShardId) -> Option<PoolIteratorWrapper<'_>> {
-        self.tx_pools.get_mut(&shard_id).map(|pool| pool.pool_iterator())
+        debug!(target: "txpool", shard_id, "get_pool_iterator");
+        self.tx_pools.get_mut(&shard_id).map(|pool| pool.pool_iterator(shard_id))
     }
 
     pub fn cares_about_shard_this_or_next_epoch(
@@ -934,7 +935,7 @@ impl ShardsManager {
 
     /// Returns true if transaction is not in the pool before call
     pub fn insert_transaction(&mut self, shard_id: ShardId, tx: SignedTransaction) -> bool {
-        self.pool_for_shard(shard_id).insert_transaction(tx)
+        self.pool_for_shard(shard_id).insert_transaction(tx, shard_id)
     }
 
     pub fn remove_transactions(
@@ -942,8 +943,9 @@ impl ShardsManager {
         shard_id: ShardId,
         transactions: &Vec<SignedTransaction>,
     ) {
+        debug!(target: "txpool", shard_id, "remove_transactions");
         if let Some(pool) = self.tx_pools.get_mut(&shard_id) {
-            pool.remove_transactions(transactions)
+            pool.remove_transactions(transactions, shard_id)
         }
     }
 
@@ -959,6 +961,7 @@ impl ShardsManager {
     }
 
     fn pool_for_shard(&mut self, shard_id: ShardId) -> &mut TransactionPool {
+        debug!(target: "txpool", shard_id, "pool_for_shard");
         self.tx_pools.entry(shard_id).or_insert_with(|| {
             TransactionPool::new(ShardsManager::random_seed(&self.rng_seed, shard_id))
         })
@@ -969,7 +972,8 @@ impl ShardsManager {
         shard_id: ShardId,
         transactions: &Vec<SignedTransaction>,
     ) {
-        self.pool_for_shard(shard_id).reintroduce_transactions(transactions.clone());
+        debug!(target: "txpool", shard_id, "reintroduce_transactions");
+        self.pool_for_shard(shard_id).reintroduce_transactions(transactions.clone(), shard_id);
     }
 
     pub fn receipts_recipient_filter<T>(
