@@ -29,9 +29,9 @@ pub struct TransactionPool {
 
 impl TransactionPool {
     pub fn new(key_seed: RngSeed) -> Self {
-        debug!(target: "txpool", "TransactionPool::new()");
         // A `get()` call initializes a metric even if its value is zero.
-        metrics::TRANSACTION_POOL_TOTAL.get();
+        let val = metrics::TRANSACTION_POOL_TOTAL.get();
+        debug!(target: "txpool", val, "TransactionPool::new()");
         Self {
             key_seed,
             transactions: BTreeMap::new(),
