@@ -1592,6 +1592,7 @@ impl Client {
     /// If we're a validator in one of the next few chunks, but epoch switch could happen soon,
     /// we forward to a validator from next epoch.
     fn possibly_forward_tx_to_next_epoch(&mut self, tx: &SignedTransaction) -> Result<(), Error> {
+        debug!(target: "txpool", "Client::possibly_forward_tx_to_next_epochi()");
         let head = self.chain.head()?;
         if let Some(next_epoch_id) = self.get_next_epoch_id_if_at_boundary(&head)? {
             self.forward_tx(&next_epoch_id, tx)?;
@@ -1679,7 +1680,6 @@ impl Client {
                     shard_id,
                     is_forwarded
                 );
-                self.shards_mgr.insert_transaction(shard_id, tx.clone());
 
                 // Active validator:
                 //   possibly forward to next epoch validators
@@ -1687,6 +1687,9 @@ impl Client {
                 //   forward to current epoch validators,
                 //   possibly forward to next epoch validators
                 if active_validator {
+                    // Only add a transaction to a transaction pool if a node is a validator.
+                    // Transactions may not be removed from a transaction pool otherwise.
+                    self.shards_mgr.insert_transaction(shard_id, tx.clone());
                     if !is_forwarded {
                         self.possibly_forward_tx_to_next_epoch(tx)?;
                     }
