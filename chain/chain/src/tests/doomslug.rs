@@ -170,7 +170,7 @@ fn one_iter(
         // 4. Produce blocks
         'outer: for (bp_ord, ds) in doomslugs.iter_mut().enumerate() {
             for target_height in (ds.get_tip().1 + 1)..=ds.get_largest_height_crossing_threshold() {
-                if ds.ready_to_produce_block(now, target_height, true) {
+                if ds.ready_to_produce_block(now, target_height, true, false) {
                     let num_blocks_to_produce = if bp_ord < 3 { 2 } else { 1 };
 
                     for block_ord in 0..num_blocks_to_produce {
@@ -301,8 +301,8 @@ fn one_iter(
     (now - started, largest_produced_height)
 }
 
-#[cfg(feature = "expensive_tests")]
 #[test]
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
 fn test_fuzzy_doomslug_liveness_and_safety() {
     for (time_to_gst_millis, height_goal) in
         &[(0, 200), (1000, 200), (10000, 300), (100000, 400), (500000, 500)]

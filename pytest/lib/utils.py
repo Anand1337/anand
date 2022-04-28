@@ -5,6 +5,7 @@ import json
 import os
 import pathlib
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -89,25 +90,31 @@ class LogTracker:
             f.seek(0, 2)
             self.offset = f.tell()
 
-    def check(self, pattern: str) -> bool:
-        """Check whether the pattern can be found in the logs."""
+    # Pattern matching ANSI escape codes starting with a Control Sequence
+    # Introducer (CSI) sequence.  Most notably Select Graphic Rendition (SGR)
+    # such as ‘\x1b[35;41m’.
+    _CSI_RE = re.compile('\x1b\\[[^\x40-\x7E]*[\x40-\x7E]')
+
+    def _read_file(self) -> str:
+        """Returns data from the file starting from the offset."""
         with open(self.fname) as rd:
             rd.seek(self.offset)
-            found = pattern in rd.read()
+            data = rd.read()
             self.offset = rd.tell()
-        return found
+        # Strip ANSI codes
+        return self._CSI_RE.sub('', data)
 
-    def reset(self) -> bool:
+    def check(self, pattern: str) -> bool:
+        """Check whether the pattern can be found in the logs."""
+        return pattern in self._read_file()
+
+    def reset(self) -> None:
         """Resets log offset to beginning of the file."""
         self.offset = 0
 
-    def count(self, pattern):
+    def count(self, pattern: str) -> int:
         """Count number of occurrences of pattern in new logs."""
-        with open(self.fname) as rd:
-            rd.seek(self.offset)
-            count = rd.read().count(pattern)
-            self.offset = rd.tell()
-        return count
+        return self._read_file().count(pattern)
 
 
 def chain_query(node, block_handler, *, block_hash=None, max_blocks=-1):
@@ -164,7 +171,8 @@ def load_binary_file(filepath):
         return bytearray(binaryfile.read())
 
 
-def load_test_contract(filename: str = 'test_contract_rs.wasm') -> bytearray:
+def load_test_contract(
+        filename: str = 'base_test_contract_rs.wasm') -> bytearray:
     """Loads a WASM file from near-test-contracts package.
 
     This is just a convenience function around load_binary_file which loads
@@ -252,6 +260,72 @@ def compute_merkle_root_from_path(path, leaf_hash):
     return res
 
 
+def poll_epochs(node: cluster.LocalNode,
+                *,
+                epoch_length,
+                num_blocks_per_year: int = 31536000,
+                timeout: float = 300) -> typing.Iterable[int]:
+    """Polls a node about the latest epoch and yields it when it changes.
+
+    The function continues yielding epoch heights indefinitely (so long as the node
+    continues reporting them) until timeout is reached or the caller stops
+    reading yielded values.  Reaching the timeout is considered to be a failure
+    condition and thus it results in an `AssertionError`.  The expected usage is
+    that caller reads epoch heights until some condition is met at which point it stops
+    iterating over the generator.
+
+    Args:
+        node: Node to query about its latest epoch.
+        timeout: Total timeout from the first status request sent to the node.
+        epoch_length: epoch_length genesis config value
+        num_blocks_per_year: num_blocks_per_year genesis config value
+    Yields:
+        An int for each new epoch height reported. Note that there
+        is no guarantee that there will be no skipped epochs.
+    Raises:
+        AssertionError: If more than `timeout` seconds passes from the start of
+            the iteration, or the response from the node is not as expected.
+    """
+    end = time.time() + timeout
+    start_height = -1
+    epoch_start = -1
+    count = 0
+    previous = -1
+
+    while time.time() < end:
+        response = node.get_validators()
+        assert 'error' not in response, response
+
+        latest = response['result']
+        height = latest['epoch_height']
+        assert isinstance(height, int) and height >= 1, height
+
+        if start_height == -1:
+            start_height = height
+
+        if previous != height:
+            yield height
+
+            count += 1
+            previous = height
+            epoch_start = latest['epoch_start_height']
+            assert isinstance(epoch_start,
+                              int) and epoch_start >= 1, epoch_start
+
+        blocks_left = epoch_start + epoch_length - node.get_latest_block(
+        ).height
+        seconds_left = blocks_left / (num_blocks_per_year / 31536000)
+        time.sleep(max(seconds_left, 2))
+
+    msg = 'Timed out polling epochs from a node\n'
+    if count:
+        msg += (f'First epoch: {start_height}; last epoch: {previous}\n'
+                f'Total epochs returned: {count}')
+    else:
+        msg += 'No epochs were returned'
+    raise AssertionError(msg)
+
+
 def poll_blocks(node: cluster.LocalNode,
                 *,
                 timeout: float = 120,
@@ -281,22 +355,28 @@ def poll_blocks(node: cluster.LocalNode,
         AssertionError: If more than `timeout` seconds passes from the start of
             the iteration.
     """
-    end = time.time() + timeout
-    start_height = None
-    blocks_count = 0
+    end = time.monotonic() + timeout
+    start_height = -1
+    count = 0
     previous = -1
 
-    while time.time() < end:
+    while time.monotonic() < end:
         latest = node.get_latest_block(**kw)
         if latest.height != previous:
+            if __target:
+                msg = f'{latest}  (waiting for #{__target})'
+            else:
+                msg = str(latest)
+            logger.info(msg)
             yield latest
             previous = latest.height
             if start_height == -1:
                 start_height = latest.height
+            count += 1
         time.sleep(poll_interval)
 
     msg = 'Timed out polling blocks from a node\n'
-    if blocks_count:
+    if count > 0:
         msg += (f'First block: {start_height}; last block: {previous}\n'
                 f'Total blocks returned: {count}')
     else:
@@ -310,6 +390,7 @@ def wait_for_blocks(node: cluster.LocalNode,
                     *,
                     target: typing.Optional[int] = None,
                     count: typing.Optional[int] = None,
+                    timeout: typing.Optional[float] = None,
                     **kw) -> cluster.BlockId:
     """Waits until given node reaches expected target block height.
 
@@ -323,6 +404,9 @@ def wait_for_blocks(node: cluster.LocalNode,
         count: How many new blocks to wait for.  If this argument is given,
             target is calculated as node’s current block height plus the given
             count.
+        timeout: Total timeout from the first status request sent to the node.
+            If not specified, the default is to assume that overall each block
+            takes no more than five seconds to generate.
         kw: Keyword arguments passed to `poll_blocks`.  `timeout` and
             `poll_interval` are likely of most interest.
     Returns:
@@ -335,9 +419,37 @@ def wait_for_blocks(node: cluster.LocalNode,
         if count is None:
             raise TypeError('Expected `count` or `target` keyword argument')
         target = node.get_latest_block().height + count
-    elif count is not None:
-        raise TypeError('Expected at most one of `count` or `target` arguments')
-    for latest in poll_blocks(node, __target=target, **kw):
-        logger.info(f'{latest}  (waiting for #{target})')
+    else:
+        if count is not None:
+            raise TypeError(
+                'Expected at most one of `count` or `target` arguments')
+        if timeout is None:
+            count = max(0, target - node.get_latest_block().height)
+    if timeout is None:
+        timeout = max(10, count * 5)
+    for latest in poll_blocks(node, timeout=timeout, __target=target, **kw):
         if latest.height >= target:
             return latest
+
+
+def figure_out_sandbox_binary():
+    config = {
+        'local': True,
+        'release': False,
+    }
+    repo_dir = pathlib.Path(__file__).resolve().parents[2]
+    # When run on NayDuck we end up with a binary called neard in target/debug
+    # but when run locally the binary might be neard-sandbox or near-sandbox
+    # instead.  Try to figure out whichever binary is available and use that.
+    for release in ('release', 'debug'):
+        root = repo_dir / 'target' / release
+        for exe in ('neard-sandbox', 'near-sandbox', 'neard'):
+            if (root / exe).exists():
+                logger.info(
+                    f'Using {(root / exe).relative_to(repo_dir)} binary')
+                config['near_root'] = str(root)
+                config['binary_name'] = exe
+                return config
+
+    assert False, ('Unable to figure out location of neard-sandbox binary; '
+                   'Did you forget to run `make sandbox`?')

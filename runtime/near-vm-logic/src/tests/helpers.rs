@@ -3,10 +3,8 @@ use near_primitives_core::{config::ExtCosts, types::Gas};
 use near_vm_errors::VMLogicError;
 use std::collections::HashMap;
 
-#[allow(dead_code)]
 type Result<T> = ::std::result::Result<T, VMLogicError>;
 
-#[allow(dead_code)]
 pub fn promise_create(
     logic: &mut crate::VMLogic<'_>,
     account_id: &[u8],
@@ -28,6 +26,11 @@ pub fn promise_create(
 }
 
 #[allow(dead_code)]
+pub fn promise_batch_create(logic: &mut VMLogic, account_id: &str) -> Result<u64> {
+    logic.promise_batch_create(account_id.len() as _, account_id.as_ptr() as _)
+}
+
+#[allow(dead_code)]
 pub fn promise_batch_action_function_call(
     logic: &mut VMLogic<'_>,
     promise_index: u64,
@@ -45,6 +48,29 @@ pub fn promise_batch_action_function_call(
         args.as_ptr() as _,
         amount.to_le_bytes().as_ptr() as _,
         gas,
+    )
+}
+
+#[allow(dead_code)]
+pub fn promise_batch_action_function_call_weight(
+    logic: &mut VMLogic<'_>,
+    promise_index: u64,
+    amount: u128,
+    gas: Gas,
+    weight: u64,
+) -> Result<()> {
+    let method_id = b"promise_batch_action";
+    let args = b"promise_batch_action_args";
+
+    logic.promise_batch_action_function_call_weight(
+        promise_index,
+        method_id.len() as _,
+        method_id.as_ptr() as _,
+        args.len() as _,
+        args.as_ptr() as _,
+        amount.to_le_bytes().as_ptr() as _,
+        gas,
+        weight,
     )
 }
 
@@ -84,19 +110,10 @@ macro_rules! map(
      };
 );
 
-#[allow(dead_code)]
-pub fn print_costs() {
-    with_ext_cost_counter(|cc| {
-        println!("{:#?}", cc.iter().collect::<std::collections::BTreeMap<_, _>>())
-    });
-    reset_costs_counter();
-}
-
 pub fn reset_costs_counter() {
     with_ext_cost_counter(|cc| cc.clear())
 }
 
-#[allow(dead_code)]
 pub fn assert_costs(expected: HashMap<ExtCosts, u64>) {
     with_ext_cost_counter(|cc| assert_eq!(*cc, expected));
     reset_costs_counter();

@@ -14,15 +14,14 @@ use near_primitives::types::NumShards;
 use std::str::from_utf8;
 
 /// Creates an in-memory database.
-pub fn create_test_store() -> Arc<Store> {
-    let db = Arc::pin(TestDB::new());
-    Arc::new(Store::new(db))
+pub fn create_test_store() -> Store {
+    let db = Arc::new(TestDB::new());
+    Store::new(db)
 }
 
 /// Creates a Trie using an in-memory database.
 pub fn create_tries() -> ShardTries {
-    let store = create_test_store();
-    ShardTries::new(store, 0, 1)
+    create_tries_complex(0, 1)
 }
 
 pub fn create_tries_complex(shard_version: ShardVersion, num_shards: NumShards) -> ShardTries {
@@ -39,7 +38,7 @@ pub fn test_populate_trie(
     let trie = tries.get_trie_for_shard(shard_uid);
     assert_eq!(trie.storage.as_caching_storage().unwrap().shard_uid.shard_id, 0);
     let trie_changes = trie.update(root, changes.iter().cloned()).unwrap();
-    let (store_update, root) = tries.apply_all(&trie_changes, shard_uid).unwrap();
+    let (store_update, root) = tries.apply_all(&trie_changes, shard_uid);
     store_update.commit().unwrap();
     let deduped = simplify_changes(&changes);
     for (key, value) in deduped {
@@ -84,6 +83,9 @@ pub fn gen_receipts(rng: &mut impl Rng, max_size: usize) -> Vec<Receipt> {
         .collect()
 }
 
+/// Generates up to max_size random sequence of changes: both insertion and deletions.
+/// Deletions are represented as (key, None).
+/// Keys are randomly constructed from alphabet, and they have max_length size.
 fn gen_changes_helper(
     rng: &mut impl Rng,
     max_size: usize,
@@ -129,7 +131,7 @@ pub fn gen_larger_changes(rng: &mut impl Rng, max_size: usize) -> Vec<(Vec<u8>, 
 }
 
 pub(crate) fn simplify_changes(
-    changes: &Vec<(Vec<u8>, Option<Vec<u8>>)>,
+    changes: &[(Vec<u8>, Option<Vec<u8>>)],
 ) -> Vec<(Vec<u8>, Option<Vec<u8>>)> {
     let mut state: HashMap<Vec<u8>, Vec<u8>> = HashMap::new();
     for (key, value) in changes.iter() {

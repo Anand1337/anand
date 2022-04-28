@@ -20,41 +20,36 @@ pub fn test_ts_contract() {
 
         // Call method that panics.
         let promise_results = vec![];
-        let runtime = vm_kind.runtime().expect("runtime has not been compiled");
+        let runtime = vm_kind.runtime(config).expect("runtime has not been compiled");
         let result = runtime.run(
             &code,
             "try_panic",
             &mut fake_external,
             context,
-            &config,
             &fees,
             &promise_results,
             LATEST_PROTOCOL_VERSION,
             None,
         );
         assert_eq!(
-            result.1,
-            Some(VMError::FunctionCallError(FunctionCallError::HostError(HostError::GuestPanic {
-                panic_msg: "explicit guest panic".to_string()
-            })))
+            result.error(),
+            Some(&VMError::FunctionCallError(FunctionCallError::HostError(
+                HostError::GuestPanic { panic_msg: "explicit guest panic".to_string() }
+            )))
         );
 
         // Call method that writes something into storage.
         let context = create_context(b"foo bar".to_vec());
-        runtime
-            .run(
-                &code,
-                "try_storage_write",
-                &mut fake_external,
-                context,
-                &config,
-                &fees,
-                &promise_results,
-                LATEST_PROTOCOL_VERSION,
-                None,
-            )
-            .0
-            .unwrap();
+        runtime.run(
+            &code,
+            "try_storage_write",
+            &mut fake_external,
+            context,
+            &fees,
+            &promise_results,
+            LATEST_PROTOCOL_VERSION,
+            None,
+        );
         // Verify by looking directly into the storage of the host.
         {
             let res = fake_external.storage_get(b"foo");
@@ -71,14 +66,13 @@ pub fn test_ts_contract() {
             "try_storage_read",
             &mut fake_external,
             context,
-            &config,
             &fees,
             &promise_results,
             LATEST_PROTOCOL_VERSION,
             None,
         );
 
-        if let ReturnData::Value(value) = result.0.unwrap().return_data {
+        if let ReturnData::Value(value) = result.outcome().return_data.clone() {
             let value = String::from_utf8(value).unwrap();
             assert_eq!(value, "bar");
         } else {

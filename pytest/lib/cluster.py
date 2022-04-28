@@ -123,12 +123,20 @@ class BlockId(typing.NamedTuple):
     height: int
     hash: str
 
+    @classmethod
+    def from_header(cls, header: typing.Dict[str, typing.Any]) -> 'BlockId':
+        return cls(height=int(header['height']), hash=header['hash'])
+
     @property
     def hash_bytes(self) -> bytes:
         return base58.b58decode(self.hash.encode('ascii'))
 
     def __str__(self) -> str:
         return f'#{self.height} {self.hash}'
+
+    def __eq__(self, rhs) -> bool:
+        return (isinstance(rhs, BlockId) and self.height == rhs.height and
+                self.hash == rhs.hash)
 
 
 class BaseNode(object):
@@ -390,7 +398,6 @@ class LocalNode(BaseNode):
             },
             'rpc': {
                 'addr': f'0.0.0.0:{rpc_port}',
-                'metrics_addr': f'0.0.0.0:{rpc_port + 1000}',
             },
             'consensus': {
                 'min_num_peers': int(not single_node)
@@ -411,6 +418,18 @@ class LocalNode(BaseNode):
     def start_proxy_if_needed(self):
         if self._start_proxy is not None:
             self._proxy_local_stopped = self._start_proxy()
+
+    def output_logs(self):
+        stdout = pathlib.Path(self.node_dir) / 'stdout'
+        stderr = pathlib.Path(self.node_dir) / 'stderr'
+        if os.environ.get('BUILDKITE'):
+            logger.info('=== stdout: ')
+            logger.info(stdout.read_text('utf-8', 'replace'))
+            logger.info('=== stderr: ')
+            logger.info(stderr.read_text('utf-8', 'replace'))
+        else:
+            logger.info(f'=== stdout: available at {stdout}')
+            logger.info(f'=== stderr: available at {stderr}')
 
     def start(self, *, boot_node: BootNode = None, skip_starting_proxy=False):
         if self._proxy_local_stopped is not None:
@@ -445,15 +464,18 @@ class LocalNode(BaseNode):
         except:
             logger.error(
                 '=== failed to start node, rpc does not ready in 10 seconds')
-            if os.environ.get('BUILDKITE'):
-                logger.info('=== stdout: ')
-                logger.info(stdout.read_text('utf-8', 'replace'))
-                logger.info('=== stderr: ')
-                logger.info(stderr.read_text('utf-8', 'replace'))
 
-    def kill(self):
+    def kill(self, *, gentle=False):
+        """Kills the process.  If `gentle` sends SIGINT before killing."""
         if self._proxy_local_stopped is not None:
             self._proxy_local_stopped.value = 1
+        if self._process and gentle:
+            self._process.send_signal(signal.SIGINT)
+            try:
+                self._process.wait(5)
+                self._process = None
+            except subprocess.TimeoutExpired:
+                pass
         if self._process:
             self._process.kill()
             self._process.wait(5)
@@ -486,6 +508,8 @@ class LocalNode(BaseNode):
         if os.path.exists(target_path) and os.path.isdir(target_path):
             shutil.rmtree(target_path)
         os.rename(self.node_dir, target_path)
+        self.node_dir = target_path
+        self.output_logs()
         self.cleaned = True
 
     def stop_network(self):
@@ -639,7 +663,6 @@ def spin_up_node(config,
     logger.info("Starting node %s %s" %
                 (ordinal,
                  ('with ' + '='.join(args) if args else 'as BOOT NODE')))
-
     if is_local:
         blacklist = [
             "127.0.0.1:%s" % (24567 + 10 + bl_ordinal)

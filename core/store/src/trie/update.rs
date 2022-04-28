@@ -3,7 +3,7 @@ use std::iter::Peekable;
 
 use near_primitives::hash::CryptoHash;
 use near_primitives::types::{
-    RawStateChange, RawStateChanges, RawStateChangesWithTrieKey, StateChangeCause,
+    RawStateChange, RawStateChanges, RawStateChangesWithTrieKey, StateChangeCause, TrieCacheMode,
 };
 
 use crate::trie::TrieChanges;
@@ -46,7 +46,9 @@ impl<'a> TrieUpdateValuePtr<'a> {
     pub fn deref_value(&self) -> Result<Vec<u8>, StorageError> {
         match self {
             TrieUpdateValuePtr::MemoryRef(value) => Ok((*value).clone()),
-            TrieUpdateValuePtr::HashAndSize(trie, _, hash) => trie.retrieve_raw_bytes(hash),
+            TrieUpdateValuePtr::HashAndSize(trie, _, hash) => {
+                trie.storage.retrieve_raw_bytes(hash).map(|bytes| bytes.to_vec())
+            }
         }
     }
 }
@@ -168,6 +170,12 @@ impl TrieUpdate {
 
     pub fn get_root(&self) -> CryptoHash {
         self.root
+    }
+
+    pub fn set_trie_cache_mode(&self, state: TrieCacheMode) {
+        if let Some(storage) = self.trie.storage.as_caching_storage() {
+            storage.set_mode(state);
+        }
     }
 }
 
@@ -365,7 +373,7 @@ mod tests {
         trie_update
             .commit(StateChangeCause::TransactionProcessing { tx_hash: CryptoHash::default() });
         let trie_changes = trie_update.finalize().unwrap().0;
-        let (store_update, new_root) = tries.apply_all(&trie_changes, COMPLEX_SHARD_UID).unwrap();
+        let (store_update, new_root) = tries.apply_all(&trie_changes, COMPLEX_SHARD_UID);
         store_update.commit().unwrap();
         let trie_update2 = tries.new_trie_update(COMPLEX_SHARD_UID, new_root);
         assert_eq!(trie_update2.get(&test_key(b"dog".to_vec())), Ok(Some(b"puppy".to_vec())));
@@ -390,7 +398,7 @@ mod tests {
         trie_update
             .commit(StateChangeCause::TransactionProcessing { tx_hash: CryptoHash::default() });
         let trie_changes = trie_update.finalize().unwrap().0;
-        let (store_update, new_root) = tries.apply_all(&trie_changes, COMPLEX_SHARD_UID).unwrap();
+        let (store_update, new_root) = tries.apply_all(&trie_changes, COMPLEX_SHARD_UID);
         store_update.commit().unwrap();
         assert_eq!(new_root, CryptoHash::default());
 
@@ -401,7 +409,7 @@ mod tests {
         trie_update
             .commit(StateChangeCause::TransactionProcessing { tx_hash: CryptoHash::default() });
         let trie_changes = trie_update.finalize().unwrap().0;
-        let (store_update, new_root) = tries.apply_all(&trie_changes, COMPLEX_SHARD_UID).unwrap();
+        let (store_update, new_root) = tries.apply_all(&trie_changes, COMPLEX_SHARD_UID);
         store_update.commit().unwrap();
         assert_eq!(new_root, CryptoHash::default());
 
@@ -411,7 +419,7 @@ mod tests {
         trie_update
             .commit(StateChangeCause::TransactionProcessing { tx_hash: CryptoHash::default() });
         let trie_changes = trie_update.finalize().unwrap().0;
-        let (store_update, new_root) = tries.apply_all(&trie_changes, COMPLEX_SHARD_UID).unwrap();
+        let (store_update, new_root) = tries.apply_all(&trie_changes, COMPLEX_SHARD_UID);
         store_update.commit().unwrap();
         assert_ne!(new_root, CryptoHash::default());
         let mut trie_update = tries.new_trie_update(COMPLEX_SHARD_UID, new_root);
@@ -419,7 +427,7 @@ mod tests {
         trie_update
             .commit(StateChangeCause::TransactionProcessing { tx_hash: CryptoHash::default() });
         let trie_changes = trie_update.finalize().unwrap().0;
-        let (store_update, new_root) = tries.apply_all(&trie_changes, COMPLEX_SHARD_UID).unwrap();
+        let (store_update, new_root) = tries.apply_all(&trie_changes, COMPLEX_SHARD_UID);
         store_update.commit().unwrap();
         assert_eq!(new_root, CryptoHash::default());
     }
@@ -434,8 +442,7 @@ mod tests {
         trie_update
             .commit(StateChangeCause::TransactionProcessing { tx_hash: CryptoHash::default() });
         let trie_changes = trie_update.finalize().unwrap().0;
-        let (store_update, new_root) =
-            tries.apply_all(&trie_changes, ShardUId::single_shard()).unwrap();
+        let (store_update, new_root) = tries.apply_all(&trie_changes, ShardUId::single_shard());
         store_update.commit().unwrap();
 
         let mut trie_update = tries.new_trie_update(ShardUId::single_shard(), new_root);

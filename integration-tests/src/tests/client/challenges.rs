@@ -7,9 +7,11 @@ use near_chain::missing_chunks::MissingChunksPool;
 use near_chain::types::BlockEconomicsConfig;
 use near_chain::validate::validate_challenge;
 use near_chain::{
-    Block, ChainGenesis, ChainStoreAccess, DoomslugThresholdMode, Error, ErrorKind, Provenance,
+    Block, Chain, ChainGenesis, ChainStoreAccess, DoomslugThresholdMode, Error, ErrorKind,
+    Provenance,
 };
 use near_chain_configs::Genesis;
+use near_chunks::ShardsManager;
 use near_client::test_utils::{create_chunk, create_chunk_with_transactions, run_catchup, TestEnv};
 use near_client::Client;
 use near_crypto::{InMemorySigner, KeyType, Signer};
@@ -67,6 +69,7 @@ fn test_verify_block_double_sign_challenge() {
         &signer,
         *b1.header().next_bp_hash(),
         block_merkle_tree.root(),
+        None,
     );
     let epoch_id = b1.header().epoch_id().clone();
     let valid_challenge = Challenge::produce(
@@ -303,27 +306,25 @@ fn test_verify_chunk_invalid_state_challenge() {
     let data_parts = env.clients[0].runtime_adapter.num_data_parts();
     let parity_parts = total_parts - data_parts;
     let mut rs = ReedSolomonWrapper::new(data_parts, parity_parts);
-    let (mut invalid_chunk, merkle_paths) = env.clients[0]
-        .shards_mgr
-        .create_encoded_shard_chunk(
-            *last_block.hash(),
-            StateRoot::default(),
-            CryptoHash::default(),
-            last_block.header().height() + 1,
-            0,
-            0,
-            1_000,
-            0,
-            vec![],
-            vec![],
-            &vec![],
-            last_block.chunks()[0].outgoing_receipts_root(),
-            CryptoHash::default(),
-            &validator_signer,
-            &mut rs,
-            PROTOCOL_VERSION,
-        )
-        .unwrap();
+    let (mut invalid_chunk, merkle_paths) = ShardsManager::create_encoded_shard_chunk(
+        *last_block.hash(),
+        StateRoot::default(),
+        CryptoHash::default(),
+        last_block.header().height() + 1,
+        0,
+        0,
+        1_000,
+        0,
+        vec![],
+        vec![],
+        &vec![],
+        last_block.chunks()[0].outgoing_receipts_root(),
+        CryptoHash::default(),
+        &validator_signer,
+        &mut rs,
+        PROTOCOL_VERSION,
+    )
+    .unwrap();
 
     let client = &mut env.clients[0];
 
@@ -369,6 +370,7 @@ fn test_verify_chunk_invalid_state_challenge() {
         &validator_signer,
         *last_block.header().next_bp_hash(),
         block_merkle_tree.root(),
+        None,
     );
 
     let challenge_body = {
@@ -475,11 +477,9 @@ fn test_receive_invalid_chunk_as_chunk_producer() {
     // But everyone who doesn't track this shard have accepted.
     let shard_layout =
         env.clients[0].runtime_adapter.get_shard_layout(&EpochId::default()).unwrap();
-    let receipts_hashes =
-        env.clients[0].runtime_adapter.build_receipts_hashes(&receipts, &shard_layout);
+    let receipts_hashes = Chain::build_receipts_hashes(&receipts, &shard_layout);
     let (_receipts_root, receipts_proofs) = merklize(&receipts_hashes);
-    let receipts_by_shard =
-        env.clients[0].shards_mgr.group_receipts_by_shard(receipts, &shard_layout);
+    let receipts_by_shard = Chain::group_receipts_by_shard(receipts, &shard_layout);
     let one_part_receipt_proofs = env.clients[0].shards_mgr.receipts_recipient_filter(
         0,
         Vec::default(),

@@ -3,7 +3,6 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt;
 use std::io::{Cursor, Read, Write};
-use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
@@ -18,11 +17,9 @@ use crate::trie::insert_delete::NodesStorage;
 use crate::trie::iterator::TrieIterator;
 use crate::trie::nibble_slice::NibbleSlice;
 pub use crate::trie::shard_tries::{KeyForStateChanges, ShardTries, WrappedTrieChanges};
-use crate::trie::trie_storage::{
-    TouchedNodesCounter, TrieMemoryPartialStorage, TrieRecordingStorage, TrieStorage,
-};
-pub(crate) use crate::trie::trie_storage::{TrieCache, TrieCachingStorage};
+use crate::trie::trie_storage::{TrieMemoryPartialStorage, TrieRecordingStorage, TrieStorage};
 use crate::StorageError;
+pub use near_primitives::types::TrieNodesCount;
 
 mod insert_delete;
 pub mod iterator;
@@ -408,7 +405,6 @@ impl RawTrieNodeWithSize {
 
 pub struct Trie {
     pub(crate) storage: Box<dyn TrieStorage>,
-    pub counter: TouchedNodesCounter,
 }
 
 /// Stores reference count change for some key-value pair in DB.
@@ -472,18 +468,18 @@ pub struct ApplyStatePartResult {
 
 impl Trie {
     pub fn new(store: Box<dyn TrieStorage>, _shard_uid: ShardUId) -> Self {
-        Trie { storage: store, counter: TouchedNodesCounter::default() }
+        Trie { storage: store }
     }
 
     pub fn recording_reads(&self) -> Self {
         let storage =
             self.storage.as_caching_storage().expect("Storage should be TrieCachingStorage");
         let storage = TrieRecordingStorage {
-            store: Arc::clone(&storage.store),
+            store: storage.store.clone(),
             shard_uid: storage.shard_uid,
             recorded: RefCell::new(Default::default()),
         };
-        Trie { storage: Box::new(storage), counter: TouchedNodesCounter::default() }
+        Trie { storage: Box::new(storage) }
     }
 
     pub fn empty_root() -> StateRoot {
@@ -506,7 +502,6 @@ impl Trie {
                 recorded_storage,
                 visited_nodes: Default::default(),
             }),
-            counter: TouchedNodesCounter::default(),
         }
     }
 
@@ -578,7 +573,6 @@ impl Trie {
         if *hash == Trie::empty_root() {
             Ok(memory.store(TrieNodeWithSize::empty()))
         } else {
-            self.counter.increment();
             let bytes = self.storage.retrieve_raw_bytes(hash)?;
             match RawTrieNodeWithSize::decode(&bytes) {
                 Ok(value) => {
@@ -602,7 +596,7 @@ impl Trie {
         if *hash == Trie::empty_root() {
             return Ok(TrieNodeWithSize::empty());
         }
-        let bytes = self.retrieve_raw_bytes(hash)?;
+        let bytes = self.storage.retrieve_raw_bytes(hash)?;
         match RawTrieNodeWithSize::decode(&bytes) {
             Ok(value) => Ok(TrieNodeWithSize::from_raw(value)),
             Err(_) => Err(StorageError::StorageInconsistentState(format!(
@@ -612,20 +606,15 @@ impl Trie {
         }
     }
 
-    pub(crate) fn retrieve_raw_bytes(&self, hash: &CryptoHash) -> Result<Vec<u8>, StorageError> {
-        self.counter.increment();
-        self.storage.retrieve_raw_bytes(hash)
-    }
-
     pub fn retrieve_root_node(&self, root: &StateRoot) -> Result<StateRootNode, StorageError> {
         if *root == Trie::empty_root() {
             return Ok(StateRootNode::empty());
         }
-        let data = self.retrieve_raw_bytes(root)?;
+        let data = self.storage.retrieve_raw_bytes(root)?;
         match RawTrieNodeWithSize::decode(&data) {
             Ok(value) => {
                 let memory_usage = TrieNodeWithSize::from_raw(value).memory_usage;
-                Ok(StateRootNode { data, memory_usage })
+                Ok(StateRootNode { data: data.to_vec(), memory_usage })
             }
             Err(_) => Err(StorageError::StorageInconsistentState(format!(
                 "Failed to decode node {}",
@@ -645,7 +634,7 @@ impl Trie {
             if hash == Trie::empty_root() {
                 return Ok(None);
             }
-            let bytes = self.retrieve_raw_bytes(&hash)?;
+            let bytes = self.storage.retrieve_raw_bytes(&hash)?;
             let node = RawTrieNodeWithSize::decode(&bytes).map_err(|_| {
                 StorageError::StorageInconsistentState("RawTrieNode decode failed".to_string())
             })?;
@@ -700,7 +689,9 @@ impl Trie {
 
     pub fn get(&self, root: &CryptoHash, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
         match self.get_ref(root, key)? {
-            Some((_length, hash)) => self.retrieve_raw_bytes(&hash).map(Some),
+            Some((_length, hash)) => {
+                self.storage.retrieve_raw_bytes(&hash).map(|bytes| Some(bytes.to_vec()))
+            }
             None => Ok(None),
         }
     }
@@ -759,17 +750,21 @@ impl Trie {
     pub fn iter<'a>(&'a self, root: &CryptoHash) -> Result<TrieIterator<'a>, StorageError> {
         TrieIterator::new(self, root)
     }
+
+    pub fn get_trie_nodes_count(&self) -> TrieNodesCount {
+        self.storage.get_trie_nodes_count()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use rand::Rng;
 
-    use crate::db::DBCol::ColState;
     use crate::test_utils::{
         create_test_store, create_tries, create_tries_complex, gen_changes, simplify_changes,
         test_populate_trie,
     };
+    use crate::DBCol;
 
     use super::*;
 
@@ -787,7 +782,7 @@ mod tests {
             changes.iter().map(|(key, _)| (key.clone(), None)).collect();
         let mut other_delete_changes = delete_changes.clone();
         let trie_changes = trie.update(root, other_delete_changes.drain(..)).unwrap();
-        let (store_update, root) = tries.apply_all(&trie_changes, shard_uid).unwrap();
+        let (store_update, root) = tries.apply_all(&trie_changes, shard_uid);
         store_update.commit().unwrap();
         for (key, _) in delete_changes {
             assert_eq!(trie.get(&root, &key), Ok(None));
@@ -1061,7 +1056,7 @@ mod tests {
                         .as_caching_storage()
                         .unwrap()
                         .store
-                        .iter(ColState)
+                        .iter(DBCol::State)
                         .peekable()
                         .peek()
                         .is_none(),
@@ -1165,9 +1160,9 @@ mod tests {
         ];
         let root = test_populate_trie(&tries, &empty_root, ShardUId::single_shard(), changes);
         let dir = tempfile::Builder::new().prefix("test_dump_load_trie").tempdir().unwrap();
-        store.save_to_file(ColState, &dir.path().join("test.bin")).unwrap();
+        store.save_to_file(DBCol::State, &dir.path().join("test.bin")).unwrap();
         let store2 = create_test_store();
-        store2.load_from_file(ColState, &dir.path().join("test.bin")).unwrap();
+        store2.load_from_file(DBCol::State, &dir.path().join("test.bin")).unwrap();
         let tries2 = ShardTries::new(store2, 0, 1);
         let trie2 = tries2.get_trie_for_shard(ShardUId::single_shard());
         assert_eq!(trie2.get(&root, b"doge").unwrap().unwrap(), b"coin");

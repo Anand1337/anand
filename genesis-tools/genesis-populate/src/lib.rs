@@ -11,7 +11,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use crate::state_dump::StateDump;
 use near_chain::types::BlockHeaderInfo;
 use near_chain::{Block, Chain, ChainStore, RuntimeAdapter};
-use near_chain_configs::Genesis;
+use near_chain_configs::{Genesis, DEFAULT_GC_NUM_EPOCHS_TO_KEEP};
 use near_crypto::{InMemorySigner, KeyType};
 use near_primitives::account::{AccessKey, Account};
 use near_primitives::block::{genesis_chunks, Tip};
@@ -38,7 +38,7 @@ pub struct GenesisBuilder {
     #[allow(dead_code)]
     tmpdir: tempfile::TempDir,
     genesis: Arc<Genesis>,
-    store: Arc<Store>,
+    store: Store,
     runtime: NightshadeRuntime,
     unflushed_records: BTreeMap<ShardId, Vec<StateRecord>>,
     roots: BTreeMap<ShardId, StateRoot>,
@@ -53,11 +53,7 @@ pub struct GenesisBuilder {
 }
 
 impl GenesisBuilder {
-    pub fn from_config_and_store(
-        home_dir: &Path,
-        genesis: Arc<Genesis>,
-        store: Arc<Store>,
-    ) -> Self {
+    pub fn from_config_and_store(home_dir: &Path, genesis: Arc<Genesis>, store: Store) -> Self {
         let tmpdir = tempfile::Builder::new().prefix("storage").tempdir().unwrap();
         let runtime = NightshadeRuntime::new(
             tmpdir.path(),
@@ -69,6 +65,7 @@ impl GenesisBuilder {
             None,
             None,
             None,
+            DEFAULT_GC_NUM_EPOCHS_TO_KEEP,
         );
         Self {
             home_dir: home_dir.to_path_buf(),
@@ -180,7 +177,7 @@ impl GenesisBuilder {
         let trie_changes = state_update.finalize()?.0;
         let genesis_shard_version = self.genesis.config.shard_layout.version();
         let shard_uid = ShardUId { version: genesis_shard_version, shard_id: shard_idx as u32 };
-        let (store_update, root) = tries.apply_all(&trie_changes, shard_uid)?;
+        let (store_update, root) = tries.apply_all(&trie_changes, shard_uid);
         store_update.commit()?;
 
         self.roots.insert(shard_idx, root.clone());
@@ -211,7 +208,8 @@ impl GenesisBuilder {
             )?,
         );
 
-        let mut store = ChainStore::new(self.store.clone(), self.genesis.config.genesis_height);
+        let mut store =
+            ChainStore::new(self.store.clone(), self.genesis.config.genesis_height, true);
         let mut store_update = store.store_update();
 
         store_update.merge(

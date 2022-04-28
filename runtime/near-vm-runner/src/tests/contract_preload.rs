@@ -1,3 +1,6 @@
+// Currently only testing wasmer code, so disabled outside of x86_64
+#![cfg(target_arch = "x86_64")]
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
@@ -8,12 +11,12 @@ use near_primitives::runtime::fees::RuntimeFeesConfig;
 use near_primitives::types::CompiledContractCache;
 use near_vm_errors::VMError::FunctionCallError;
 use near_vm_logic::mocks::mock_external::MockedExternal;
-use near_vm_logic::{ProtocolVersion, VMConfig, VMContext, VMOutcome};
+use near_vm_logic::{ProtocolVersion, VMConfig, VMContext};
 
 use crate::cache::precompile_contract_vm;
 use crate::errors::ContractPrecompilatonResult;
 use crate::vm_kind::VMKind;
-use crate::{ContractCallPrepareRequest, ContractCaller, VMError};
+use crate::{ContractCallPrepareRequest, ContractCaller, VMResult};
 
 fn default_vm_context() -> VMContext {
     return VMContext {
@@ -69,26 +72,24 @@ impl CompiledContractCache for MockCompiledContractCache {
     }
 }
 
-fn test_result(result: (Option<VMOutcome>, Option<VMError>), check_gas: bool) -> (i32, i32) {
+fn test_result(result: VMResult, check_gas: bool) -> (i32, i32) {
     let mut oks = 0;
     let mut errs = 0;
-    match result.0 {
-        Some(outcome) => {
+
+    match result {
+        VMResult::Ok(outcome) => {
             if check_gas {
                 assert_eq!(outcome.burnt_gas, 11088051921);
             }
             oks += 1;
         }
-        None => {}
-    };
-    match result.1 {
-        Some(err) => match err {
-            FunctionCallError(_) => {
-                errs += 1;
-            }
-            _ => assert!(false, "Unexpected error: {:?}", err),
-        },
-        None => {}
+        VMResult::Aborted(outcome, FunctionCallError(_)) => {
+            assert_eq!(outcome.used_gas, 0, "Empty outcome expected but was: {outcome:?}",);
+            errs += 1;
+        }
+        VMResult::Aborted(_, err) => {
+            assert!(false, "Unexpected error: {:?}", err)
+        }
     }
     (oks, errs)
 }
@@ -138,14 +139,13 @@ fn test_vm_runner(preloaded: bool, vm_kind: VMKind, repeat: i32) {
             errs += err;
         }
     } else {
-        let runtime = vm_kind.runtime().expect("runtime is has not been compiled");
+        let runtime = vm_kind.runtime(vm_config).expect("runtime is has not been compiled");
         for _ in 0..repeat {
             let result1 = runtime.run(
                 &code1,
                 method_name1,
                 &mut fake_external,
                 context.clone(),
-                &vm_config,
                 &fees,
                 &promise_results,
                 ProtocolVersion::MAX,
@@ -159,7 +159,6 @@ fn test_vm_runner(preloaded: bool, vm_kind: VMKind, repeat: i32) {
                 method_name1,
                 &mut fake_external,
                 context.clone(),
-                &vm_config,
                 &fees,
                 &promise_results,
                 ProtocolVersion::MAX,

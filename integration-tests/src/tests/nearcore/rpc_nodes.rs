@@ -27,6 +27,7 @@ use near_primitives::views::{ExecutionOutcomeView, ExecutionStatusView};
 use crate::tests::nearcore::node_cluster::NodeCluster;
 
 #[test]
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
 fn test_get_validator_info_rpc() {
     init_integration_logger();
 
@@ -43,7 +44,12 @@ fn test_get_validator_info_rpc() {
                 let rpc_addrs_copy = rpc_addrs.clone();
                 let view_client = clients[0].1.clone();
                 spawn_interruptible(async move {
-                    let block_view = view_client.send(GetBlock::latest()).await.unwrap().unwrap();
+                    let block_view = view_client.send(GetBlock::latest()).await.unwrap();
+                    if let Err(err) = block_view {
+                        println!("Failed to get the latest block: {:?}", err);
+                        return;
+                    }
+                    let block_view = block_view.unwrap();
                     if block_view.header.height > 1 {
                         let client = new_client(&format!("http://{}", rpc_addrs_copy[0]));
                         let block_hash = block_view.header.hash;
@@ -213,16 +219,19 @@ fn test_get_execution_outcome(is_tx_successful: bool) {
 }
 
 #[test]
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
 fn test_get_execution_outcome_tx_success() {
     test_get_execution_outcome(true);
 }
 
 #[test]
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
 fn test_get_execution_outcome_tx_failure() {
     test_get_execution_outcome(false);
 }
 
 #[test]
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
 fn test_protocol_config_rpc() {
     init_integration_logger();
 
@@ -262,6 +271,7 @@ fn test_protocol_config_rpc() {
 }
 
 #[test]
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
 fn test_query_rpc_account_view_must_succeed() {
     init_integration_logger();
 
@@ -300,6 +310,7 @@ fn test_query_rpc_account_view_must_succeed() {
 }
 
 #[test]
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
 fn test_query_rpc_account_view_account_doesnt_exist_must_return_error() {
     init_integration_logger();
 
@@ -312,18 +323,28 @@ fn test_query_rpc_account_view_account_doesnt_exist_must_return_error() {
 
     cluster.exec_until_stop(|_, rpc_addrs, _| async move {
         let client = new_client(&format!("http://{}", rpc_addrs[0]));
-        let query_response = client
-            .query(near_jsonrpc_primitives::types::query::RpcQueryRequest {
-                block_reference: near_primitives::types::BlockReference::Finality(Finality::Final),
-                request: near_primitives::views::QueryRequest::ViewAccount {
-                    account_id: "accountdoesntexist.0".parse().unwrap(),
-                },
-            })
-            .await;
+        let error_message = loop {
+            let query_response = client
+                .query(near_jsonrpc_primitives::types::query::RpcQueryRequest {
+                    block_reference: near_primitives::types::BlockReference::Finality(Finality::Final),
+                    request: near_primitives::views::QueryRequest::ViewAccount {
+                        account_id: "accountdoesntexist.0".parse().unwrap(),
+                    },
+                })
+                .await;
 
-        let error_message = match query_response {
-            Ok(result) => panic!("expected error but received Ok: {:?}", result.kind),
-            Err(err) => err.data.unwrap(),
+            break match query_response {
+                Ok(result) => panic!("expected error but received Ok: {:?}", result.kind),
+                Err(err) => {
+                    let value = err.data.unwrap();
+                    if value == serde_json::to_value("Block either has never been observed on the node or has been garbage collected: Finality(Final)").unwrap() {
+                                println!("No blocks are produced yet, retry.");
+                                sleep(std::time::Duration::from_millis(100)).await;
+                                continue;
+                    }
+                    value
+                }
+            };
         };
 
         assert!(
@@ -339,6 +360,7 @@ fn test_query_rpc_account_view_account_doesnt_exist_must_return_error() {
 }
 
 #[test]
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
 fn test_tx_not_enough_balance_must_return_error() {
     init_integration_logger();
 
@@ -401,6 +423,7 @@ fn test_tx_not_enough_balance_must_return_error() {
 }
 
 #[test]
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
 fn test_send_tx_sync_returns_transaction_hash() {
     init_integration_logger();
 
@@ -449,6 +472,7 @@ fn test_send_tx_sync_returns_transaction_hash() {
 }
 
 #[test]
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
 fn test_send_tx_sync_to_lightclient_must_be_routed() {
     init_integration_logger();
 
@@ -507,6 +531,7 @@ fn test_send_tx_sync_to_lightclient_must_be_routed() {
 }
 
 #[test]
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
 fn test_check_unknown_tx_must_return_error() {
     init_integration_logger();
 
@@ -565,6 +590,7 @@ fn test_check_unknown_tx_must_return_error() {
 }
 
 #[test]
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
 fn test_check_tx_on_lightclient_must_return_does_not_track_shard() {
     init_integration_logger();
 
@@ -618,6 +644,7 @@ fn test_check_tx_on_lightclient_must_return_does_not_track_shard() {
 }
 
 #[test]
+#[cfg_attr(not(feature = "expensive_tests"), ignore)]
 fn test_validators_by_epoch_id_current_epoch_not_fails() {
     init_integration_logger();
 

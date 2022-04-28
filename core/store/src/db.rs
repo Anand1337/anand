@@ -1,34 +1,30 @@
-#[cfg(not(feature = "single_thread_rocksdb"))]
-use std::cmp;
-use std::collections::HashMap;
-use std::io;
-use std::marker::PhantomPinned;
-use std::sync::RwLock;
-
-use borsh::{BorshDeserialize, BorshSerialize};
+use super::StoreConfig;
+use crate::db::refcount::merge_refcounted_records;
+use crate::DBCol;
+use near_primitives::version::DbVersion;
+use once_cell::sync::Lazy;
+use rocksdb::checkpoint::Checkpoint;
 use rocksdb::{
     BlockBasedOptions, Cache, ColumnFamily, ColumnFamilyDescriptor, Direction, Env, IteratorMode,
     Options, ReadOptions, WriteBatch, DB,
 };
-use strum::EnumIter;
-use tracing::warn;
-
-use near_primitives::version::DbVersion;
-
-use crate::db::refcount::merge_refcounted_records;
-
+use std::collections::HashMap;
+use std::io;
 use std::path::Path;
 use std::sync::atomic::Ordering;
+use std::sync::{Condvar, Mutex, RwLock};
+use std::{cmp, fmt};
+use strum::EnumCount;
+use tracing::{error, info, warn};
 
 pub(crate) mod refcount;
-pub(crate) mod v6_to_v7;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct DBError(rocksdb::Error);
+pub struct DBError(String);
 
-impl std::fmt::Display for DBError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        self.0.fmt(formatter)
+impl fmt::Display for DBError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0, f)
     }
 }
 
@@ -36,286 +32,15 @@ impl std::error::Error for DBError {}
 
 impl From<rocksdb::Error> for DBError {
     fn from(err: rocksdb::Error) -> Self {
-        DBError(err)
+        DBError(err.into_string())
     }
 }
 
-impl Into<io::Error> for DBError {
-    fn into(self) -> io::Error {
-        io::Error::new(io::ErrorKind::Other, self)
+impl From<DBError> for io::Error {
+    fn from(err: DBError) -> io::Error {
+        io::Error::new(io::ErrorKind::Other, err)
     }
 }
-
-/// This enum holds the information about the columns that we use within the RocksDB storage.
-/// You can think about our storage as 2-dimensional table (with key and column as indexes/coordinates).
-// TODO(mm-near): add info about the RC in the columns.
-#[derive(PartialEq, Debug, Copy, Clone, EnumIter, BorshDeserialize, BorshSerialize, Hash, Eq)]
-pub enum DBCol {
-    /// Column to indicate which version of database this is.
-    /// - *Rows*: single row [VERSION_KEY]
-    /// - *Content type*: The version of the database (u32), serialized as JSON.
-    ColDbVersion = 0,
-    /// Column that store Misc cells.
-    /// - *Rows*: multiple, for example "GENESIS_JSON_HASH", "HEAD_KEY", [LATEST_KNOWN_KEY] etc.
-    /// - *Content type*: cell specific.
-    ColBlockMisc = 1,
-    /// Column that stores Block content.
-    /// - *Rows*: block hash (CryptHash)
-    /// - *Content type*: [near_primitives::block::Block]
-    ColBlock = 2,
-    /// Column that stores Block headers.
-    /// - *Rows*: block hash (CryptoHash)
-    /// - *Content type*: [near_primitives::block_header::BlockHeader]
-    ColBlockHeader = 3,
-    /// Column that stores mapping from block height to block hash.
-    /// - *Rows*: height (u64)
-    /// - *Content type*: block hash (CryptoHash)
-    ColBlockHeight = 4,
-    /// Column that stores the Trie state.
-    /// - *Rows*: trie_node_or_value_hash (CryptoHash)
-    /// - *Content type*: Serializd RawTrieNodeWithSize or value ()
-    ColState = 5,
-    /// Mapping from BlockChunk to ChunkExtra
-    /// - *Rows*: BlockChunk (block_hash, shard_uid)
-    /// - *Content type*: [near_primitives::types::ChunkExtra]
-    ColChunkExtra = 6,
-    /// Mapping from transaction outcome id (CryptoHash) to list of outcome ids with proofs.
-    /// - *Rows*: outcome id (CryptoHash)
-    /// - *Content type*: Vec of [near_primitives::transactions::ExecutionOutcomeWithIdAndProof]
-    ColTransactionResult = 7,
-    /// Mapping from Block + Shard to list of outgoing receipts.
-    /// - *Rows*: block + shard
-    /// - *Content type*: Vec of [near_primitives::receipt::Receipt]
-    ColOutgoingReceipts = 8,
-    /// Mapping from Block + Shard to list of incoming receipt proofs.
-    /// Each proof might prove multiple receipts.
-    /// - *Rows*: (block, shard)
-    /// - *Content type*: Vec of [near_primitives::sharding::ReceiptProof]
-    ColIncomingReceipts = 9,
-    /// Info about the peers that we are connected to. Mapping from peer_id to KnownPeerState.
-    /// - *Rows*: peer_id (PublicKey)
-    /// - *Content type*: [network_primitives::types::KnownPeerState]
-    ColPeers = 10,
-    /// Mapping from EpochId to EpochInfo
-    /// - *Rows*: EpochId (CryptoHash)
-    /// - *Content type*: [near_primitives::epoch_manager::EpochInfo]
-    ColEpochInfo = 11,
-    /// Mapping from BlockHash to BlockInfo
-    /// - *Rows*: BlockHash (CryptoHash)
-    /// - *Content type*: [near_primitives::epoch_manager::BlockInfo]
-    ColBlockInfo = 12,
-    /// Mapping from ChunkHash to ShardChunk.
-    /// - *Rows*: ChunkHash (CryptoHash)
-    /// - *Content type*: [near_primitives::sharding::ShardChunk]
-    ColChunks = 13,
-    /// Storage for  PartialEncodedChunk.
-    /// - *Rows*: ChunkHash (CryptoHash)
-    /// - *Content type*: [near_primitives::sharding::PartialEncodedChunkV1]
-    ColPartialChunks = 14,
-    /// Blocks for which chunks need to be applied after the state is downloaded for a particular epoch
-    /// TODO: describe what is exactly inside the rows/cells.
-    ColBlocksToCatchup = 15,
-    /// Blocks for which the state is being downloaded
-    ColStateDlInfos = 16,
-    ColChallengedBlocks = 17,
-    ColStateHeaders = 18,
-    ColInvalidChunks = 19,
-    ColBlockExtra = 20,
-    /// Store hash of a block per each height, to detect double signs.
-    ColBlockPerHeight = 21,
-    ColStateParts = 22,
-    ColEpochStart = 23,
-    /// Map account_id to announce_account
-    ColAccountAnnouncements = 24,
-    /// Next block hashes in the sequence of the canonical chain blocks
-    ColNextBlockHashes = 25,
-    /// `LightClientBlock`s corresponding to the last final block of each completed epoch
-    ColEpochLightClientBlocks = 26,
-    ColReceiptIdToShardId = 27,
-    // Deprecated.
-    _ColNextBlockWithNewChunk = 28,
-    // Deprecated.
-    _ColLastBlockWithNewChunk = 29,
-    /// Network storage:
-    ///   When given edge is removed (or we didn't get any ping from it for a while), we remove it from our 'in memory'
-    ///   view and persist into storage.
-    ///
-    ///   This is done, so that we prevent the attack, when someone tries to introduce the edge/peer again into the network,
-    ///   but with the 'old' nonce.
-    ///
-    ///   When we write things to storage, we do it in groups (here they are called 'components') - this naming is a little bit
-    ///   unfortunate, as the peers/edges that we persist don't need to be connected or form any other 'component' (in a graph theory sense).
-    ///
-    ///   Each such component gets a new identifier (here called 'nonce').
-    ///
-    ///   We store this info in the three columns below:
-    ///     - LastComponentNonce: keeps info on what is the next identifier (nonce) that can be used.
-    ///     - PeerComponent: keep information on mapping from the peer to the last component that it belonged to (so that if a new peer shows
-    ///         up we know which 'component' to load)
-    ///     - ComponentEdges: keep the info about the edges that were connecting these peers that were removed.
-
-    /// Map each saved peer on disk with its component id (a.k.a. nonce).
-    /// - *Rows*: peer_id
-    /// - *Column type*:  (nonce) u64
-    ColPeerComponent = 30,
-    /// Map component id  (a.k.a. nonce) with all edges in this component.
-    /// These are all the edges that were purged and persisted to disk at the same time.
-    /// - *Rows*: nonce
-    /// - *Column type*: `Vec<near_network::routing::Edge>`
-    ColComponentEdges = 31,
-    /// Biggest component id (a.k.a nonce) used.
-    /// - *Rows*: single row (empty row name)
-    /// - *Column type*: (nonce) u64
-    ColLastComponentNonce = 32,
-    /// Map of transactions
-    /// - *Rows*: transaction hash
-    /// - *Column type*: SignedTransaction
-    ColTransactions = 33,
-    ColChunkPerHeightShard = 34,
-    /// Changes to key-values that we have recorded.
-    ColStateChanges = 35,
-    ColBlockRefCount = 36,
-    ColTrieChanges = 37,
-    /// Merkle tree of block hashes
-    ColBlockMerkleTree = 38,
-    ColChunkHashesByHeight = 39,
-    /// Block ordinals.
-    ColBlockOrdinal = 40,
-    /// GC Count for each column
-    ColGCCount = 41,
-    /// All Outcome ids by block hash and shard id. For each shard it is ordered by execution order.
-    ColOutcomeIds = 42,
-    /// Deprecated
-    _ColTransactionRefCount = 43,
-    /// Heights of blocks that have been processed
-    ColProcessedBlockHeights = 44,
-    /// Receipts
-    ColReceipts = 45,
-    /// Precompiled machine code of the contract
-    ColCachedContractCode = 46,
-    /// Epoch validator information used for rpc purposes
-    ColEpochValidatorInfo = 47,
-    /// Header Hashes indexed by Height
-    ColHeaderHashesByHeight = 48,
-    /// State changes made by a chunk, used for splitting states
-    ColStateChangesForSplitStates = 49,
-}
-
-// Do not move this line from enum DBCol
-pub const NUM_COLS: usize = 50;
-
-impl std::fmt::Display for DBCol {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let desc = match self {
-            Self::ColDbVersion => "db version",
-            Self::ColBlockMisc => "miscellaneous block data",
-            Self::ColBlock => "block data",
-            Self::ColBlockHeader => "block header data",
-            Self::ColBlockHeight => "block height",
-            Self::ColState => "blockchain state",
-            Self::ColChunkExtra => "extra information of trunk",
-            Self::ColTransactionResult => "transaction results",
-            Self::ColOutgoingReceipts => "outgoing receipts",
-            Self::ColIncomingReceipts => "incoming receipts",
-            Self::ColPeers => "peer information",
-            Self::ColEpochInfo => "epoch information",
-            Self::ColBlockInfo => "block information",
-            Self::ColChunks => "chunks",
-            Self::ColPartialChunks => "partial chunks",
-            Self::ColBlocksToCatchup => "blocks need to apply chunks",
-            Self::ColStateDlInfos => "blocks downloading",
-            Self::ColChallengedBlocks => "challenged blocks",
-            Self::ColStateHeaders => "state headers",
-            Self::ColInvalidChunks => "invalid chunks",
-            Self::ColBlockExtra => "extra block information",
-            Self::ColBlockPerHeight => "hash of block per height",
-            Self::ColStateParts => "state parts",
-            Self::ColEpochStart => "epoch start",
-            Self::ColAccountAnnouncements => "account announcements",
-            Self::ColNextBlockHashes => "next block hash",
-            Self::ColEpochLightClientBlocks => "epoch light client block",
-            Self::ColReceiptIdToShardId => "receipt id to shard id",
-            Self::_ColNextBlockWithNewChunk => "next block with new chunk (deprecated)",
-            Self::_ColLastBlockWithNewChunk => "last block with new chunk (deprecated)",
-            Self::ColPeerComponent => "peer components",
-            Self::ColComponentEdges => "component edges",
-            Self::ColLastComponentNonce => "last component nonce",
-            Self::ColTransactions => "transactions",
-            Self::ColChunkPerHeightShard => "hash of chunk per height and shard_id",
-            Self::ColStateChanges => "key value changes",
-            Self::ColBlockRefCount => "refcount per block",
-            Self::ColTrieChanges => "trie changes",
-            Self::ColBlockMerkleTree => "block merkle tree",
-            Self::ColChunkHashesByHeight => "chunk hashes indexed by height_created",
-            Self::ColBlockOrdinal => "block ordinal",
-            Self::ColGCCount => "gc count",
-            Self::ColOutcomeIds => "outcome ids",
-            Self::_ColTransactionRefCount => "refcount per transaction (deprecated)",
-            Self::ColProcessedBlockHeights => "processed block heights",
-            Self::ColReceipts => "receipts",
-            Self::ColCachedContractCode => "cached code",
-            Self::ColEpochValidatorInfo => "epoch validator info",
-            Self::ColHeaderHashesByHeight => "header hashes indexed by their height",
-            Self::ColStateChangesForSplitStates => {
-                "state changes indexed by block hash and shard id"
-            }
-        };
-        write!(formatter, "{}", desc)
-    }
-}
-
-impl DBCol {
-    pub fn is_rc(&self) -> bool {
-        IS_COL_RC[*self as usize]
-    }
-}
-
-// List of columns for which GC should be implemented
-
-pub static SHOULD_COL_GC: [bool; NUM_COLS] = {
-    let mut col_gc = [true; NUM_COLS];
-    col_gc[DBCol::ColDbVersion as usize] = false; // DB version is unrelated to GC
-    col_gc[DBCol::ColBlockMisc as usize] = false;
-    // TODO #3488 remove
-    col_gc[DBCol::ColBlockHeader as usize] = false; // header sync needs headers
-    col_gc[DBCol::ColGCCount as usize] = false; // GC count it self isn't GCed
-    col_gc[DBCol::ColBlockHeight as usize] = false; // block sync needs it + genesis should be accessible
-    col_gc[DBCol::ColPeers as usize] = false; // Peers is unrelated to GC
-    col_gc[DBCol::ColBlockMerkleTree as usize] = false;
-    col_gc[DBCol::ColAccountAnnouncements as usize] = false;
-    col_gc[DBCol::ColEpochLightClientBlocks as usize] = false;
-    col_gc[DBCol::ColPeerComponent as usize] = false; // Peer related info doesn't GC
-    col_gc[DBCol::ColLastComponentNonce as usize] = false;
-    col_gc[DBCol::ColComponentEdges as usize] = false;
-    col_gc[DBCol::ColBlockOrdinal as usize] = false;
-    col_gc[DBCol::ColEpochInfo as usize] = false; // https://github.com/nearprotocol/nearcore/pull/2952
-    col_gc[DBCol::ColEpochValidatorInfo as usize] = false; // https://github.com/nearprotocol/nearcore/pull/2952
-    col_gc[DBCol::ColEpochStart as usize] = false; // https://github.com/nearprotocol/nearcore/pull/2952
-    col_gc[DBCol::ColCachedContractCode as usize] = false;
-    col_gc
-};
-
-// List of columns for which GC may not be executed even in fully operational node
-
-pub static SKIP_COL_GC: [bool; NUM_COLS] = {
-    let mut col_gc = [false; NUM_COLS];
-    // A node may never restarted
-    col_gc[DBCol::ColStateHeaders as usize] = true;
-    // True until #2515
-    col_gc[DBCol::ColStateParts as usize] = true;
-    col_gc
-};
-
-// List of reference counted columns
-
-pub static IS_COL_RC: [bool; NUM_COLS] = {
-    let mut col_rc = [false; NUM_COLS];
-    col_rc[DBCol::ColState as usize] = true;
-    col_rc[DBCol::ColTransactions as usize] = true;
-    col_rc[DBCol::ColReceipts as usize] = true;
-    col_rc[DBCol::ColReceiptIdToShardId as usize] = true;
-    col_rc
-};
 
 pub const HEAD_KEY: &[u8; 4] = b"HEAD";
 pub const TAIL_KEY: &[u8; 4] = b"TAIL";
@@ -329,11 +54,11 @@ pub const VERSION_KEY: &[u8; 7] = b"VERSION";
 pub const GENESIS_JSON_HASH_KEY: &[u8; 17] = b"GENESIS_JSON_HASH";
 pub const GENESIS_STATE_ROOTS_KEY: &[u8; 19] = b"GENESIS_STATE_ROOTS";
 
-pub struct DBTransaction {
-    pub ops: Vec<DBOp>,
+pub(crate) struct DBTransaction {
+    pub(crate) ops: Vec<DBOp>,
 }
 
-pub enum DBOp {
+pub(crate) enum DBOp {
     Insert { col: DBCol, key: Vec<u8>, value: Vec<u8> },
     UpdateRefcount { col: DBCol, key: Vec<u8>, value: Vec<u8> },
     Delete { col: DBCol, key: Vec<u8> },
@@ -341,45 +66,38 @@ pub enum DBOp {
 }
 
 impl DBTransaction {
-    pub fn put<K: AsRef<[u8]>, V: AsRef<[u8]>>(&mut self, col: DBCol, key: K, value: V) {
-        self.ops.push(DBOp::Insert {
-            col,
-            key: key.as_ref().to_owned(),
-            value: value.as_ref().to_owned(),
-        });
+    pub(crate) fn insert(&mut self, col: DBCol, key: Vec<u8>, value: Vec<u8>) {
+        self.ops.push(DBOp::Insert { col, key, value });
     }
 
-    pub fn update_refcount<K: AsRef<[u8]>, V: AsRef<[u8]>>(
-        &mut self,
-        col: DBCol,
-        key: K,
-        value: V,
-    ) {
-        self.ops.push(DBOp::UpdateRefcount {
-            col,
-            key: key.as_ref().to_owned(),
-            value: value.as_ref().to_owned(),
-        });
+    pub(crate) fn update_refcount(&mut self, col: DBCol, key: Vec<u8>, value: Vec<u8>) {
+        self.ops.push(DBOp::UpdateRefcount { col, key, value });
     }
 
-    pub fn delete<K: AsRef<[u8]>>(&mut self, col: DBCol, key: K) {
-        self.ops.push(DBOp::Delete { col, key: key.as_ref().to_owned() });
+    pub(crate) fn delete(&mut self, col: DBCol, key: Vec<u8>) {
+        self.ops.push(DBOp::Delete { col, key });
     }
 
-    pub fn delete_all(&mut self, col: DBCol) {
+    pub(crate) fn delete_all(&mut self, col: DBCol) {
         self.ops.push(DBOp::DeleteAll { col });
+    }
+
+    pub(crate) fn merge(&mut self, other: DBTransaction) {
+        self.ops.extend(other.ops)
     }
 }
 
 pub struct RocksDB {
     db: DB,
+    db_opt: Options,
     cfs: Vec<*const ColumnFamily>,
 
     check_free_space_counter: std::sync::atomic::AtomicU16,
     check_free_space_interval: u16,
     free_space_threshold: bytesize::ByteSize,
 
-    _pin: PhantomPinned,
+    // RAII-style of keeping track of the number of instances of RocksDB in a global variable.
+    _instance_counter: InstanceCounter,
 }
 
 // DB was already Send+Sync. cf and read_options are const pointers using only functions in
@@ -387,113 +105,99 @@ pub struct RocksDB {
 unsafe impl Send for RocksDB {}
 unsafe impl Sync for RocksDB {}
 
-/// Options for configuring [`RocksDB`](RocksDB).
-///
-/// ```rust
-/// use near_store::db::RocksDBOptions;
-///
-/// let rocksdb = RocksDBOptions::default()
-///     .check_free_space_interval(256)
-///     .free_disk_space_threshold(bytesize::ByteSize::mb(10))
-///     .read_only("/db/path");
-/// ```
-pub struct RocksDBOptions {
-    cf_names: Option<Vec<String>>,
-    cf_descriptors: Option<Vec<ColumnFamilyDescriptor>>,
-
-    rocksdb_options: Option<Options>,
-    check_free_space_interval: u16,
-    free_space_threshold: bytesize::ByteSize,
-    warn_treshold: bytesize::ByteSize,
+fn col_name(col: DBCol) -> String {
+    format!("col{}", col as usize)
 }
 
-/// Sets [`RocksDBOptions::check_free_space_interval`] to 256,
-/// [`RocksDBOptions::free_disk_space_threshold`] to 16 MB and
-/// [`RocksDBOptions::free_disk_space_warn_threshold`] to 256 MB.
-impl Default for RocksDBOptions {
-    fn default() -> Self {
-        RocksDBOptions {
-            cf_names: None,
-            cf_descriptors: None,
-            rocksdb_options: None,
-            check_free_space_interval: 256,
-            free_space_threshold: bytesize::ByteSize::mb(16),
-            warn_treshold: bytesize::ByteSize::mb(256),
-        }
+/// Ensures that NOFILE limit can accommodate `max_open_files` plus some small margin
+/// of file descriptors.
+///
+/// A RocksDB instance can keep up to the configured `max_open_files` number of
+/// file descriptors.  In addition, we need handful more for other processing
+/// (such as network sockets to name just one example).  If NOFILE is too small
+/// opening files may start failing which would prevent us from operating
+/// correctly.
+///
+/// To avoid such failures, this method ensures that NOFILE limit is large
+/// enough to accommodate `max_open_file` plus another 1000 file descriptors.
+/// If current limit is too low, it will attempt to set it to a higher value.
+///
+/// Returns error if NOFILE limit could not be read or set.  In practice the
+/// only thing that can happen is hard limit being too low such that soft limit
+/// cannot be increased to required value.
+fn ensure_max_open_files_limit(max_open_files: u32) -> Result<(), DBError> {
+    let required = max_open_files as u64 + 1000;
+    let (soft, hard) = rlimit::Resource::NOFILE.get().map_err(|err| {
+        DBError(format!("Unable to get limit for the number of open files (NOFILE): {err}"))
+    })?;
+    if required <= soft {
+        Ok(())
+    } else {
+        rlimit::Resource::NOFILE.set(required, hard).map_err(|err| {
+            DBError(format!(
+                "Unable to set limit for the number of open files (NOFILE) to \
+                 {required} (for configured max_open_files={max_open_files}): \
+                 {err}"
+            ))
+        })
     }
 }
 
-impl RocksDBOptions {
-    /// Once the disk space is below the `free_disk_space_warn_threshold`, RocksDB will emit an warning message every [`interval`](RocksDBOptions::check_free_space_interval) write.
-    pub fn free_disk_space_warn_threshold(mut self, warn_treshold: bytesize::ByteSize) -> Self {
-        self.warn_treshold = warn_treshold;
-        self
-    }
+impl RocksDB {
+    /// Opens the database either in read only or in read/write mode depending
+    /// on the read_only parameter specified in the store_config.
+    pub fn open(path: impl AsRef<Path>, store_config: &StoreConfig) -> Result<RocksDB, DBError> {
+        use strum::IntoEnumIterator;
 
-    pub fn cf_names(mut self, cf_names: Vec<String>) -> Self {
-        self.cf_names = Some(cf_names);
-        self
-    }
-    pub fn cf_descriptors(mut self, cf_descriptors: Vec<ColumnFamilyDescriptor>) -> Self {
-        self.cf_descriptors = Some(cf_descriptors);
-        self
-    }
+        ensure_max_open_files_limit(store_config.max_open_files)?;
 
-    pub fn rocksdb_options(mut self, rocksdb_options: Options) -> Self {
-        self.rocksdb_options = Some(rocksdb_options);
-        self
-    }
+        let (db, db_opt) = if store_config.read_only {
+            Self::open_read_only(path.as_ref(), store_config)
+        } else {
+            Self::open_read_write(path.as_ref(), store_config)
+        }?;
 
-    /// After n writes, the free memory in the database's data directory is checked.
-    pub fn check_free_space_interval(mut self, interval: u16) -> Self {
-        self.check_free_space_interval = interval;
-        self
-    }
-
-    /// Free space threshold. If the directory has fewer available bytes left, writing will not be
-    /// allowed to ensure recoverability.
-    pub fn free_disk_space_threshold(mut self, threshold: bytesize::ByteSize) -> Self {
-        self.free_space_threshold = threshold;
-        self
-    }
-
-    /// Opens a read only database.
-    pub fn read_only<P: AsRef<std::path::Path>>(self, path: P) -> Result<RocksDB, DBError> {
-        let options = self.rocksdb_options.unwrap_or_default();
-        let cf_names: Vec<_> = self.cf_names.unwrap_or_else(|| vec!["col0".to_string()]);
-        let db = DB::open_cf_for_read_only(&options, path, cf_names.iter(), false)?;
-        let cfs =
-            cf_names.iter().map(|n| db.cf_handle(n).unwrap() as *const ColumnFamily).collect();
-        Ok(RocksDB {
+        let cfs = DBCol::iter()
+            .map(|col| db.cf_handle(&col_name(col)).unwrap() as *const ColumnFamily)
+            .collect();
+        Ok(Self {
             db,
+            db_opt,
             cfs,
-            _pin: PhantomPinned,
-            check_free_space_interval: self.check_free_space_interval,
+            check_free_space_interval: 256,
             check_free_space_counter: std::sync::atomic::AtomicU16::new(0),
-            free_space_threshold: self.free_space_threshold,
+            free_space_threshold: bytesize::ByteSize::mb(16),
+            _instance_counter: InstanceCounter::new(),
         })
     }
 
-    /// Opens the database in read/write mode.
-    pub fn read_write<P: AsRef<std::path::Path>>(self, path: P) -> Result<RocksDB, DBError> {
+    /// Opens a read only database.
+    fn open_read_only(path: &Path, store_config: &StoreConfig) -> Result<(DB, Options), DBError> {
         use strum::IntoEnumIterator;
-        let options = self.rocksdb_options.unwrap_or_else(rocksdb_options);
-        let cf_names = self
-            .cf_names
-            .unwrap_or_else(|| DBCol::iter().map(|col| format!("col{}", col as usize)).collect());
-        let cf_descriptors = self.cf_descriptors.unwrap_or_else(|| {
-            DBCol::iter()
-                .map(|col| {
-                    ColumnFamilyDescriptor::new(
-                        format!("col{}", col as usize),
-                        rocksdb_column_options(col),
-                    )
-                })
-                .collect()
-        });
+        let options = rocksdb_options(store_config);
+        let cf_with_opts =
+            DBCol::iter().map(|col| (col_name(col), rocksdb_column_options(col, store_config)));
+        let db = DB::open_cf_with_opts_for_read_only(&options, path, cf_with_opts, false)?;
+        Ok((db, options))
+    }
+
+    /// Opens the database in read/write mode.
+    fn open_read_write(path: &Path, store_config: &StoreConfig) -> Result<(DB, Options), DBError> {
+        use strum::IntoEnumIterator;
+        let mut options = rocksdb_options(store_config);
+        if store_config.enable_statistics {
+            options = enable_statistics(options);
+        }
+        let cf_descriptors = DBCol::iter()
+            .map(|col| {
+                ColumnFamilyDescriptor::new(
+                    col_name(col),
+                    rocksdb_column_options(col, store_config),
+                )
+            })
+            .collect::<Vec<_>>();
         let db = DB::open_cf_descriptors(&options, path, cf_descriptors)?;
-        #[cfg(feature = "single_thread_rocksdb")]
-        {
+        if cfg!(feature = "single_thread_rocksdb") {
             // These have to be set after open db
             let mut env = Env::default().unwrap();
             env.set_bottom_priority_background_threads(0);
@@ -502,16 +206,7 @@ impl RocksDBOptions {
             env.set_background_threads(0);
             println!("Disabled all background threads in rocksdb");
         }
-        let cfs =
-            cf_names.iter().map(|n| db.cf_handle(n).unwrap() as *const ColumnFamily).collect();
-        Ok(RocksDB {
-            db,
-            cfs,
-            _pin: PhantomPinned,
-            check_free_space_interval: self.check_free_space_interval,
-            check_free_space_counter: std::sync::atomic::AtomicU16::new(0),
-            free_space_threshold: self.free_space_threshold,
-        })
+        Ok((db, options))
     }
 }
 
@@ -519,13 +214,13 @@ pub struct TestDB {
     db: RwLock<Vec<HashMap<Vec<u8>, Vec<u8>>>>,
 }
 
-pub trait Database: Sync + Send {
+pub(crate) trait Database: Sync + Send {
     fn transaction(&self) -> DBTransaction {
         DBTransaction { ops: Vec::new() }
     }
     fn get(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError>;
     fn iter<'a>(&'a self, column: DBCol) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a>;
-    fn iter_without_rc_logic<'a>(
+    fn iter_raw_bytes<'a>(
         &'a self,
         column: DBCol,
     ) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a>;
@@ -538,6 +233,9 @@ pub trait Database: Sync + Send {
     fn as_rocksdb(&self) -> Option<&RocksDB> {
         None
     }
+    fn get_store_statistics(&self) -> Option<StoreStatistics> {
+        None
+    }
 }
 
 impl Database for RocksDB {
@@ -547,7 +245,7 @@ impl Database for RocksDB {
         Ok(RocksDB::get_with_rc_logic(col, result))
     }
 
-    fn iter_without_rc_logic<'a>(
+    fn iter_raw_bytes<'a>(
         &'a self,
         col: DBCol,
     ) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
@@ -609,7 +307,6 @@ impl Database for RocksDB {
                     batch.put_cf(&*self.cfs[col as usize], key, value);
                 },
                 DBOp::UpdateRefcount { col, key, value } => unsafe {
-                    assert!(col.is_rc());
                     batch.merge_cf(&*self.cfs[col as usize], key, value);
                 },
                 DBOp::Delete { col, key } => unsafe {
@@ -634,6 +331,20 @@ impl Database for RocksDB {
     fn as_rocksdb(&self) -> Option<&RocksDB> {
         Some(self)
     }
+
+    fn get_store_statistics(&self) -> Option<StoreStatistics> {
+        if let Some(stats_str) = self.db_opt.get_statistics() {
+            match parse_statistics(&stats_str) {
+                Ok(parsed_statistics) => {
+                    return Some(parsed_statistics);
+                }
+                Err(err) => {
+                    warn!(target: "store", "Failed to parse store statistics: {:?}", err);
+                }
+            }
+        }
+        None
+    }
 }
 
 impl Database for TestDB {
@@ -643,11 +354,11 @@ impl Database for TestDB {
     }
 
     fn iter<'a>(&'a self, col: DBCol) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
-        let iterator = self.iter_without_rc_logic(col);
+        let iterator = self.iter_raw_bytes(col);
         RocksDB::iter_with_rc_logic(col, iterator)
     }
 
-    fn iter_without_rc_logic<'a>(
+    fn iter_raw_bytes<'a>(
         &'a self,
         col: DBCol,
     ) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
@@ -695,25 +406,41 @@ impl Database for TestDB {
     }
 }
 
+fn set_compression_options(opts: &mut Options) {
+    opts.set_compression_type(rocksdb::DBCompressionType::Lz4);
+    opts.set_bottommost_compression_type(rocksdb::DBCompressionType::Zstd);
+    // RocksDB documenation says that 16KB is a typical dictionary size.
+    // We've empirically tuned the dicionary size to twice of that 'typical' size.
+    // Having train data size x100 from dictionary size is a recommendation from RocksDB.
+    // See: https://rocksdb.org/blog/2021/05/31/dictionary-compression.html?utm_source=dbplatz
+    let dict_size = 2 * 16384;
+    let max_train_bytes = dict_size * 100;
+    // We use default parameters of RocksDB here:
+    //      window_bits is -14 and is unused (Zlib-specific parameter),
+    //      compression_level is 32767 meaning the default compression level for ZSTD,
+    //      compression_strategy is 0 and is unused (Zlib-specific parameter).
+    // See: https://github.com/facebook/rocksdb/blob/main/include/rocksdb/advanced_options.h#L176:
+    opts.set_bottommost_compression_options(
+        /*window_bits */ -14, /*compression_level */ 32767,
+        /*compression_strategy */ 0, dict_size, /*enabled */ true,
+    );
+    opts.set_bottommost_zstd_max_train_bytes(max_train_bytes, true);
+}
+
 /// DB level options
-fn rocksdb_options() -> Options {
+fn rocksdb_options(store_config: &StoreConfig) -> Options {
     let mut opts = Options::default();
 
+    set_compression_options(&mut opts);
     opts.create_missing_column_families(true);
     opts.create_if_missing(true);
     opts.set_use_fsync(false);
-    opts.set_max_open_files(512);
+    opts.set_max_open_files(store_config.max_open_files.try_into().unwrap_or(i32::MAX));
     opts.set_keep_log_file_num(1);
     opts.set_bytes_per_sync(bytesize::MIB);
     opts.set_write_buffer_size(256 * bytesize::MIB as usize);
     opts.set_max_bytes_for_level_base(256 * bytesize::MIB);
-    #[cfg(not(feature = "single_thread_rocksdb"))]
-    {
-        opts.increase_parallelism(cmp::max(1, num_cpus::get() as i32 / 2));
-        opts.set_max_total_wal_size(bytesize::GIB);
-    }
-    #[cfg(feature = "single_thread_rocksdb")]
-    {
+    if cfg!(feature = "single_thread_rocksdb") {
         opts.set_disable_auto_compactions(true);
         opts.set_max_background_jobs(0);
         opts.set_stats_dump_period_sec(0);
@@ -721,7 +448,22 @@ fn rocksdb_options() -> Options {
         opts.set_level_zero_slowdown_writes_trigger(-1);
         opts.set_level_zero_file_num_compaction_trigger(-1);
         opts.set_level_zero_stop_writes_trigger(100000000);
+    } else {
+        opts.increase_parallelism(cmp::max(1, num_cpus::get() as i32 / 2));
+        opts.set_max_total_wal_size(bytesize::GIB);
     }
+
+    opts
+}
+
+pub fn enable_statistics(mut opts: Options) -> Options {
+    // Rust API doesn't permit choosing stats level. The default stats level is
+    // `kExceptDetailedTimers`, which is described as:
+    // "Collects all stats except time inside mutex lock AND time spent on compression."
+    opts.enable_statistics();
+    // Disabling dumping stats to files because the stats are exported to Prometheus.
+    opts.set_stats_persist_period_sec(0);
+    opts.set_stats_dump_period_sec(0);
 
     opts
 }
@@ -732,33 +474,50 @@ fn rocksdb_read_options() -> ReadOptions {
     read_options
 }
 
-fn rocksdb_block_based_options(cache_size: usize) -> BlockBasedOptions {
+fn rocksdb_block_based_options(block_size: usize, cache_size: usize) -> BlockBasedOptions {
     let mut block_opts = BlockBasedOptions::default();
-    block_opts.set_block_size(16 * bytesize::KIB as usize);
+    block_opts.set_block_size(block_size);
     // We create block_cache for each of 47 columns, so the total cache size is 32 * 47 = 1504mb
     block_opts.set_block_cache(&Cache::new_lru_cache(cache_size).unwrap());
     block_opts.set_pin_l0_filter_and_index_blocks_in_cache(true);
     block_opts.set_cache_index_and_filter_blocks(true);
-    block_opts.set_bloom_filter(10, true);
+    block_opts.set_bloom_filter(10.0, true);
     block_opts
 }
 
-// TODO(#5213) Use ByteSize package to represent sizes.
-fn choose_cache_size(col: DBCol) -> usize {
+fn choose_cache_size(col: DBCol, store_config: &StoreConfig) -> usize {
     match col {
-        DBCol::ColState => 512 * 1024 * 1024,
+        DBCol::State => store_config.col_state_cache_size,
         _ => 32 * 1024 * 1024,
     }
 }
 
-fn rocksdb_column_options(col: DBCol) -> Options {
+fn rocksdb_column_options(col: DBCol, store_config: &StoreConfig) -> Options {
     let mut opts = Options::default();
+    set_compression_options(&mut opts);
     opts.set_level_compaction_dynamic_level_bytes(true);
-    let cache_size = choose_cache_size(col);
-    opts.set_block_based_table_factory(&rocksdb_block_based_options(cache_size));
-    opts.optimize_level_style_compaction(128 * bytesize::MIB as usize);
+    let cache_size = choose_cache_size(col, &store_config);
+    opts.set_block_based_table_factory(&rocksdb_block_based_options(
+        store_config.block_size,
+        cache_size,
+    ));
+
+    // Note that this function changes a lot of rustdb parameters including:
+    //      write_buffer_size = memtable_memory_budget / 4
+    //      min_write_buffer_number_to_merge = 2
+    //      max_write_buffer_number = 6
+    //      level0_file_num_compaction_trigger = 2
+    //      target_file_size_base = memtable_memory_budget / 8
+    //      max_bytes_for_level_base = memtable_memory_budget
+    //      compaction_style = kCompactionStyleLevel
+    // Also it sets compression_per_level in a way that the first 2 levels have no compression and
+    // the rest use LZ4 compression.
+    // See the implementation here:
+    //      https://github.com/facebook/rocksdb/blob/c18c4a081c74251798ad2a1abf83bad417518481/options/options.cc#L588.
+    let memtable_memory_budget = 128 * bytesize::MIB as usize;
+    opts.optimize_level_style_compaction(memtable_memory_budget);
+
     opts.set_target_file_size_base(64 * bytesize::MIB);
-    opts.set_compression_per_level(&[]);
     if col.is_rc() {
         opts.set_merge_operator("refcount merge", RocksDB::refcount_merge, RocksDB::refcount_merge);
         opts.set_compaction_filter("empty value filter", RocksDB::empty_value_compaction_filter);
@@ -766,25 +525,39 @@ fn rocksdb_column_options(col: DBCol) -> Options {
     opts
 }
 
+// Number of RocksDB instances in the process.
+pub(crate) static ROCKSDB_INSTANCES_COUNTER: Lazy<(Mutex<usize>, Condvar)> =
+    Lazy::new(|| (Mutex::new(0), Condvar::new()));
+
 impl RocksDB {
+    /// Blocks until all RocksDB instances (usually 0 or 1) gracefully shutdown.
+    pub fn block_until_all_instances_are_dropped() {
+        let (lock, cvar) = &*ROCKSDB_INSTANCES_COUNTER;
+        let mut num_instances = lock.lock().unwrap();
+        while *num_instances != 0 {
+            info!(target: "db", "Waiting for the {} remaining RocksDB instances to gracefully shutdown", *num_instances);
+            num_instances = cvar.wait(num_instances).unwrap();
+        }
+        info!(target: "db", "All RocksDB instances performed a graceful shutdown");
+    }
+
     /// Returns version of the database state on disk.
-    pub fn get_version<P: AsRef<std::path::Path>>(path: P) -> Result<DbVersion, DBError> {
-        let db = RocksDB::new_read_only(path)?;
-        db.get(DBCol::ColDbVersion, VERSION_KEY).map(|result| {
-            serde_json::from_slice(
-                &result
-                    .expect("Failed to find version in first column. Database must be corrupted."),
-            )
-            .expect("Failed to parse version. Database must be corrupted.")
+    pub fn get_version(path: &Path) -> Result<DbVersion, DBError> {
+        let value = RocksDB::open(path, &StoreConfig::read_only())?
+            .get(DBCol::DbVersion, VERSION_KEY)?
+            .ok_or_else(|| {
+                DBError(
+                    "Failed to read database version; \
+                     it’s not a neard database or database is corrupted."
+                        .into(),
+                )
+            })?;
+        serde_json::from_slice(&value).map_err(|_err| {
+            DBError(format!(
+                "Failed to parse database version: {value:?}; \
+                 it’s not a neard database or database is corrupted."
+            ))
         })
-    }
-
-    fn new_read_only<P: AsRef<std::path::Path>>(path: P) -> Result<Self, DBError> {
-        RocksDBOptions::default().read_only(path)
-    }
-
-    pub fn new<P: AsRef<std::path::Path>>(path: P) -> Result<Self, DBError> {
-        RocksDBOptions::default().read_write(path)
     }
 
     /// Checks if there is enough memory left to perform a write. Not having enough memory left can
@@ -809,11 +582,19 @@ impl RocksDB {
             Ok(())
         }
     }
+
+    /// Creates a Checkpoint object that can be used to actually create a checkpoint on disk.
+    pub fn checkpoint(&self) -> Result<Checkpoint, DBError> {
+        Checkpoint::new(&self.db).map_err(DBError::from)
+    }
+
+    /// Synchronously flush all Memtables to SST files on disk
+    pub fn flush(&self) -> Result<(), DBError> {
+        self.db.flush().map_err(DBError::from)
+    }
 }
 
-fn available_space<P: AsRef<Path> + std::fmt::Debug>(
-    path: P,
-) -> std::io::Result<bytesize::ByteSize> {
+fn available_space(path: &Path) -> io::Result<bytesize::ByteSize> {
     let available = fs2::available_space(path)?;
     Ok(bytesize::ByteSize::b(available))
 }
@@ -848,18 +629,86 @@ impl Drop for RocksDB {
     }
 }
 
+// We've seen problems with RocksDB corruptions. InstanceCounter lets us gracefully shutdown the
+// process letting RocksDB to finish all operations and leaving the instances in a valid
+// non-corrupted state.
+struct InstanceCounter {}
+
+impl InstanceCounter {
+    fn new() -> Self {
+        let (lock, cvar) = &*ROCKSDB_INSTANCES_COUNTER;
+        let mut num_instances = lock.lock().unwrap();
+        *num_instances += 1;
+        info!(target: "db", num_instances=%*num_instances, "Created a new RocksDB instance.");
+        cvar.notify_all();
+        Self {}
+    }
+}
+
+impl Drop for InstanceCounter {
+    fn drop(&mut self) {
+        let (lock, cvar) = &*ROCKSDB_INSTANCES_COUNTER;
+        let mut num_instances = lock.lock().unwrap();
+        *num_instances -= 1;
+        info!(target: "db", num_instances=%*num_instances, "Dropped a RocksDB instance.");
+        cvar.notify_all();
+    }
+}
+
 impl TestDB {
     pub fn new() -> Self {
-        let db: Vec<_> = (0..NUM_COLS).map(|_| HashMap::new()).collect();
+        let db: Vec<_> = (0..DBCol::COUNT).map(|_| HashMap::new()).collect();
         Self { db: RwLock::new(db) }
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum StatsValue {
+    Count(i64),
+    Sum(i64),
+    Percentile(u32, f64),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct StoreStatistics {
+    pub data: Vec<(String, Vec<StatsValue>)>,
+}
+
+/// Parses a string containing RocksDB statistics.
+fn parse_statistics(statistics: &str) -> Result<StoreStatistics, Box<dyn std::error::Error>> {
+    let mut result = vec![];
+    // Statistics are given one per line.
+    for line in statistics.lines() {
+        // Each line follows one of two formats:
+        // 1) <stat_name> COUNT : <value>
+        // 2) <stat_name> P50 : <value> P90 : <value> COUNT : <value> SUM : <value>
+        // Each line gets split into words and we parse statistics according to this format.
+        if let Some((stat_name, words)) = line.split_once(' ') {
+            let mut values = vec![];
+            let mut words = words.split(" : ").flat_map(|v| v.split(" "));
+            while let (Some(key), Some(val)) = (words.next(), words.next()) {
+                match key {
+                    "COUNT" => values.push(StatsValue::Count(val.parse::<i64>()?)),
+                    "SUM" => values.push(StatsValue::Sum(val.parse::<i64>()?)),
+                    p if p.starts_with("P") => values.push(StatsValue::Percentile(
+                        key[1..].parse::<u32>()?,
+                        val.parse::<f64>()?,
+                    )),
+                    _ => {
+                        warn!(target: "stats", "Unsupported stats value: {key} in {line}");
+                    }
+                }
+            }
+            result.push((stat_name.to_string(), values));
+        }
+    }
+    Ok(StoreStatistics { data: result })
+}
 #[cfg(test)]
 mod tests {
-    use crate::db::DBCol::ColState;
-    use crate::db::{rocksdb_read_options, DBError, Database, RocksDB};
-    use crate::{create_store, DBCol};
+    use crate::db::StatsValue::{Count, Percentile, Sum};
+    use crate::db::{parse_statistics, rocksdb_read_options, DBError, Database, RocksDB};
+    use crate::{create_store, DBCol, StoreConfig, StoreStatistics};
 
     impl RocksDB {
         #[cfg(not(feature = "single_thread_rocksdb"))]
@@ -886,7 +735,7 @@ mod tests {
     #[test]
     fn test_prewrite_check() {
         let tmp_dir = tempfile::Builder::new().prefix("_test_prewrite_check").tempdir().unwrap();
-        let store = RocksDB::new(tmp_dir).unwrap();
+        let store = RocksDB::open(tmp_dir.path(), &StoreConfig::read_write()).unwrap();
         store.pre_write_check().unwrap()
     }
 
@@ -894,21 +743,21 @@ mod tests {
     fn test_clear_column() {
         let tmp_dir = tempfile::Builder::new().prefix("_test_clear_column").tempdir().unwrap();
         let store = create_store(tmp_dir.path());
-        assert_eq!(store.get(ColState, &[1]).unwrap(), None);
+        assert_eq!(store.get(DBCol::State, &[1]).unwrap(), None);
         {
             let mut store_update = store.store_update();
-            store_update.update_refcount(ColState, &[1], &[1], 1);
-            store_update.update_refcount(ColState, &[2], &[2], 1);
-            store_update.update_refcount(ColState, &[3], &[3], 1);
+            store_update.update_refcount(DBCol::State, &[1], &[1], 1);
+            store_update.update_refcount(DBCol::State, &[2], &[2], 1);
+            store_update.update_refcount(DBCol::State, &[3], &[3], 1);
             store_update.commit().unwrap();
         }
-        assert_eq!(store.get(ColState, &[1]).unwrap(), Some(vec![1]));
+        assert_eq!(store.get(DBCol::State, &[1]).unwrap(), Some(vec![1]));
         {
             let mut store_update = store.store_update();
-            store_update.delete_all(ColState);
+            store_update.delete_all(DBCol::State);
             store_update.commit().unwrap();
         }
-        assert_eq!(store.get(ColState, &[1]).unwrap(), None);
+        assert_eq!(store.get(DBCol::State, &[1]).unwrap(), None);
     }
 
     #[test]
@@ -917,51 +766,77 @@ mod tests {
         let store = create_store(tmp_dir.path());
         let ptr = (&*store.storage) as *const (dyn Database + 'static);
         let rocksdb = unsafe { &*(ptr as *const RocksDB) };
-        assert_eq!(store.get(ColState, &[1]).unwrap(), None);
+        assert_eq!(store.get(DBCol::State, &[1]).unwrap(), None);
         {
             let mut store_update = store.store_update();
-            store_update.update_refcount(ColState, &[1], &[1], 1);
+            store_update.update_refcount(DBCol::State, &[1], &[1], 1);
             store_update.commit().unwrap();
         }
         {
             let mut store_update = store.store_update();
-            store_update.update_refcount(ColState, &[1], &[1], 1);
+            store_update.update_refcount(DBCol::State, &[1], &[1], 1);
             store_update.commit().unwrap();
         }
-        assert_eq!(store.get(ColState, &[1]).unwrap(), Some(vec![1]));
+        assert_eq!(store.get(DBCol::State, &[1]).unwrap(), Some(vec![1]));
         assert_eq!(
-            rocksdb.get_no_empty_filtering(ColState, &[1]).unwrap(),
+            rocksdb.get_no_empty_filtering(DBCol::State, &[1]).unwrap(),
             Some(vec![1, 2, 0, 0, 0, 0, 0, 0, 0])
         );
         {
             let mut store_update = store.store_update();
-            store_update.update_refcount(ColState, &[1], &[1], -1);
+            store_update.update_refcount(DBCol::State, &[1], &[1], -1);
             store_update.commit().unwrap();
         }
-        assert_eq!(store.get(ColState, &[1]).unwrap(), Some(vec![1]));
+        assert_eq!(store.get(DBCol::State, &[1]).unwrap(), Some(vec![1]));
         assert_eq!(
-            rocksdb.get_no_empty_filtering(ColState, &[1]).unwrap(),
+            rocksdb.get_no_empty_filtering(DBCol::State, &[1]).unwrap(),
             Some(vec![1, 1, 0, 0, 0, 0, 0, 0, 0])
         );
         {
             let mut store_update = store.store_update();
-            store_update.update_refcount(ColState, &[1], &[1], -1);
+            store_update.update_refcount(DBCol::State, &[1], &[1], -1);
             store_update.commit().unwrap();
         }
         // Refcount goes to 0 -> get() returns None
-        assert_eq!(store.get(ColState, &[1]).unwrap(), None);
+        assert_eq!(store.get(DBCol::State, &[1]).unwrap(), None);
         // Internally there is an empty value
-        assert_eq!(rocksdb.get_no_empty_filtering(ColState, &[1]).unwrap(), Some(vec![]));
+        assert_eq!(rocksdb.get_no_empty_filtering(DBCol::State, &[1]).unwrap(), Some(vec![]));
 
         #[cfg(not(feature = "single_thread_rocksdb"))]
         {
             // single_thread_rocksdb makes compact hang forever
-            rocksdb.compact(ColState);
-            rocksdb.compact(ColState);
+            rocksdb.compact(DBCol::State);
+            rocksdb.compact(DBCol::State);
 
             // After compaction the empty value disappears
-            assert_eq!(rocksdb.get_no_empty_filtering(ColState, &[1]).unwrap(), None);
-            assert_eq!(store.get(ColState, &[1]).unwrap(), None);
+            assert_eq!(rocksdb.get_no_empty_filtering(DBCol::State, &[1]).unwrap(), None);
+            assert_eq!(store.get(DBCol::State, &[1]).unwrap(), None);
         }
+    }
+
+    #[test]
+    fn test_parse_statistics() {
+        let statistics = "rocksdb.cold.file.read.count COUNT : 999\n\
+         rocksdb.db.get.micros P50 : 9.171086 P95 : 222.678751 P99 : 549.611652 P100 : 45816.000000 COUNT : 917578 SUM : 38313754";
+        let result = parse_statistics(statistics);
+        assert_eq!(
+            result.unwrap(),
+            StoreStatistics {
+                data: vec![
+                    ("rocksdb.cold.file.read.count".to_string(), vec![Count(999)]),
+                    (
+                        "rocksdb.db.get.micros".to_string(),
+                        vec![
+                            Percentile(50, 9.171086),
+                            Percentile(95, 222.678751),
+                            Percentile(99, 549.611652),
+                            Percentile(100, 45816.0),
+                            Count(917578),
+                            Sum(38313754)
+                        ]
+                    )
+                ]
+            }
+        );
     }
 }

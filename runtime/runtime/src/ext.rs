@@ -1,33 +1,23 @@
 use std::sync::Arc;
 
-use borsh::BorshDeserialize;
-use log::debug;
+use tracing::debug;
 
-use near_crypto::PublicKey;
-use near_primitives::account::{AccessKey, AccessKeyPermission, FunctionCallPermission};
 use near_primitives::contract::ContractCode;
 use near_primitives::errors::{EpochError, StorageError};
 use near_primitives::hash::CryptoHash;
-use near_primitives::receipt::{ActionReceipt, DataReceiver, Receipt, ReceiptEnum};
-use near_primitives::transaction::{
-    Action, AddKeyAction, CreateAccountAction, DeleteAccountAction, DeleteKeyAction,
-    DeployContractAction, FunctionCallAction, StakeAction, TransferAction,
-};
 use near_primitives::trie_key::{trie_key_parsers, TrieKey};
-use near_primitives::types::{AccountId, Balance, EpochId, EpochInfoProvider};
+use near_primitives::types::{
+    AccountId, Balance, EpochId, EpochInfoProvider, TrieCacheMode, TrieNodesCount,
+};
 use near_primitives::utils::create_data_id;
 use near_primitives::version::ProtocolVersion;
 use near_store::{get_code, TrieUpdate, TrieUpdateValuePtr};
-use near_vm_errors::{AnyError, HostError, VMLogicError};
+use near_vm_errors::{AnyError, VMLogicError};
 use near_vm_logic::{External, ValuePtr};
 
 pub struct RuntimeExt<'a> {
     trie_update: &'a mut TrieUpdate,
     account_id: &'a AccountId,
-    action_receipts: Vec<(AccountId, ActionReceipt)>,
-    signer_id: &'a AccountId,
-    signer_public_key: &'a PublicKey,
-    gas_price: Balance,
     action_hash: &'a CryptoHash,
     data_count: u64,
     epoch_id: &'a EpochId,
@@ -69,9 +59,6 @@ impl<'a> RuntimeExt<'a> {
     pub fn new(
         trie_update: &'a mut TrieUpdate,
         account_id: &'a AccountId,
-        signer_id: &'a AccountId,
-        signer_public_key: &'a PublicKey,
-        gas_price: Balance,
         action_hash: &'a CryptoHash,
         epoch_id: &'a EpochId,
         prev_block_hash: &'a CryptoHash,
@@ -82,10 +69,6 @@ impl<'a> RuntimeExt<'a> {
         RuntimeExt {
             trie_update,
             account_id,
-            action_receipts: vec![],
-            signer_id,
-            signer_public_key,
-            gas_price,
             action_hash,
             data_count: 0,
             epoch_id,
@@ -114,39 +97,8 @@ impl<'a> RuntimeExt<'a> {
         TrieKey::ContractData { account_id: self.account_id.clone(), key: key.to_vec() }
     }
 
-    fn new_data_id(&mut self) -> CryptoHash {
-        let data_id = create_data_id(
-            self.current_protocol_version,
-            self.action_hash,
-            self.prev_block_hash,
-            self.last_block_hash,
-            self.data_count as usize,
-        );
-        self.data_count += 1;
-        data_id
-    }
-
-    pub fn into_receipts(self, predecessor_id: &AccountId) -> Vec<Receipt> {
-        self.action_receipts
-            .into_iter()
-            .map(|(receiver_id, action_receipt)| Receipt {
-                predecessor_id: predecessor_id.clone(),
-                receiver_id,
-                // Actual receipt ID is set in the Runtime.apply_action_receipt(...) in the
-                // "Generating receipt IDs" section
-                receipt_id: CryptoHash::default(),
-                receipt: ReceiptEnum::Action(action_receipt),
-            })
-            .collect()
-    }
-
-    fn append_action(&mut self, receipt_index: u64, action: Action) {
-        self.action_receipts
-            .get_mut(receipt_index as usize)
-            .expect("receipt index should be present")
-            .1
-            .actions
-            .push(action);
+    pub fn set_trie_cache_mode(&mut self, state: TrieCacheMode) {
+        self.trie_update.set_trie_cache_mode(state);
     }
 
     #[inline]
@@ -210,172 +162,20 @@ impl<'a> External for RuntimeExt<'a> {
         Ok(())
     }
 
-    fn create_receipt(
-        &mut self,
-        receipt_indices: Vec<u64>,
-        receiver_id: AccountId,
-    ) -> ExtResult<u64> {
-        let mut input_data_ids = vec![];
-        for receipt_index in receipt_indices {
-            let data_id = self.new_data_id();
-            self.action_receipts
-                .get_mut(receipt_index as usize)
-                .ok_or_else(|| HostError::InvalidReceiptIndex { receipt_index })?
-                .1
-                .output_data_receivers
-                .push(DataReceiver { data_id, receiver_id: receiver_id.clone() });
-            input_data_ids.push(data_id);
-        }
-
-        let new_receipt = ActionReceipt {
-            signer_id: self.signer_id.clone(),
-            signer_public_key: self.signer_public_key.clone(),
-            gas_price: self.gas_price,
-            output_data_receivers: vec![],
-            input_data_ids,
-            actions: vec![],
-        };
-        let new_receipt_index = self.action_receipts.len() as u64;
-        self.action_receipts.push((receiver_id, new_receipt));
-        Ok(new_receipt_index)
-    }
-
-    fn append_action_create_account(&mut self, receipt_index: u64) -> ExtResult<()> {
-        self.append_action(receipt_index, Action::CreateAccount(CreateAccountAction {}));
-        Ok(())
-    }
-
-    fn append_action_deploy_contract(
-        &mut self,
-        receipt_index: u64,
-        code: Vec<u8>,
-    ) -> ExtResult<()> {
-        self.append_action(receipt_index, Action::DeployContract(DeployContractAction { code }));
-        Ok(())
-    }
-
-    fn append_action_function_call(
-        &mut self,
-        receipt_index: u64,
-        method_name: Vec<u8>,
-        args: Vec<u8>,
-        attached_deposit: u128,
-        prepaid_gas: u64,
-    ) -> ExtResult<()> {
-        self.append_action(
-            receipt_index,
-            Action::FunctionCall(FunctionCallAction {
-                method_name: String::from_utf8(method_name)
-                    .map_err(|_| HostError::InvalidMethodName)?,
-                args,
-                gas: prepaid_gas,
-                deposit: attached_deposit,
-            }),
+    fn generate_data_id(&mut self) -> CryptoHash {
+        let data_id = create_data_id(
+            self.current_protocol_version,
+            self.action_hash,
+            self.prev_block_hash,
+            self.last_block_hash,
+            self.data_count as usize,
         );
-        Ok(())
+        self.data_count += 1;
+        data_id
     }
 
-    fn append_action_transfer(&mut self, receipt_index: u64, deposit: u128) -> ExtResult<()> {
-        self.append_action(receipt_index, Action::Transfer(TransferAction { deposit }));
-        Ok(())
-    }
-
-    fn append_action_stake(
-        &mut self,
-        receipt_index: u64,
-        stake: u128,
-        public_key: Vec<u8>,
-    ) -> ExtResult<()> {
-        self.append_action(
-            receipt_index,
-            Action::Stake(StakeAction {
-                stake,
-                public_key: PublicKey::try_from_slice(&public_key)
-                    .map_err(|_| HostError::InvalidPublicKey)?,
-            }),
-        );
-        Ok(())
-    }
-
-    fn append_action_add_key_with_full_access(
-        &mut self,
-        receipt_index: u64,
-        public_key: Vec<u8>,
-        nonce: u64,
-    ) -> ExtResult<()> {
-        self.append_action(
-            receipt_index,
-            Action::AddKey(AddKeyAction {
-                public_key: PublicKey::try_from_slice(&public_key)
-                    .map_err(|_| HostError::InvalidPublicKey)?,
-                access_key: AccessKey { nonce, permission: AccessKeyPermission::FullAccess },
-            }),
-        );
-        Ok(())
-    }
-
-    fn append_action_add_key_with_function_call(
-        &mut self,
-        receipt_index: u64,
-        public_key: Vec<u8>,
-        nonce: u64,
-        allowance: Option<u128>,
-        receiver_id: AccountId,
-        method_names: Vec<Vec<u8>>,
-    ) -> ExtResult<()> {
-        self.append_action(
-            receipt_index,
-            Action::AddKey(AddKeyAction {
-                public_key: PublicKey::try_from_slice(&public_key)
-                    .map_err(|_| HostError::InvalidPublicKey)?,
-                access_key: AccessKey {
-                    nonce,
-                    permission: AccessKeyPermission::FunctionCall(FunctionCallPermission {
-                        allowance,
-                        receiver_id: receiver_id.into(),
-                        method_names: method_names
-                            .into_iter()
-                            .map(|method_name| {
-                                String::from_utf8(method_name)
-                                    .map_err(|_| HostError::InvalidMethodName)
-                            })
-                            .collect::<std::result::Result<Vec<_>, _>>()?,
-                    }),
-                },
-            }),
-        );
-        Ok(())
-    }
-
-    fn append_action_delete_key(
-        &mut self,
-        receipt_index: u64,
-        public_key: Vec<u8>,
-    ) -> ExtResult<()> {
-        self.append_action(
-            receipt_index,
-            Action::DeleteKey(DeleteKeyAction {
-                public_key: PublicKey::try_from_slice(&public_key)
-                    .map_err(|_| HostError::InvalidPublicKey)?,
-            }),
-        );
-        Ok(())
-    }
-
-    fn append_action_delete_account(
-        &mut self,
-        receipt_index: u64,
-        beneficiary_id: AccountId,
-    ) -> ExtResult<()> {
-        self.append_action(
-            receipt_index,
-            Action::DeleteAccount(DeleteAccountAction { beneficiary_id }),
-        );
-        Ok(())
-    }
-
-    fn get_touched_nodes_count(&self) -> u64 {
-        self.trie_update.trie.counter.get()
+    fn get_trie_nodes_count(&self) -> TrieNodesCount {
+        self.trie_update.trie.get_trie_nodes_count()
     }
 
     fn validator_stake(&self, account_id: &AccountId) -> ExtResult<Option<Balance>> {

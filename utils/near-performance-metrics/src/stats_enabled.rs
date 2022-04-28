@@ -1,8 +1,7 @@
 use bytesize::ByteSize;
 use futures;
 use futures::task::Context;
-use log::{info, warn};
-use near_rust_allocator_proxy::allocator::{
+use near_rust_allocator_proxy::{
     current_thread_memory_usage, current_thread_peak_memory_usage, get_tid, reset_memory_usage_max,
     thread_memory_count, thread_memory_usage, total_memory_usage,
 };
@@ -14,7 +13,7 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
 use std::time::{Duration, Instant};
-use strum::AsStaticRef;
+use tracing::{info, warn};
 
 static MEMORY_LIMIT: u64 = 512 * bytesize::MIB;
 static MIN_MEM_USAGE_REPORT_SIZE: u64 = 100 * bytesize::MIB;
@@ -298,9 +297,9 @@ pub fn measure_performance_with_debug<F, Message, Result>(
 ) -> Result
 where
     F: FnOnce(Message) -> Result,
-    Message: AsStaticRef<str>,
+    for<'a> &'a Message: Into<&'static str>,
 {
-    let msg_text: &'static str = msg.as_static();
+    let msg_text = (&msg).into();
     measure_performance_internal(class_name, msg, f, Some(msg_text))
 }
 

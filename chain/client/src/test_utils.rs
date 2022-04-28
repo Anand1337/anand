@@ -1,10 +1,10 @@
-use log::info;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::mem::swap;
 use std::ops::DerefMut;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+use tracing::info;
 
 use actix::actors::mocker::Mocker;
 use actix::{Actor, Addr, AsyncContext, Context};
@@ -23,9 +23,10 @@ use near_crypto::{InMemorySigner, KeyType, PublicKey};
 use near_network::test_utils::{MockPeerManagerAdapter, NetworkRecipient};
 use near_network::types::{
     FullPeerInfo, NetworkClientMessages, NetworkClientResponses, NetworkRequests, NetworkResponses,
-    PartialEdgeInfo, PeerManagerAdapter,
+    PeerManagerAdapter,
 };
 use near_network::PeerManagerActor;
+use near_network_primitives::types::PartialEdgeInfo;
 use near_primitives::block::{ApprovalInner, Block, GenesisId};
 use near_primitives::hash::{hash, CryptoHash};
 use near_primitives::merkle::{merklize, MerklePath};
@@ -64,6 +65,11 @@ use near_primitives::time::{Clock, Instant};
 use near_primitives::utils::MaybeValidated;
 
 pub type PeerManagerMock = Mocker<PeerManagerActor>;
+
+/// min block production time in milliseconds
+pub const MIN_BLOCK_PROD_TIME: Duration = Duration::from_millis(100);
+/// max block production time in milliseconds
+pub const MAX_BLOCK_PROD_TIME: Duration = Duration::from_millis(200);
 
 const TEST_SEED: RngSeed = [3; 32];
 /// Sets up ClientActor and ViewClientActor viewing the same store/runtime.
@@ -111,7 +117,8 @@ pub fn setup(
     } else {
         DoomslugThresholdMode::NoApprovals
     };
-    let mut chain = Chain::new(runtime.clone(), &chain_genesis, doomslug_threshold_mode).unwrap();
+    let mut chain =
+        Chain::new(runtime.clone(), &chain_genesis, doomslug_threshold_mode, !archive).unwrap();
     let genesis_block = chain.get_block(&chain.genesis().hash().clone()).unwrap().clone();
 
     let signer = Arc::new(InMemoryValidatorSigner::from_seed(
@@ -153,6 +160,7 @@ pub fn setup(
         enable_doomslug,
         TEST_SEED,
         ctx,
+        None,
         #[cfg(feature = "test_features")]
         adv,
     )
@@ -204,7 +212,7 @@ pub fn setup_only_view(
     } else {
         DoomslugThresholdMode::NoApprovals
     };
-    Chain::new(runtime.clone(), &chain_genesis, doomslug_threshold_mode).unwrap();
+    Chain::new(runtime.clone(), &chain_genesis, doomslug_threshold_mode, !archive).unwrap();
 
     let signer = Arc::new(InMemoryValidatorSigner::from_seed(
         account_id.clone(),
@@ -283,8 +291,8 @@ pub fn setup_mock_with_validity_period_and_no_epoch_sync(
             5,
             account_id,
             skip_sync_wait,
-            100,
-            200,
+            MIN_BLOCK_PROD_TIME.as_millis() as u64,
+            MAX_BLOCK_PROD_TIME.as_millis() as u64,
             enable_doomslug,
             false,
             false,
@@ -620,7 +628,7 @@ pub fn setup_mock_all_validators(
                                 .unwrap()
                                 .insert(*block.header().hash(), block.header().height());
                         }
-                        NetworkRequests::PartialEncodedChunkRequest { target, request } => {
+                        NetworkRequests::PartialEncodedChunkRequest { target, request , ..} => {
                             let create_msg = || {
                                 NetworkClientMessages::PartialEncodedChunkRequest(
                                     request.clone(),
@@ -637,7 +645,7 @@ pub fn setup_mock_all_validators(
                         }
                         NetworkRequests::PartialEncodedChunkResponse { route_back, response } => {
                             let create_msg = || {
-                                NetworkClientMessages::PartialEncodedChunkResponse(response.clone())
+                                NetworkClientMessages::PartialEncodedChunkResponse(response.clone(), Clock::instant())
                             };
                             send_chunks(
                                 Arc::clone(&connectors1),
@@ -1092,7 +1100,7 @@ pub fn setup_client_with_runtime(
 }
 
 pub fn setup_client(
-    store: Arc<Store>,
+    store: Store,
     validators: Vec<Vec<AccountId>>,
     validator_groups: u64,
     num_shards: NumShards,
@@ -1393,7 +1401,7 @@ impl TestEnv {
         request: PeerManagerMessageRequest,
     ) {
         if let PeerManagerMessageRequest::NetworkRequests(
-            NetworkRequests::PartialEncodedChunkRequest { target, request },
+            NetworkRequests::PartialEncodedChunkRequest { target, request, .. },
         ) = request
         {
             let target_id = self.account_to_client_index[&target.account_id.unwrap()];
@@ -1408,7 +1416,7 @@ impl TestEnv {
         }
     }
 
-    fn get_partial_encoded_chunk_response(
+    pub fn get_partial_encoded_chunk_response(
         &mut self,
         id: usize,
         request: PartialEncodedChunkRequestMsg,
@@ -1418,6 +1426,7 @@ impl TestEnv {
             request,
             CryptoHash::default(),
             client.chain.mut_store(),
+            &mut client.rs,
         );
         let response = self.network_adapters[id].pop().unwrap();
         if let PeerManagerMessageRequest::NetworkRequests(
@@ -1513,7 +1522,7 @@ impl TestEnv {
     /// this `TestEnv` was created with custom runtime adapters that
     /// customisation will be lost.
     pub fn restart(&mut self, idx: usize) {
-        let store = self.clients[idx].chain.store().owned_store();
+        let store = self.clients[idx].chain.store().store().clone();
         let account_id = self.get_client_id(idx).clone();
         let rng_seed = match self.seeds.get(&account_id) {
             Some(seed) => *seed,
@@ -1666,6 +1675,7 @@ pub fn create_chunk(
         &*client.validator_signer.as_ref().unwrap().clone(),
         *last_block.header().next_bp_hash(),
         block_merkle_tree.root(),
+        None,
     );
     (chunk, merkle_paths, receipts, block)
 }

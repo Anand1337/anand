@@ -1,6 +1,7 @@
 use crate::{External, ValuePtr};
+use near_primitives::hash::{hash, CryptoHash};
+use near_primitives::types::TrieNodesCount;
 use near_primitives_core::types::{AccountId, Balance, Gas};
-use near_vm_errors::HostError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -8,8 +9,8 @@ use std::collections::HashMap;
 /// Emulates the trie and the mock handling code.
 pub struct MockedExternal {
     pub fake_trie: HashMap<Vec<u8>, Vec<u8>>,
-    receipts: Vec<Receipt>,
     pub validators: HashMap<AccountId, Balance>,
+    data_count: u64,
 }
 
 pub struct MockedValuePtr {
@@ -38,11 +39,6 @@ impl ValuePtr for MockedValuePtr {
 impl MockedExternal {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Get calls to receipt create that were performed during contract call.
-    pub fn get_receipt_create_calls(&self) -> &Vec<Receipt> {
-        &self.receipts
     }
 }
 
@@ -76,130 +72,16 @@ impl External for MockedExternal {
         Ok(self.fake_trie.contains_key(key))
     }
 
-    fn create_receipt(&mut self, receipt_indices: Vec<u64>, receiver_id: AccountId) -> Result<u64> {
-        if let Some(index) = receipt_indices.iter().find(|&&el| el >= self.receipts.len() as u64) {
-            return Err(HostError::InvalidReceiptIndex { receipt_index: *index }.into());
-        }
-        let res = self.receipts.len() as u64;
-        self.receipts.push(Receipt { receipt_indices, receiver_id, actions: vec![] });
-        Ok(res)
+    fn generate_data_id(&mut self) -> CryptoHash {
+        // Generates some hash for the data ID to receive data. This hash should not be functionally
+        // used in any mocked contexts.
+        let data_id = hash(&self.data_count.to_le_bytes());
+        self.data_count += 1;
+        data_id
     }
 
-    fn append_action_create_account(&mut self, receipt_index: u64) -> Result<()> {
-        self.receipts.get_mut(receipt_index as usize).unwrap().actions.push(Action::CreateAccount);
-        Ok(())
-    }
-
-    fn append_action_deploy_contract(&mut self, receipt_index: u64, code: Vec<u8>) -> Result<()> {
-        self.receipts
-            .get_mut(receipt_index as usize)
-            .unwrap()
-            .actions
-            .push(Action::DeployContract(DeployContractAction { code }));
-        Ok(())
-    }
-
-    fn append_action_function_call(
-        &mut self,
-        receipt_index: u64,
-        method_name: Vec<u8>,
-        arguments: Vec<u8>,
-        attached_deposit: u128,
-        prepaid_gas: u64,
-    ) -> Result<()> {
-        self.receipts.get_mut(receipt_index as usize).unwrap().actions.push(Action::FunctionCall(
-            FunctionCallAction {
-                method_name,
-                args: arguments,
-                deposit: attached_deposit,
-                gas: prepaid_gas,
-            },
-        ));
-        Ok(())
-    }
-
-    fn append_action_transfer(&mut self, receipt_index: u64, amount: u128) -> Result<()> {
-        self.receipts
-            .get_mut(receipt_index as usize)
-            .unwrap()
-            .actions
-            .push(Action::Transfer(TransferAction { deposit: amount }));
-        Ok(())
-    }
-
-    fn append_action_stake(
-        &mut self,
-        receipt_index: u64,
-        stake: u128,
-        public_key: Vec<u8>,
-    ) -> Result<()> {
-        self.receipts
-            .get_mut(receipt_index as usize)
-            .unwrap()
-            .actions
-            .push(Action::Stake(StakeAction { stake, public_key }));
-        Ok(())
-    }
-
-    fn append_action_add_key_with_full_access(
-        &mut self,
-        receipt_index: u64,
-        public_key: Vec<u8>,
-        nonce: u64,
-    ) -> Result<()> {
-        self.receipts
-            .get_mut(receipt_index as usize)
-            .unwrap()
-            .actions
-            .push(Action::AddKeyWithFullAccess(AddKeyWithFullAccessAction { public_key, nonce }));
-        Ok(())
-    }
-
-    fn append_action_add_key_with_function_call(
-        &mut self,
-        receipt_index: u64,
-        public_key: Vec<u8>,
-        nonce: u64,
-        allowance: Option<u128>,
-        receiver_id: AccountId,
-        method_names: Vec<Vec<u8>>,
-    ) -> Result<()> {
-        self.receipts.get_mut(receipt_index as usize).unwrap().actions.push(
-            Action::AddKeyWithFunctionCall(AddKeyWithFunctionCallAction {
-                public_key,
-                nonce,
-                allowance,
-                receiver_id,
-                method_names,
-            }),
-        );
-        Ok(())
-    }
-
-    fn append_action_delete_key(&mut self, receipt_index: u64, public_key: Vec<u8>) -> Result<()> {
-        self.receipts
-            .get_mut(receipt_index as usize)
-            .unwrap()
-            .actions
-            .push(Action::DeleteKey(DeleteKeyAction { public_key }));
-        Ok(())
-    }
-
-    fn append_action_delete_account(
-        &mut self,
-        receipt_index: u64,
-        beneficiary_id: AccountId,
-    ) -> Result<()> {
-        self.receipts
-            .get_mut(receipt_index as usize)
-            .unwrap()
-            .actions
-            .push(Action::DeleteAccount(DeleteAccountAction { beneficiary_id }));
-        Ok(())
-    }
-
-    fn get_touched_nodes_count(&self) -> u64 {
-        0
+    fn get_trie_nodes_count(&self) -> TrieNodesCount {
+        TrieNodesCount { db_reads: 0, mem_reads: 0 }
     }
 
     fn validator_stake(&self, account_id: &AccountId) -> Result<Option<Balance>> {

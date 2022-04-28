@@ -1,5 +1,6 @@
 use crate::errors::IntoVMError;
 use crate::prepare::WASM_FEATURES;
+use crate::runner::VMResult;
 use crate::{imports, prepare};
 use near_primitives::config::VMConfig;
 use near_primitives::contract::ContractCode;
@@ -8,65 +9,67 @@ use near_primitives::runtime::fees::RuntimeFeesConfig;
 use near_primitives::types::CompiledContractCache;
 use near_primitives::version::ProtocolVersion;
 use near_vm_errors::{
-    CompilationError, FunctionCallError, MethodResolveError, VMError, VMLogicError, WasmTrap,
+    CompilationError, FunctionCallError, MethodResolveError, PrepareError, VMError, VMLogicError,
+    WasmTrap,
 };
 use near_vm_logic::types::PromiseResult;
-use near_vm_logic::{External, MemoryLike, VMContext, VMLogic, VMOutcome};
+use near_vm_logic::{External, MemoryLike, VMContext, VMLogic};
+use std::cell::RefCell;
 use std::ffi::c_void;
 use std::str;
 use wasmtime::ExternType::Func;
-use wasmtime::{Engine, Limits, Linker, Memory, MemoryType, Module, Store, TrapCode};
+use wasmtime::{Engine, Linker, Memory, MemoryType, Module, Store, TrapCode};
 
+thread_local! {
+    pub(crate) static CALLER: RefCell<Option<wasmtime::Caller<'static, ()>>> = RefCell::new(None);
+}
 pub struct WasmtimeMemory(Memory);
 
 impl WasmtimeMemory {
     pub fn new(
-        store: &Store,
+        store: &mut Store<()>,
         initial_memory_bytes: u32,
         max_memory_bytes: u32,
     ) -> Result<Self, VMError> {
-        Ok(WasmtimeMemory(Memory::new(
-            store,
-            MemoryType::new(Limits::new(initial_memory_bytes, Some(max_memory_bytes))),
-        )))
-    }
-
-    pub fn clone(&self) -> Memory {
-        self.0.clone()
+        Ok(WasmtimeMemory(
+            Memory::new(store, MemoryType::new(initial_memory_bytes, Some(max_memory_bytes)))
+                .map_err(|_| PrepareError::Memory)?,
+        ))
     }
 }
 
 impl MemoryLike for WasmtimeMemory {
     fn fits_memory(&self, offset: u64, len: u64) -> bool {
-        match offset.checked_add(len) {
+        CALLER.with(|caller| match offset.checked_add(len) {
             None => false,
-            Some(end) => self.0.data_size() as u64 >= end,
-        }
+            Some(end) => self.0.data_size(caller.borrow_mut().as_mut().unwrap()) as u64 >= end,
+        })
     }
 
     fn read_memory(&self, offset: u64, buffer: &mut [u8]) {
-        let offset = offset as usize;
-        // data_unchecked() is unsafe.
-        unsafe {
+        CALLER.with(|caller| {
+            let offset = offset as usize;
+            let mut caller = caller.borrow_mut();
+            let caller = caller.as_mut().unwrap();
             for i in 0..buffer.len() {
-                buffer[i] = self.0.data_unchecked()[i + offset];
+                buffer[i] = self.0.data(&mut *caller)[i + offset];
             }
-        }
+        })
     }
 
     fn read_memory_u8(&self, offset: u64) -> u8 {
-        // data_unchecked() is unsafe.
-        unsafe { self.0.data_unchecked()[offset as usize] }
+        CALLER.with(|caller| self.0.data(caller.borrow_mut().as_mut().unwrap())[offset as usize])
     }
 
     fn write_memory(&mut self, offset: u64, buffer: &[u8]) {
-        // data_unchecked_mut() is unsafe.
-        unsafe {
+        CALLER.with(|caller| {
             let offset = offset as usize;
+            let mut caller = caller.borrow_mut();
+            let caller = caller.as_mut().unwrap();
             for i in 0..buffer.len() {
-                self.0.data_unchecked_mut()[i + offset] = buffer[i];
+                self.0.data_mut(&mut *caller)[i + offset] = buffer[i];
             }
-        }
+        })
     }
 }
 
@@ -164,7 +167,15 @@ pub(crate) fn wasmtime_vm_hash() -> u64 {
     64
 }
 
-pub(crate) struct WasmtimeVM;
+pub(crate) struct WasmtimeVM {
+    config: VMConfig,
+}
+
+impl WasmtimeVM {
+    pub(crate) fn new(config: VMConfig) -> Self {
+        Self { config }
+    }
+}
 
 impl crate::runner::VM for WasmtimeVM {
     fn run(
@@ -173,12 +184,11 @@ impl crate::runner::VM for WasmtimeVM {
         method_name: &str,
         ext: &mut dyn External,
         context: VMContext,
-        wasm_config: &VMConfig,
         fees_config: &RuntimeFeesConfig,
         promise_results: &[PromiseResult],
         current_protocol_version: ProtocolVersion,
         _cache: Option<&dyn CompiledContractCache>,
-    ) -> (Option<VMOutcome>, Option<VMError>) {
+    ) -> VMResult {
         let _span = tracing::debug_span!(
             target: "vm",
             "run_wasmtime",
@@ -188,105 +198,98 @@ impl crate::runner::VM for WasmtimeVM {
         .entered();
         let mut config = default_config();
         let engine = get_engine(&mut config);
-        let store = Store::new(&engine);
+        let mut store = Store::new(&engine, ());
         let mut memory = WasmtimeMemory::new(
-            &store,
-            wasm_config.limit_config.initial_memory_pages,
-            wasm_config.limit_config.max_memory_pages,
+            &mut store,
+            self.config.limit_config.initial_memory_pages,
+            self.config.limit_config.max_memory_pages,
         )
         .unwrap();
-        let prepared_code = match prepare::prepare_contract(code.code(), wasm_config) {
+        let prepared_code = match prepare::prepare_contract(code.code(), &self.config) {
             Ok(code) => code,
-            Err(err) => return (None, Some(VMError::from(err))),
+            Err(err) => return VMResult::nop_outcome(VMError::from(err)),
         };
         let module = match Module::new(&engine, prepared_code) {
             Ok(module) => module,
-            Err(err) => return (None, Some(err.into_vm_error())),
+            Err(err) => return VMResult::nop_outcome(err.into_vm_error()),
         };
-        // Note that we don't clone the actual backing memory, just increase the RC.
-        let memory_copy = memory.clone();
-        let mut linker = Linker::new(&store);
+        let mut linker = Linker::new(&engine);
+        let memory_copy = memory.0;
         let mut logic = VMLogic::new_with_protocol_version(
             ext,
             context,
-            wasm_config,
+            &self.config,
             fees_config,
             promise_results,
             &mut memory,
             current_protocol_version,
         );
 
-        // TODO: remove, as those costs are incorrectly computed, and we shall account it on deployment.
-        if logic.add_contract_compile_fee(code.code().len() as u64).is_err() {
-            return (
-                Some(logic.outcome()),
-                Some(VMError::FunctionCallError(FunctionCallError::HostError(
-                    near_vm_errors::HostError::GasExceeded,
-                ))),
-            );
+        // TODO: charge this before preparing contract
+        if logic.add_contract_loading_fee(code.code().len() as u64).is_err() {
+            let err = VMError::FunctionCallError(FunctionCallError::HostError(
+                near_vm_errors::HostError::GasExceeded,
+            ));
+            return VMResult::abort(logic, err);
         }
 
         // Unfortunately, due to the Wasmtime implementation we have to do tricks with the
         // lifetimes of the logic instance and pass raw pointers here.
         let raw_logic = &mut logic as *mut _ as *mut c_void;
         imports::wasmtime::link(&mut linker, memory_copy, raw_logic, current_protocol_version);
+        // TODO: While fixing other loading cost, check this before loading contract
         if method_name.is_empty() {
-            return (
-                None,
-                Some(VMError::FunctionCallError(FunctionCallError::MethodResolveError(
-                    MethodResolveError::MethodEmptyName,
-                ))),
-            );
+            let err = VMError::FunctionCallError(FunctionCallError::MethodResolveError(
+                MethodResolveError::MethodEmptyName,
+            ));
+            return VMResult::nop_outcome(err);
         }
         match module.get_export(method_name) {
             Some(export) => match export {
                 Func(func_type) => {
                     if func_type.params().len() != 0 || func_type.results().len() != 0 {
-                        return (
-                            None,
-                            Some(VMError::FunctionCallError(
-                                FunctionCallError::MethodResolveError(
-                                    MethodResolveError::MethodInvalidSignature,
-                                ),
-                            )),
-                        );
+                        let err =
+                            VMError::FunctionCallError(FunctionCallError::MethodResolveError(
+                                MethodResolveError::MethodInvalidSignature,
+                            ));
+                        // TODO: This should return an outcome to account for loading cost
+                        return VMResult::nop_outcome(err);
                     }
                 }
                 _ => {
-                    return (
-                        None,
-                        Some(VMError::FunctionCallError(FunctionCallError::MethodResolveError(
-                            MethodResolveError::MethodNotFound,
-                        ))),
-                    )
+                    let err = VMError::FunctionCallError(FunctionCallError::MethodResolveError(
+                        MethodResolveError::MethodNotFound,
+                    ));
+                    // TODO: This should return an outcome to account for loading cost
+                    return VMResult::nop_outcome(err);
                 }
             },
             None => {
-                return (
-                    None,
-                    Some(VMError::FunctionCallError(FunctionCallError::MethodResolveError(
-                        MethodResolveError::MethodNotFound,
-                    ))),
-                )
+                let err = VMError::FunctionCallError(FunctionCallError::MethodResolveError(
+                    MethodResolveError::MethodNotFound,
+                ));
+                // TODO: This should return an outcome to account for loading cost
+                return VMResult::nop_outcome(err);
             }
         }
-        match linker.instantiate(&module) {
-            Ok(instance) => match instance.get_func(method_name) {
-                Some(func) => match func.typed::<(), ()>() {
-                    Ok(run) => match run.call(()) {
-                        Ok(_) => (Some(logic.outcome()), None),
-                        Err(err) => (Some(logic.outcome()), Some(err.into_vm_error())),
+        match linker.instantiate(&mut store, &module) {
+            Ok(instance) => match instance.get_func(&mut store, method_name) {
+                Some(func) => match func.typed::<(), (), _>(&mut store) {
+                    Ok(run) => match run.call(&mut store, ()) {
+                        Ok(_) => VMResult::ok(logic),
+                        Err(err) => (VMResult::abort(logic, err.into_vm_error())),
                     },
-                    Err(err) => (Some(logic.outcome()), Some(err.into_vm_error())),
+                    Err(err) => VMResult::abort(logic, err.into_vm_error()),
                 },
-                None => (
-                    None,
-                    Some(VMError::FunctionCallError(FunctionCallError::MethodResolveError(
+                None => {
+                    let err = VMError::FunctionCallError(FunctionCallError::MethodResolveError(
                         MethodResolveError::MethodNotFound,
-                    ))),
-                ),
+                    ));
+                    // TODO: This should return an outcome to account for loading cost
+                    VMResult::nop_outcome(err)
+                }
             },
-            Err(err) => (Some(logic.outcome()), Some(err.into_vm_error())),
+            Err(err) => VMResult::abort(logic, err.into_vm_error()),
         }
     }
 
@@ -294,7 +297,6 @@ impl crate::runner::VM for WasmtimeVM {
         &self,
         _code: &[u8],
         _code_hash: &CryptoHash,
-        _wasm_config: &VMConfig,
         _cache: &dyn CompiledContractCache,
     ) -> Option<VMError> {
         Some(VMError::FunctionCallError(FunctionCallError::CompilationError(

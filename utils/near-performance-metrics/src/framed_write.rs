@@ -409,7 +409,8 @@ where
     inner: UnsafeWriter<T, E, K>,
 }
 
-impl<T: 'static, E: 'static, A, K: 'static + EncoderCallBack> ActorFuture for WriterFut<T, E, A, K>
+impl<T: 'static, E: 'static, A, K: 'static + EncoderCallBack> ActorFuture<A>
+    for WriterFut<T, E, A, K>
 where
     T: AsyncWrite + Unpin,
     E: From<io::Error>,
@@ -417,7 +418,6 @@ where
     A::Context: AsyncContext<A>,
 {
     type Output = ();
-    type Actor = A;
 
     fn poll(
         self: Pin<&mut Self>,
@@ -456,6 +456,10 @@ where
                     let len = inner.buffer.len();
                     let capacity = inner.buffer.capacity();
                     inner.callback.drained(n, len, capacity);
+                    // Fix memory leak see (#6173)
+                    if inner.buffer.is_empty() && inner.buffer.capacity() > 0 {
+                        inner.buffer = BytesMut::new()
+                    }
                 }
                 Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::WouldBlock => {
                     if inner.buffer.len() > inner.high {
@@ -510,7 +514,7 @@ where
     inner: UnsafeWriter<T, E, K>,
 }
 
-impl<T, E, A, K> ActorFuture for WriterDrain<T, E, A, K>
+impl<T, E, A, K> ActorFuture<A> for WriterDrain<T, E, A, K>
 where
     T: AsyncWrite + Unpin,
     E: From<io::Error>,
@@ -519,7 +523,6 @@ where
     K: EncoderCallBack,
 {
     type Output = ();
-    type Actor = A;
 
     fn poll(
         self: Pin<&mut Self>,
@@ -552,6 +555,10 @@ where
                     let len = inner.buffer.len();
                     let capacity = inner.buffer.capacity();
                     inner.callback.drained(n, len, capacity);
+                    // Fix memory leak see (#6173)
+                    if inner.buffer.is_empty() && inner.buffer.capacity() > 0 {
+                        inner.buffer = BytesMut::new()
+                    }
                 }
                 Poll::Ready(Err(ref e)) if e.kind() == io::ErrorKind::WouldBlock => {
                     return if inner.buffer.len() < inner.low {
