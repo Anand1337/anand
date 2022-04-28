@@ -29,15 +29,19 @@ pub struct TransactionPool {
 
 impl TransactionPool {
     pub fn new(key_seed: RngSeed) -> Self {
-        // A `get()` call initializes a metric even if its value is zero.
-        let val = metrics::TRANSACTION_POOL_TOTAL.get();
-        debug!(target: "txpool", val, "TransactionPool::new()");
+        debug!(target: "txpool", "TransactionPool::new()");
         Self {
             key_seed,
             transactions: BTreeMap::new(),
             unique_transactions: HashSet::new(),
             last_used_key: CryptoHash::default(),
         }
+    }
+
+    pub fn init_metric() {
+        // A `get()` call initializes a metric even if its value is zero.
+        let val = metrics::TRANSACTION_POOL_TOTAL.get();
+        debug!(target: "txpool", val, "TransactionPool::init_metric()");
     }
 
     fn key(&self, account_id: &AccountId, public_key: &PublicKey) -> PoolKey {
