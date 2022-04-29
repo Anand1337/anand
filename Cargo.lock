@@ -2098,6 +2098,7 @@ dependencies = [
  "clap 3.1.6",
  "futures",
  "hex",
+ "insta",
  "near-actix-test-utils",
  "near-chain",
  "near-chain-configs",
@@ -2114,6 +2115,7 @@ dependencies = [
  "near-network-primitives",
  "near-performance-metrics",
  "near-primitives",
+ "near-primitives-core",
  "near-store",
  "near-telemetry",
  "near-test-contracts",
@@ -3087,6 +3089,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smart-default",
+ "strum",
 ]
 
 [[package]]
@@ -3341,6 +3344,7 @@ dependencies = [
  "near-vm-logic",
  "near-vm-runner",
  "num-rational",
+ "rayon",
  "serde",
  "serde_json",
  "tracing-span-tree",
@@ -3426,6 +3430,7 @@ dependencies = [
  "nearcore",
  "once_cell",
  "openssl-probe",
+ "rayon",
  "rustc_version 0.4.0",
  "serde",
  "serde_json",
