@@ -104,7 +104,7 @@ impl DBTransaction {
 }
 
 pub struct RocksDB {
-    db: DB,
+    pub db: DB,
     db_opt: Options,
     cfs: Vec<*const ColumnFamily>,
 
@@ -235,6 +235,7 @@ pub(crate) trait Database: Sync + Send {
         DBTransaction { ops: Vec::new() }
     }
     fn get(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError>;
+    fn get_raw(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError>;
     fn iter<'a>(&'a self, column: DBCol) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a>;
     fn iter_raw_bytes<'a>(
         &'a self,
@@ -262,6 +263,18 @@ impl Database for RocksDB {
         let read_options = rocksdb_read_options();
         let result = self.db.get_cf_opt(unsafe { &*self.cfs[col as usize] }, key, &read_options)?;
         let result = Ok(RocksDB::get_with_rc_logic(col, result));
+
+        timer.observe_duration();
+        result
+    }
+
+    fn get_raw(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError> {
+        let timer =
+            metrics::DATABASE_OP_LATENCY_HIST.with_label_values(&["get", col.into()]).start_timer();
+
+        let read_options = rocksdb_read_options();
+        let result = self.db.get_cf_opt(unsafe { &*self.cfs[col as usize] }, key, &read_options)?;
+        let result = Ok(result);
 
         timer.observe_duration();
         result
@@ -383,6 +396,11 @@ impl Database for TestDB {
         Ok(RocksDB::get_with_rc_logic(col, result))
     }
 
+    fn get_raw(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError> {
+        let result = self.db.read().unwrap()[col as usize].get(key).cloned();
+        Ok(result)
+    }
+
     fn iter<'a>(&'a self, col: DBCol) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
         let iterator = self.iter_raw_bytes(col);
         RocksDB::iter_with_rc_logic(col, iterator)
@@ -488,9 +506,9 @@ fn rocksdb_options(store_config: &StoreConfig) -> Options {
     opts.set_use_fsync(false);
     opts.set_max_open_files(store_config.max_open_files.try_into().unwrap_or(i32::MAX));
     opts.set_keep_log_file_num(1);
-    opts.set_bytes_per_sync(bytesize::MIB);
-    opts.set_write_buffer_size(256 * bytesize::MIB as usize);
-    opts.set_max_bytes_for_level_base(256 * bytesize::MIB);
+    opts.set_bytes_per_sync(bytesize::KIB);
+    opts.set_write_buffer_size(1 * bytesize::KIB as usize);
+    opts.set_max_bytes_for_level_base(1 * bytesize::KIB);
     if cfg!(feature = "single_thread_rocksdb") {
         opts.set_disable_auto_compactions(true);
         opts.set_max_background_jobs(0);
@@ -537,10 +555,7 @@ fn rocksdb_block_based_options(block_size: usize, cache_size: usize) -> BlockBas
 }
 
 fn choose_cache_size(col: DBCol, store_config: &StoreConfig) -> usize {
-    match col {
-        DBCol::State => store_config.col_state_cache_size,
-        _ => 32 * 1024 * 1024,
-    }
+    1
 }
 
 fn rocksdb_column_options(col: DBCol, store_config: &StoreConfig) -> Options {
@@ -565,10 +580,12 @@ fn rocksdb_column_options(col: DBCol, store_config: &StoreConfig) -> Options {
     // the rest use LZ4 compression.
     // See the implementation here:
     //      https://github.com/facebook/rocksdb/blob/c18c4a081c74251798ad2a1abf83bad417518481/options/options.cc#L588.
-    let memtable_memory_budget = 128 * bytesize::MIB as usize;
+    let memtable_memory_budget = 2 * bytesize::KIB as usize;
     opts.optimize_level_style_compaction(memtable_memory_budget);
+    opts.set_min_write_buffer_number(1);
+    opts.set_min_write_buffer_number(1);
 
-    opts.set_target_file_size_base(64 * bytesize::MIB);
+    opts.set_target_file_size_base(1 * bytesize::KIB);
     if col.is_rc() {
         opts.set_merge_operator("refcount merge", RocksDB::refcount_merge, RocksDB::refcount_merge);
         opts.set_compaction_filter("empty value filter", RocksDB::empty_value_compaction_filter);
