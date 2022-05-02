@@ -260,7 +260,13 @@ impl Database for RocksDB {
             metrics::DATABASE_OP_LATENCY_HIST.with_label_values(&["get", col.into()]).start_timer();
 
         let read_options = rocksdb_read_options();
+        if col == DBCol::ColState {
+            std::fs::read("/home/ubuntu/nearcore/in");
+        }
         let result = self.db.get_cf_opt(unsafe { &*self.cfs[col as usize] }, key, &read_options)?;
+        if col == DBCol::ColState {
+            std::fs::read("/home/ubuntu/nearcore/out");
+        }
         let result = Ok(RocksDB::get_with_rc_logic(col, result));
 
         timer.observe_duration();
