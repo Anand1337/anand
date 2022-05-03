@@ -1,8 +1,7 @@
 use super::StoreConfig;
 use crate::db::refcount::merge_refcounted_records;
-use crate::DBCol;
+use crate::{metrics, DBCol};
 use near_primitives::version::DbVersion;
-use near_primitives::math::FastDistribution;
 use once_cell::sync::Lazy;
 use rocksdb::checkpoint::Checkpoint;
 use rocksdb::{
@@ -17,7 +16,6 @@ use std::sync::{Condvar, Mutex, RwLock};
 use std::{cmp, fmt};
 use strum::EnumCount;
 use tracing::{error, info, warn};
-use atomic_refcell::AtomicRefCell;
 
 pub(crate) mod refcount;
 
@@ -44,6 +42,8 @@ impl From<DBError> for io::Error {
     }
 }
 
+pub const VERSION_KEY: &[u8; 7] = b"VERSION";
+
 pub const HEAD_KEY: &[u8; 4] = b"HEAD";
 pub const TAIL_KEY: &[u8; 4] = b"TAIL";
 pub const CHUNK_TAIL_KEY: &[u8; 10] = b"CHUNK_TAIL";
@@ -52,9 +52,11 @@ pub const HEADER_HEAD_KEY: &[u8; 11] = b"HEADER_HEAD";
 pub const FINAL_HEAD_KEY: &[u8; 10] = b"FINAL_HEAD";
 pub const LATEST_KNOWN_KEY: &[u8; 12] = b"LATEST_KNOWN";
 pub const LARGEST_TARGET_HEIGHT_KEY: &[u8; 21] = b"LARGEST_TARGET_HEIGHT";
-pub const VERSION_KEY: &[u8; 7] = b"VERSION";
 pub const GENESIS_JSON_HASH_KEY: &[u8; 17] = b"GENESIS_JSON_HASH";
 pub const GENESIS_STATE_ROOTS_KEY: &[u8; 19] = b"GENESIS_STATE_ROOTS";
+/// Boolean stored in DBCol::BlockMisc indicating whether the database is for an
+/// archival node.  The default value (if missing) is false.
+pub const IS_ARCHIVE_KEY: &[u8; 10] = b"IS_ARCHIVE";
 
 pub(crate) struct DBTransaction {
     pub(crate) ops: Vec<DBOp>,
@@ -109,7 +111,6 @@ pub struct RocksDB {
     check_free_space_counter: std::sync::atomic::AtomicU16,
     check_free_space_interval: u16,
     free_space_threshold: bytesize::ByteSize,
-    latency_get: AtomicRefCell<(FastDistribution, Option<std::time::Instant>, u64)>,
 
     // RAII-style of keeping track of the number of instances of RocksDB in a global variable.
     _instance_counter: InstanceCounter,
@@ -182,7 +183,6 @@ impl RocksDB {
             check_free_space_interval: 256,
             check_free_space_counter: std::sync::atomic::AtomicU16::new(0),
             free_space_threshold: bytesize::ByteSize::mb(16),
-            latency_get: AtomicRefCell::new((FastDistribution::new(0, 10_000), None, 0)),
             _instance_counter: InstanceCounter::new(),
         })
     }
@@ -256,11 +256,14 @@ pub(crate) trait Database: Sync + Send {
 
 impl Database for RocksDB {
     fn get(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError> {
-        let start_time = std::time::Instant::now();
+        let timer =
+            metrics::DATABASE_OP_LATENCY_HIST.with_label_values(&["get", col.into()]).start_timer();
+
         let read_options = rocksdb_read_options();
         let result = self.db.get_cf_opt(unsafe { &*self.cfs[col as usize] }, key, &read_options)?;
         let result = Ok(RocksDB::get_with_rc_logic(col, result));
-        self.update_latency_get_and_print_if_needed(start_time, start_time.elapsed().as_micros());
+
+        timer.observe_duration();
         result
     }
 
@@ -639,33 +642,6 @@ impl RocksDB {
     /// Synchronously flush all Memtables to SST files on disk
     pub fn flush(&self) -> Result<(), DBError> {
         self.db.flush().map_err(DBError::from)
-    }
-
-    fn update_latency_get_and_print_if_needed(&self, current_time: std::time::Instant, latency_us: u128) {
-        let latency_us = std::cmp::min(10_000, latency_us);
-        if let Ok(mut latency_get) = self.latency_get.try_borrow_mut() {
-            if latency_get.1.is_none() {
-                latency_get.1 = Some(current_time);
-            }
-            let seconds_elapsed = latency_get.1.unwrap().elapsed().as_secs();
-
-            if latency_us < 15 {
-                latency_get.2 += 1;
-            } else {
-                let _ = latency_get.0.add(latency_us as i32);
-            }
-
-            let fast_calls = latency_get.2;
-            let slow_calls = latency_get.0.total_count();
-            if seconds_elapsed > 150 {
-                println!("total: {} fast: {} slow: {} ratio: {:.2} slow latency: {:?}",
-                         fast_calls + slow_calls, fast_calls, slow_calls, fast_calls as f64 / slow_calls as f64,
-                         latency_get.0.get_distribution(&vec![1., 5., 10., 50., 90., 95., 99.]));
-                latency_get.0.clear();
-                latency_get.1 = Some(current_time);
-                latency_get.2 = 0;
-            }
-        }
     }
 }
 
