@@ -25,7 +25,6 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::net::SocketAddr;
 use std::time::Duration;
-use strum::AsStaticStr;
 use tokio::net::TcpStream;
 
 /// Exported types, which are part of network protocol.
@@ -35,7 +34,8 @@ pub use crate::network_protocol::{
     RoutedMessageBody, StateResponseInfo, StateResponseInfoV1, StateResponseInfoV2,
 };
 
-pub use crate::config::{blacklist_from_iter, BlockedPorts, NetworkConfig};
+pub use crate::blacklist::Blacklist;
+pub use crate::config::NetworkConfig;
 
 pub use crate::network_protocol::edge::{Edge, EdgeState, PartialEdgeInfo, SimpleEdge};
 
@@ -224,6 +224,7 @@ pub enum ReasonForBan {
     EpochSyncNoResponse = 11,
     EpochSyncInvalidResponse = 12,
     EpochSyncInvalidFinalizationResponse = 13,
+    Blacklisted = 14,
 }
 
 /// Banning signal sent from Peer instance to PeerManager
@@ -276,15 +277,18 @@ pub enum NetworkSandboxMessage {
     SandboxPatchState(Vec<near_primitives::state_record::StateRecord>),
     SandboxPatchStateStatus,
     SandboxFastForward(near_primitives::types::BlockHeightDelta),
+    SandboxFastForwardStatus,
 }
 
 #[cfg(feature = "sandbox")]
 #[derive(Eq, PartialEq, Debug)]
 pub enum SandboxResponse {
     SandboxPatchStateFinished(bool),
+    SandboxFastForwardFinished(bool),
+    SandboxFastForwardFailed(String),
 }
 
-#[derive(actix::Message, AsStaticStr)]
+#[derive(actix::Message, strum::IntoStaticStr)]
 #[rtype(result = "NetworkViewClientResponses")]
 pub enum NetworkViewClientMessages {
     #[cfg(feature = "test_features")]

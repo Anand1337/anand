@@ -266,7 +266,7 @@ impl ChainHistoryAccess {
 
 #[cfg(test)]
 mod test {
-    use crate::mock_network::ChainHistoryAccess;
+    use crate::ChainHistoryAccess;
     use near_chain::ChainGenesis;
     use near_chain::{Chain, RuntimeAdapter};
     use near_chain_configs::Genesis;
@@ -300,6 +300,7 @@ mod test {
             runtimes[0].clone(),
             &chain_genesis,
             env.clients[0].chain.doomslug_threshold_mode,
+            true,
         )
         .unwrap();
         (ChainHistoryAccess { chain, target_height: 21 }, env)

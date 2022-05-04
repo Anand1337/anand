@@ -28,6 +28,7 @@ use near_primitives::sharding::{
     ChunkHash, ChunkHashHeight, ReceiptList, ReceiptProof, ShardChunk, ShardChunkHeader, ShardInfo,
     ShardProof, StateSyncInfo,
 };
+use near_primitives::state_part::PartId;
 use near_primitives::syncing::{
     get_num_state_parts, ReceiptProofResponse, RootProof, ShardStateSyncResponseHeader,
     ShardStateSyncResponseHeaderV1, ShardStateSyncResponseHeaderV2, StateHeaderKey, StatePartKey,
@@ -41,14 +42,15 @@ use near_primitives::types::{
 use near_primitives::unwrap_or_return;
 use near_primitives::utils::MaybeValidated;
 use near_primitives::views::{
-    ExecutionOutcomeWithIdView, ExecutionStatusView, FinalExecutionOutcomeView,
+    BlockStatusView, ExecutionOutcomeWithIdView, ExecutionStatusView, FinalExecutionOutcomeView,
     FinalExecutionOutcomeWithReceiptView, FinalExecutionStatus, LightClientBlockView,
     SignedTransactionView,
 };
-use near_store::{ColState, ColStateHeaders, ColStateParts, ShardTries, StoreUpdate};
+use near_store::{DBCol, ShardTries, StoreUpdate};
 
 use near_primitives::state_record::StateRecord;
 
+use crate::blocks_delay_tracker::BlocksDelayTracker;
 use crate::crypto_hash_timer::CryptoHashTimer;
 use crate::lightclient::get_epoch_block_producers_view;
 use crate::migrations::check_if_block_is_first_with_chunk_of_version;
@@ -90,7 +92,12 @@ pub const NUM_ORPHAN_ANCESTORS_CHECK: u64 = 3;
 // It should almost never be hit
 const MAX_ORPHAN_MISSING_CHUNKS: usize = 5;
 
+/// 10000 years in seconds. Big constant for sandbox to allow time traveling.
+#[cfg(feature = "sandbox")]
+const ACCEPTABLE_TIME_DIFFERENCE: i64 = 60 * 60 * 24 * 365 * 10000;
+
 /// Refuse blocks more than this many block intervals in the future (as in bitcoin).
+#[cfg(not(feature = "sandbox"))]
 const ACCEPTABLE_TIME_DIFFERENCE: i64 = 12 * 10;
 
 /// Over this block height delta in advance if we are not chunk producer - route tx to upcoming validators.
@@ -98,12 +105,6 @@ pub const TX_ROUTING_HEIGHT_HORIZON: BlockHeightDelta = 4;
 
 /// Private constant for 1 NEAR (copy from near/config.rs) used for reporting.
 const NEAR_BASE: Balance = 1_000_000_000_000_000_000_000_000;
-
-/// Number of epochs for which we keep store data
-pub const NUM_EPOCHS_TO_KEEP_STORE_DATA: u64 = 5;
-
-/// Maximum number of height to go through at each step when cleaning forks during garbage collection.
-const GC_FORK_CLEAN_STEP: u64 = 1000;
 
 /// apply_chunks may be called in two code paths, through process_block or through catchup_blocks
 /// When it is called through process_block, it is possible that the shard state for the next epoch
@@ -179,7 +180,7 @@ impl OrphanBlockPool {
         }
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.orphans.len()
     }
 
@@ -242,6 +243,14 @@ impl OrphanBlockPool {
         self.orphans.get(hash)
     }
 
+    // Iterates over existing orphans.
+    pub fn map(&self, orphan_fn: &mut dyn FnMut(&CryptoHash, &Block, &Instant)) {
+        self.orphans
+            .iter()
+            .map(|it| orphan_fn(it.0, it.1.block.get_inner(), &it.1.added))
+            .collect_vec();
+    }
+
     /// Remove all orphans in the pool that can be "adopted" by block `prev_hash`, i.e., children
     /// of `prev_hash` and return the list.
     /// This function is called when `prev_hash` is accepted, thus its children can be removed
@@ -297,6 +306,19 @@ impl OrphanBlockPool {
         res
     }
 
+    pub fn list_orphans_by_height(&self) -> Vec<BlockStatusView> {
+        let mut rtn = Vec::new();
+        for (height, orphans) in &self.height_idx {
+            rtn.push(
+                orphans
+                    .iter()
+                    .map(|orphan| BlockStatusView::new(&height, &orphan))
+                    .collect::<Vec<_>>(),
+            );
+        }
+        rtn.into_iter().flatten().collect()
+    }
+
     /// Returns true if the block has not been requested yet and the number of orphans
     /// for which we have requested missing chunks have not exceeded MAX_ORPHAN_MISSING_CHUNKS
     fn can_request_missing_chunks_for_orphan(&self, block_hash: &CryptoHash) -> bool {
@@ -314,6 +336,7 @@ pub struct BlockMissingChunks {
     /// previous block hash
     pub prev_hash: CryptoHash,
     pub missing_chunks: Vec<ShardChunkHeader>,
+    pub block_hash: CryptoHash,
 }
 
 /// Contains information needed to request chunks for orphans
@@ -326,6 +349,8 @@ pub struct OrphanMissingChunks {
     /// this is used as an argument for `request_chunks_for_orphan`
     /// see comments in `request_chunks_for_orphan` for what `ancestor_hash` is used for
     pub ancestor_hash: CryptoHash,
+    // Block hash that was requesting this chunk.
+    pub requestor_block_hash: CryptoHash,
 }
 
 /// Provides view on the current chain state
@@ -407,6 +432,7 @@ pub struct Chain {
     pub block_economics_config: BlockEconomicsConfig,
     pub doomslug_threshold_mode: DoomslugThresholdMode,
     pending_states_to_patch: Option<Vec<StateRecord>>,
+    pub blocks_delay_tracker: BlocksDelayTracker,
 }
 
 impl ChainAccess for Chain {
@@ -428,9 +454,10 @@ impl Chain {
         runtime_adapter: Arc<dyn RuntimeAdapter>,
         chain_genesis: &ChainGenesis,
         doomslug_threshold_mode: DoomslugThresholdMode,
+        save_trie_changes: bool,
     ) -> Result<Chain, Error> {
         let (store, state_roots) = runtime_adapter.genesis_state();
-        let store = ChainStore::new(store, chain_genesis.height);
+        let store = ChainStore::new(store, chain_genesis.height, save_trie_changes);
         let genesis_chunks = genesis_chunks(
             state_roots,
             runtime_adapter.num_shards(&EpochId::default())?,
@@ -463,6 +490,7 @@ impl Chain {
             block_economics_config: BlockEconomicsConfig::from(chain_genesis),
             doomslug_threshold_mode,
             pending_states_to_patch: None,
+            blocks_delay_tracker: BlocksDelayTracker::default(),
         })
     }
 
@@ -470,10 +498,11 @@ impl Chain {
         runtime_adapter: Arc<dyn RuntimeAdapter>,
         chain_genesis: &ChainGenesis,
         doomslug_threshold_mode: DoomslugThresholdMode,
+        save_trie_changes: bool,
     ) -> Result<Chain, Error> {
         // Get runtime initial state and create genesis block out of it.
         let (store, state_roots) = runtime_adapter.genesis_state();
-        let mut store = ChainStore::new(store, chain_genesis.height);
+        let mut store = ChainStore::new(store, chain_genesis.height, save_trie_changes);
         let genesis_chunks = genesis_chunks(
             state_roots.clone(),
             runtime_adapter.num_shards(&EpochId::default())?,
@@ -498,12 +527,8 @@ impl Chain {
 
         // Check if we have a head in the store, otherwise pick genesis block.
         let mut store_update = store.store_update();
-        let head_res = store_update.head();
-        let head: Tip;
-        match head_res {
-            Ok(h) => {
-                head = h;
-
+        let (block_head, header_head) = match store_update.head() {
+            Ok(block_head) => {
                 // Check that genesis in the store is the same as genesis given in the config.
                 let genesis_hash = store_update.get_block_hash_by_height(chain_genesis.height)?;
                 if &genesis_hash != genesis.hash() {
@@ -516,60 +541,71 @@ impl Chain {
                 }
 
                 // Check we have the header corresponding to the header_head.
-                let header_head = store_update.header_head()?;
+                let mut header_head = store_update.header_head()?;
                 if store_update.get_block_header(&header_head.last_block_hash).is_err() {
                     // Reset header head and "sync" head to be consistent with current block head.
-                    store_update.save_header_head_if_not_challenged(&head)?;
+                    store_update.save_header_head_if_not_challenged(&block_head)?;
+                    header_head = block_head.clone();
                 }
+
                 // TODO: perform validation that latest state in runtime matches the stored chain.
+
+                (block_head, header_head)
             }
-            Err(err) => match err.kind() {
-                ErrorKind::DBNotFoundErr(_) => {
-                    for chunk in genesis_chunks {
-                        store_update.save_chunk(chunk.clone());
-                    }
-                    store_update.merge(runtime_adapter.add_validator_proposals(
-                        BlockHeaderInfo::new(
-                            genesis.header(),
-                            // genesis height is considered final
-                            chain_genesis.height,
-                        ),
-                    )?);
-                    store_update.save_block_header(genesis.header().clone())?;
-                    store_update.save_block(genesis.clone());
-                    store_update
-                        .save_block_extra(genesis.hash(), BlockExtra { challenges_result: vec![] });
-
-                    for (chunk_header, state_root) in
-                        genesis.chunks().iter().zip(state_roots.iter())
-                    {
-                        store_update.save_chunk_extra(
-                            genesis.hash(),
-                            &runtime_adapter
-                                .shard_id_to_uid(chunk_header.shard_id(), &EpochId::default())?,
-                            ChunkExtra::new(
-                                state_root,
-                                CryptoHash::default(),
-                                vec![],
-                                0,
-                                chain_genesis.gas_limit,
-                                0,
-                            ),
-                        );
-                    }
-
-                    head = Tip::from_header(genesis.header());
-                    store_update.save_head(&head)?;
-                    store_update.save_final_head(&head)?;
-
-                    info!(target: "chain", "Init: saved genesis: {:?} / {:?}", genesis.hash(), state_roots);
+            Err(err) if matches!(err.kind(), ErrorKind::DBNotFoundErr(_)) => {
+                for chunk in genesis_chunks {
+                    store_update.save_chunk(chunk.clone());
                 }
-                e => return Err(e.into()),
-            },
-        }
+                store_update.merge(runtime_adapter.add_validator_proposals(
+                    BlockHeaderInfo::new(
+                        genesis.header(),
+                        // genesis height is considered final
+                        chain_genesis.height,
+                    ),
+                )?);
+                store_update.save_block_header(genesis.header().clone())?;
+                store_update.save_block(genesis.clone());
+                store_update
+                    .save_block_extra(genesis.hash(), BlockExtra { challenges_result: vec![] });
+
+                for (chunk_header, state_root) in genesis.chunks().iter().zip(state_roots.iter()) {
+                    store_update.save_chunk_extra(
+                        genesis.hash(),
+                        &runtime_adapter
+                            .shard_id_to_uid(chunk_header.shard_id(), &EpochId::default())?,
+                        ChunkExtra::new(
+                            state_root,
+                            CryptoHash::default(),
+                            vec![],
+                            0,
+                            chain_genesis.gas_limit,
+                            0,
+                        ),
+                    );
+                }
+
+                let block_head = Tip::from_header(genesis.header());
+                let header_head = block_head.clone();
+                store_update.save_head(&block_head)?;
+                store_update.save_final_head(&header_head)?;
+
+                info!(target: "chain", "Init: saved genesis: #{} {} / {:?}", block_head.height, block_head.last_block_hash, state_roots);
+
+                (block_head, header_head)
+            }
+            Err(err) => return Err(err.into()),
+        };
         store_update.commit()?;
 
-        info!(target: "chain", "Init: head @ {} [{}]", head.height, head.last_block_hash);
+        info!(target: "chain", "Init: header head @ #{} {}; block head @ #{} {}",
+              block_head.height, block_head.last_block_hash,
+              header_head.height, header_head.last_block_hash);
+        metrics::BLOCK_HEIGHT_HEAD.set(block_head.height as i64);
+        metrics::HEADER_HEAD_HEIGHT.set(header_head.height as i64);
+
+        metrics::TAIL_HEIGHT.set(store.tail()? as i64);
+        metrics::CHUNK_TAIL_HEIGHT.set(store.chunk_tail()? as i64);
+        metrics::FORK_TAIL_HEIGHT.set(store.fork_tail()? as i64);
 
         Ok(Chain {
             store,
@@ -582,6 +618,7 @@ impl Chain {
             block_economics_config: BlockEconomicsConfig::from(chain_genesis),
             doomslug_threshold_mode,
             pending_states_to_patch: None,
+            blocks_delay_tracker: BlocksDelayTracker::default(),
         })
     }
 
@@ -772,14 +809,13 @@ impl Chain {
     pub fn clear_data(
         &mut self,
         tries: ShardTries,
-        gc_blocks_limit: NumBlocks,
+        gc_config: &near_chain_configs::GCConfig,
     ) -> Result<(), Error> {
         let _d = DelayDetector::new(|| "GC".into());
 
         let head = self.store.head()?;
         let tail = self.store.tail()?;
         let gc_stop_height = self.runtime_adapter.get_gc_stop_height(&head.last_block_hash);
-
         if gc_stop_height > head.height {
             return Err(ErrorKind::GCError(
                 "gc_stop_height cannot be larger than head.height".into(),
@@ -789,6 +825,10 @@ impl Chain {
         let prev_epoch_id = self.get_block_header(&head.prev_block_hash)?.epoch_id();
         let epoch_change = prev_epoch_id != &head.epoch_id;
         let mut fork_tail = self.store.fork_tail()?;
+        metrics::TAIL_HEIGHT.set(tail as i64);
+        metrics::FORK_TAIL_HEIGHT.set(fork_tail as i64);
+        metrics::CHUNK_TAIL_HEIGHT.set(self.store.chunk_tail()? as i64);
+        metrics::GC_STOP_HEIGHT.set(gc_stop_height as i64);
         if epoch_change && fork_tail < gc_stop_height {
             // if head doesn't change on the epoch boundary, we may update fork tail several times
             // but that is fine since it doesn't affect correctness and also we limit the number of
@@ -798,10 +838,11 @@ impl Chain {
             chain_store_update.commit()?;
             fork_tail = gc_stop_height;
         }
-        let mut gc_blocks_remaining = gc_blocks_limit;
+        let mut gc_blocks_remaining = gc_config.gc_blocks_limit;
 
         // Forks Cleaning
-        let stop_height = std::cmp::max(tail, fork_tail.saturating_sub(GC_FORK_CLEAN_STEP));
+        let gc_fork_clean_step = gc_config.gc_fork_clean_step;
+        let stop_height = tail.max(fork_tail.saturating_sub(gc_fork_clean_step));
         for height in (stop_height..fork_tail).rev() {
             self.clear_forks_data(tries.clone(), height, &mut gc_blocks_remaining)?;
             if gc_blocks_remaining == 0 {
@@ -845,10 +886,38 @@ impl Chain {
                     }
                 }
             }
-            chain_store_update.update_tail(height);
+            chain_store_update.update_tail(height)?;
             chain_store_update.commit()?;
         }
         Ok(())
+    }
+
+    /// Garbage collect data which archival node doesn’t need to keep.
+    ///
+    /// Normally, archival nodes keep all the data from the genesis block and
+    /// don’t run garbage collection.  On the other hand, for better performance
+    /// the storage contains some data duplication, i.e. values in some of the
+    /// columns can be recomputed from data in different columns.  To save on
+    /// storage, archival nodes do garbage collect that data.
+    ///
+    /// `gc_height_limit` limits how many heights will the function process.
+    pub fn clear_archive_data(&mut self, gc_height_limit: BlockHeightDelta) -> Result<(), Error> {
+        let _d = DelayDetector::new(|| "GC".into());
+
+        let head = self.store.head()?;
+        let gc_stop_height = self.runtime_adapter.get_gc_stop_height(&head.last_block_hash);
+        if gc_stop_height > head.height {
+            return Err(ErrorKind::GCError(
+                "gc_stop_height cannot be larger than head.height".into(),
+            )
+            .into());
+        }
+
+        let mut chain_store_update = self.store.store_update();
+        chain_store_update.clear_redundant_chunk_data(gc_stop_height, gc_height_limit)?;
+        metrics::CHUNK_TAIL_HEIGHT.set(chain_store_update.chunk_tail()? as i64);
+        metrics::GC_STOP_HEIGHT.set(gc_stop_height as i64);
+        chain_store_update.commit()
     }
 
     pub fn clear_forks_data(
@@ -977,6 +1046,7 @@ impl Chain {
         block_orphaned_with_missing_chunks: &mut dyn FnMut(OrphanMissingChunks),
         on_challenge: &mut dyn FnMut(ChallengeBody),
     ) -> Result<Option<Tip>, Error> {
+        self.blocks_delay_tracker.mark_block_received(block.get_inner(), Clock::instant());
         let block_hash = *block.hash();
         let res = self.process_block_single(
             me,
@@ -1175,7 +1245,7 @@ impl Chain {
         let tries = self.runtime_adapter.get_tries();
         let mut chain_store_update = self.mut_store().store_update();
         let mut store_update = StoreUpdate::new_with_tries(tries);
-        store_update.delete_all(ColState);
+        store_update.delete_all(DBCol::State);
         chain_store_update.merge(store_update);
 
         // The reason to reset tail here is not to allow Tail be greater than Head
@@ -1209,7 +1279,7 @@ impl Chain {
         // Reset final head to genesis since at this point we don't have the last final block.
         chain_store_update.save_final_head(&final_head)?;
         // New Tail can not be earlier than `prev_block.header.inner_lite.height`
-        chain_store_update.update_tail(new_tail);
+        chain_store_update.update_tail(new_tail)?;
         // New Chunk Tail can not be earlier than minimum of height_created in Block `prev_block`
         chain_store_update.update_chunk_tail(new_chunk_tail);
         chain_store_update.commit()?;
@@ -1339,7 +1409,9 @@ impl Chain {
                                 false
                             };
 
-                            let orphan = Orphan { block, provenance, added: Clock::instant() };
+                            let time = Clock::instant();
+                            self.blocks_delay_tracker.mark_block_orphaned(block.hash(), time);
+                            let orphan = Orphan { block, provenance, added: time };
                             self.orphans.add(orphan, requested_missing_chunks);
 
                             debug!(
@@ -1362,8 +1434,11 @@ impl Chain {
                         block_misses_chunks(BlockMissingChunks {
                             prev_hash: *block.header().prev_hash(),
                             missing_chunks,
+                            block_hash,
                         });
-                        let orphan = Orphan { block, provenance, added: Clock::instant() };
+                        let time = Clock::instant();
+                        self.blocks_delay_tracker.mark_block_has_missing_chunks(block.hash(), time);
+                        let orphan = Orphan { block, provenance, added: time };
                         self.blocks_with_missing_chunks
                             .add_block_with_missing_chunks(orphan, missing_chunk_hashes.clone());
                         debug!(
@@ -1444,6 +1519,7 @@ impl Chain {
                                         missing_chunks,
                                         epoch_id,
                                         ancestor_hash: block_hash,
+                                        requestor_block_hash: *orphan.header().hash(),
                                     })
                                 }
                                 _ => None,
@@ -1521,6 +1597,7 @@ impl Chain {
         let orphans = self.blocks_with_missing_chunks.ready_blocks();
         for orphan in orphans {
             let block_hash = *orphan.block.header().hash();
+            let time = Clock::instant();
             let res = self.process_block_single(
                 me,
                 orphan.block,
@@ -1533,6 +1610,8 @@ impl Chain {
             match res {
                 Ok(_) => {
                     debug!(target: "chain", "Block with missing chunks is accepted; me: {:?}", me);
+                    self.blocks_delay_tracker
+                        .mark_block_completed_missing_chunks(&block_hash, time);
                     new_blocks_accepted.push(block_hash);
                 }
                 Err(_) => {
@@ -1598,6 +1677,7 @@ impl Chain {
                 debug!(target: "chain", "Check orphans: found {} orphans", orphans.len());
                 for orphan in orphans.into_iter() {
                     let block_hash = orphan.hash();
+                    self.blocks_delay_tracker.mark_block_unorphaned(&block_hash, Clock::instant());
                     let res = self.process_block_single(
                         me,
                         orphan.block,
@@ -1654,7 +1734,7 @@ impl Chain {
     ) -> Result<ShardStateSyncResponseHeader, Error> {
         // Check cache
         let key = StateHeaderKey(shard_id, sync_hash).try_to_vec()?;
-        if let Ok(Some(header)) = self.store.store().get_ser(ColStateHeaders, &key) {
+        if let Ok(Some(header)) = self.store.store().get_ser(DBCol::StateHeaders, &key) {
             return Ok(header);
         }
 
@@ -1826,7 +1906,7 @@ impl Chain {
 
         // Saving the header data
         let mut store_update = self.store.store().store_update();
-        store_update.set_ser(ColStateHeaders, &key, &shard_state_header)?;
+        store_update.set_ser(DBCol::StateHeaders, &key, &shard_state_header)?;
         store_update.commit()?;
 
         Ok(shard_state_header)
@@ -1840,7 +1920,7 @@ impl Chain {
     ) -> Result<Vec<u8>, Error> {
         // Check cache
         let key = StatePartKey(sync_hash, shard_id, part_id).try_to_vec()?;
-        if let Ok(Some(state_part)) = self.store.store().get(ColStateParts, &key) {
+        if let Ok(Some(state_part)) = self.store.store().get(DBCol::StateParts, &key) {
             return Ok(state_part);
         }
 
@@ -1875,7 +1955,12 @@ impl Chain {
         }
         let state_part = self
             .runtime_adapter
-            .obtain_state_part(shard_id, &sync_prev_hash, &state_root, part_id, num_parts)
+            .obtain_state_part(
+                shard_id,
+                &sync_prev_hash,
+                &state_root,
+                PartId::new(part_id, num_parts),
+            )
             .log_storage_error("obtain_state_part fail")?;
 
         // Before saving State Part data, we need to make sure we can calculate and save State Header
@@ -1883,7 +1968,7 @@ impl Chain {
 
         // Saving the part data
         let mut store_update = self.store.store().store_update();
-        store_update.set(ColStateParts, &key, &state_part);
+        store_update.set(DBCol::StateParts, &key, &state_part);
         store_update.commit()?;
 
         Ok(state_part)
@@ -2057,7 +2142,7 @@ impl Chain {
         // Saving the header data.
         let mut store_update = self.store.store().store_update();
         let key = StateHeaderKey(shard_id, sync_hash).try_to_vec()?;
-        store_update.set_ser(ColStateHeaders, &key, &shard_state_header)?;
+        store_update.set_ser(DBCol::StateHeaders, &key, &shard_state_header)?;
         store_update.commit()?;
 
         Ok(())
@@ -2075,14 +2160,13 @@ impl Chain {
         &mut self,
         shard_id: ShardId,
         sync_hash: CryptoHash,
-        part_id: u64,
-        num_parts: u64,
+        part_id: PartId,
         data: &Vec<u8>,
     ) -> Result<(), Error> {
         let shard_state_header = self.get_state_header(shard_id, sync_hash)?;
         let chunk = shard_state_header.take_chunk();
         let state_root = *chunk.take_header().take_inner().prev_state_root();
-        if !self.runtime_adapter.validate_state_part(&state_root, part_id, num_parts, data) {
+        if !self.runtime_adapter.validate_state_part(&state_root, part_id, data) {
             byzantine_assert!(false);
             return Err(ErrorKind::Other(
                 "set_state_part failed: validate_state_part failed".into(),
@@ -2092,8 +2176,8 @@ impl Chain {
 
         // Saving the part data.
         let mut store_update = self.store.store().store_update();
-        let key = StatePartKey(sync_hash, shard_id, part_id).try_to_vec()?;
-        store_update.set(ColStateParts, &key, data);
+        let key = StatePartKey(sync_hash, shard_id, part_id.idx).try_to_vec()?;
+        store_update.set(DBCol::StateParts, &key, data);
         store_update.commit()?;
         Ok(())
     }
@@ -2215,7 +2299,7 @@ impl Chain {
         blocks_catch_up_state: &mut BlocksCatchUpState,
         block_catch_up_scheduler: &dyn Fn(BlockCatchUpRequest),
     ) -> Result<(), Error> {
-        debug!(target:"catchup", "catch up blocks: pending blocks: {:?}, processed {:?}, scheduled: {:?}, done: {:?}", 
+        debug!(target:"catchup", "catch up blocks: pending blocks: {:?}, processed {:?}, scheduled: {:?}, done: {:?}",
                blocks_catch_up_state.pending_blocks, blocks_catch_up_state.processed_blocks.keys().collect::<Vec<_>>(),
                blocks_catch_up_state.scheduled_blocks.keys().collect::<Vec<_>>(), blocks_catch_up_state.done_blocks.len());
         for (queued_block, (saved_store_update, results)) in
@@ -3520,7 +3604,7 @@ impl<'a> ChainUpdate<'a> {
             Some(block.hash()),
         )?;
         self.chain_store_update.save_block_extra(block.hash(), BlockExtra { challenges_result });
-        #[cfg(not(feature = "mock_network"))]
+        #[cfg(not(feature = "mock_node"))]
         let protocol_version =
             self.runtime_adapter.get_epoch_protocol_version(block.header().epoch_id())?;
 
@@ -3650,10 +3734,10 @@ impl<'a> ChainUpdate<'a> {
                         ))));
                     }
 
-                    // if we are running mock_network, ignore this check because
+                    // if we are running mock_node, ignore this check because
                     // this check may require old block headers, which may not exist in storage
                     // of the client in the mock network
-                    #[cfg(not(feature = "mock_network"))]
+                    #[cfg(not(feature = "mock_node"))]
                     if checked_feature!("stable", AccessKeyNonceRange, protocol_version) {
                         let transaction_validity_period = self.transaction_validity_period;
                         for transaction in transactions {

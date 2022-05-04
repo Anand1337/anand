@@ -7,7 +7,7 @@ use clap::{Arg, Command};
 
 use near_chain::store_validator::StoreValidator;
 use near_chain::RuntimeAdapter;
-use near_chain_configs::GenesisValidationMode;
+use near_chain_configs::{GenesisValidationMode, DEFAULT_GC_NUM_EPOCHS_TO_KEEP};
 use near_logger_utils::init_integration_logger;
 use near_store::create_store;
 use nearcore::{get_default_home, get_store_path, load_config, TrackedConfig};
@@ -28,7 +28,8 @@ fn main() {
         .get_matches();
 
     let home_dir = matches.value_of("home").map(Path::new).unwrap();
-    let near_config = load_config(home_dir, GenesisValidationMode::Full);
+    let near_config = load_config(home_dir, GenesisValidationMode::Full)
+        .unwrap_or_else(|e| panic!("Error loading config: {:#}", e));
 
     let store = create_store(&get_store_path(home_dir));
 
@@ -40,6 +41,7 @@ fn main() {
         None,
         None,
         None,
+        DEFAULT_GC_NUM_EPOCHS_TO_KEEP,
     ));
 
     let mut store_validator = StoreValidator::new(
@@ -47,6 +49,7 @@ fn main() {
         near_config.genesis.config,
         runtime_adapter.clone(),
         store,
+        false,
     );
     store_validator.validate();
 

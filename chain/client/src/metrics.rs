@@ -74,24 +74,6 @@ pub static TGAS_USAGE_HIST: Lazy<HistogramVec> = Lazy::new(|| {
     )
     .unwrap()
 });
-pub static BLOCK_CHUNKS_REQUESTED_DELAY: Lazy<HistogramVec> = Lazy::new(|| {
-    try_create_histogram_vec(
-        "near_block_chunks_request_delay_seconds",
-        "Delay between receiving a block and requesting its chunks",
-        &["shard_id"],
-        Some(prometheus::exponential_buckets(0.001, 1.6, 20).unwrap()),
-    )
-    .unwrap()
-});
-pub static CHUNK_RECEIVED_DELAY: Lazy<HistogramVec> = Lazy::new(|| {
-    try_create_histogram_vec(
-        "near_chunk_receive_delay_seconds",
-        "Delay between requesting and receiving a chunk.",
-        &["shard_id"],
-        Some(prometheus::exponential_buckets(0.001, 1.6, 20).unwrap()),
-    )
-    .unwrap()
-});
 pub static VALIDATORS_CHUNKS_PRODUCED: Lazy<IntGaugeVec> = Lazy::new(|| {
     near_metrics::try_create_int_gauge_vec(
         "near_validators_chunks_produced",
@@ -137,13 +119,6 @@ pub static PROTOCOL_UPGRADE_BLOCK_HEIGHT: Lazy<IntGauge> = Lazy::new(|| {
     )
     .unwrap()
 });
-pub static NODE_PROTOCOL_VERSION: Lazy<IntGauge> = Lazy::new(|| {
-    try_create_int_gauge("near_node_protocol_version", "Max protocol version supported by the node")
-        .unwrap()
-});
-pub static NODE_DB_VERSION: Lazy<IntGauge> = Lazy::new(|| {
-    try_create_int_gauge("near_node_db_version", "DB version used by the node").unwrap()
-});
 pub static CHUNK_SKIPPED_TOTAL: Lazy<IntCounterVec> = Lazy::new(|| {
     try_create_int_counter_vec(
         "near_chunk_skipped_total",
@@ -176,3 +151,73 @@ pub static CLIENT_MESSAGES_PROCESSING_TIME: Lazy<HistogramVec> = Lazy::new(|| {
     )
     .unwrap()
 });
+pub static CHECK_TRIGGERS_TIME: Lazy<Histogram> = Lazy::new(|| {
+    try_create_histogram(
+        "near_client_triggers_time",
+        "Processing time of the check_triggers function in client",
+    )
+    .unwrap()
+});
+pub static CLIENT_TRIGGER_TIME_BY_TYPE: Lazy<HistogramVec> = Lazy::new(|| {
+    try_create_histogram_vec(
+        "near_client_triggers_time_by_type",
+        "Time spent on the different triggers in client",
+        &["trigger"],
+        Some(prometheus::exponential_buckets(0.0001, 1.6, 20).unwrap()),
+    )
+    .unwrap()
+});
+
+static NODE_PROTOCOL_VERSION: Lazy<IntGauge> = Lazy::new(|| {
+    try_create_int_gauge("near_node_protocol_version", "Max protocol version supported by the node")
+        .unwrap()
+});
+static NODE_DB_VERSION: Lazy<IntGauge> = Lazy::new(|| {
+    try_create_int_gauge("near_node_db_version", "DB version used by the node").unwrap()
+});
+static NODE_BUILD_INFO: Lazy<IntCounterVec> = Lazy::new(|| {
+    try_create_int_counter_vec(
+        "near_build_info",
+        "Metric whose labels indicate node’s version; see \
+             <https://www.robustperception.io/exposing-the-software-version-to-prometheus>.",
+        &["release", "build", "rustc_version"],
+    )
+    .unwrap()
+});
+
+pub(crate) static TRANSACTION_RECEIVED_VALIDATOR: Lazy<IntGauge> = Lazy::new(|| {
+    try_create_int_gauge("near_transaction_received_validator", "Validator received a transaction")
+        .unwrap()
+});
+pub(crate) static TRANSACTION_RECEIVED_NON_VALIDATOR: Lazy<IntGauge> = Lazy::new(|| {
+    try_create_int_gauge(
+        "near_transaction_received_non_validator",
+        "Non-validator received a transaction",
+    )
+    .unwrap()
+});
+pub(crate) static TRANSACTION_RECEIVED_NON_VALIDATOR_FORWARDED: Lazy<IntGauge> = Lazy::new(|| {
+    try_create_int_gauge(
+        "near_transaction_received_non_validator_forwarded",
+        "Non-validator received a forwarded transaction",
+    )
+    .unwrap()
+});
+
+/// Exports neard, protocol and database versions via Prometheus metrics.
+///
+/// Sets metrics which export node’s max supported protocol version, used
+/// database version and build information.  The latter is taken from
+/// `neard_version` argument.
+pub fn export_version(neard_version: &near_primitives::version::Version) {
+    NODE_PROTOCOL_VERSION.set(near_primitives::version::PROTOCOL_VERSION as i64);
+    NODE_DB_VERSION.set(near_primitives::version::DB_VERSION as i64);
+    NODE_BUILD_INFO.reset();
+    NODE_BUILD_INFO
+        .with_label_values(&[
+            &neard_version.version,
+            &neard_version.build,
+            &neard_version.rustc_version,
+        ])
+        .inc();
+}

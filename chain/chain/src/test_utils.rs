@@ -4,10 +4,11 @@ use std::sync::{Arc, RwLock};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
+use near_primitives::state_part::PartId;
 use num_rational::Rational;
 use tracing::debug;
 
-use near_chain_configs::ProtocolConfig;
+use near_chain_configs::{ProtocolConfig, DEFAULT_GC_NUM_EPOCHS_TO_KEEP};
 use near_chain_primitives::{Error, ErrorKind};
 use near_crypto::{KeyType, PublicKey, SecretKey, Signature};
 use near_pool::types::PoolIterator;
@@ -41,11 +42,10 @@ use near_primitives::views::{
 };
 use near_store::test_utils::create_test_store;
 use near_store::{
-    ColBlockHeader, PartialStorage, ShardTries, Store, StoreUpdate, Trie, TrieChanges,
-    WrappedTrieChanges,
+    DBCol, PartialStorage, ShardTries, Store, StoreUpdate, Trie, TrieChanges, WrappedTrieChanges,
 };
 
-use crate::chain::{Chain, NUM_EPOCHS_TO_KEEP_STORE_DATA};
+use crate::chain::Chain;
 use crate::store::ChainStoreAccess;
 use crate::types::{
     ApplySplitStateResult, ApplyTransactionResult, BlockHeaderInfo, ChainGenesis,
@@ -207,7 +207,7 @@ impl KeyValueRuntime {
         if headers_cache.get(hash).is_some() {
             return Ok(Some(headers_cache.get(hash).unwrap().clone()));
         }
-        if let Some(result) = self.store.get_ser(ColBlockHeader, hash.as_ref())? {
+        if let Some(result) = self.store.get_ser(DBCol::BlockHeader, hash.as_ref())? {
             headers_cache.insert(*hash, result);
             return Ok(Some(headers_cache.get(hash).unwrap().clone()));
         }
@@ -929,11 +929,9 @@ impl RuntimeAdapter for KeyValueRuntime {
         _shard_id: ShardId,
         _block_hash: &CryptoHash,
         state_root: &StateRoot,
-        part_id: u64,
-        num_parts: u64,
+        part_id: PartId,
     ) -> Result<Vec<u8>, Error> {
-        assert!(part_id < num_parts);
-        if part_id != 0 {
+        if part_id.idx != 0 {
             return Ok(vec![]);
         }
         let state = self.state.read().unwrap().get(state_root).unwrap().clone();
@@ -944,11 +942,9 @@ impl RuntimeAdapter for KeyValueRuntime {
     fn validate_state_part(
         &self,
         _state_root: &StateRoot,
-        part_id: u64,
-        num_parts: u64,
+        _part_id: PartId,
         _data: &Vec<u8>,
     ) -> bool {
-        assert!(part_id < num_parts);
         // We do not care about deeper validation in test_utils
         true
     }
@@ -957,12 +953,11 @@ impl RuntimeAdapter for KeyValueRuntime {
         &self,
         _shard_id: ShardId,
         state_root: &StateRoot,
-        part_id: u64,
-        _num_parts: u64,
+        part_id: PartId,
         data: &[u8],
         _epoch_id: &EpochId,
     ) -> Result<(), Error> {
-        if part_id != 0 {
+        if part_id.idx != 0 {
             return Ok(());
         }
         let state = KVState::try_from_slice(data).unwrap();
@@ -1038,12 +1033,33 @@ impl RuntimeAdapter for KeyValueRuntime {
 
     fn get_gc_stop_height(&self, block_hash: &CryptoHash) -> BlockHeight {
         if !self.no_gc {
+            // This code is 'incorrect' - as production one is always setting the GC to the
+            // first block of the epoch.
+            // Unfortunately many tests are depending on this and not setting epochs when
+            // they produce blocks.
             let block_height = self
                 .get_block_header(block_hash)
                 .unwrap_or_default()
                 .map(|h| h.height())
                 .unwrap_or_default();
-            block_height.saturating_sub(NUM_EPOCHS_TO_KEEP_STORE_DATA * self.epoch_length)
+            block_height.saturating_sub(DEFAULT_GC_NUM_EPOCHS_TO_KEEP * self.epoch_length)
+        /*  // TODO: use this version of the code instead - after we fix the block creation
+            // issue in multiple tests.
+        // We have to return the first block of the epoch T-DEFAULT_GC_NUM_EPOCHS_TO_KEEP.
+        let mut current_header = self.get_block_header(block_hash).unwrap().unwrap();
+        for _ in 0..DEFAULT_GC_NUM_EPOCHS_TO_KEEP {
+            let last_block_of_prev_epoch = current_header.next_epoch_id();
+            current_header =
+                self.get_block_header(&last_block_of_prev_epoch.0).unwrap().unwrap();
+        }
+        loop {
+            if current_header.next_epoch_id().0 == *current_header.prev_hash() {
+                break;
+            }
+            current_header =
+                self.get_block_header(current_header.prev_hash()).unwrap().unwrap();
+        }
+        current_header.height()*/
         } else {
             0
         }
@@ -1062,15 +1078,18 @@ impl RuntimeAdapter for KeyValueRuntime {
         _prev_epoch_last_block_hash: &CryptoHash,
         _epoch_id: &EpochId,
         _next_epoch_id: &EpochId,
-    ) -> Result<(BlockInfo, BlockInfo, BlockInfo, EpochInfo, EpochInfo, EpochInfo), Error> {
-        Ok((
-            BlockInfo::default(),
-            BlockInfo::default(),
-            BlockInfo::default(),
-            EpochInfo::default(),
-            EpochInfo::default(),
-            EpochInfo::default(),
-        ))
+    ) -> Result<
+        (
+            Arc<BlockInfo>,
+            Arc<BlockInfo>,
+            Arc<BlockInfo>,
+            Arc<EpochInfo>,
+            Arc<EpochInfo>,
+            Arc<EpochInfo>,
+        ),
+        Error,
+    > {
+        Ok(Default::default())
     }
 
     fn get_epoch_sync_data_hash(
@@ -1245,6 +1264,7 @@ pub fn setup_with_tx_validity_period(
             protocol_version: PROTOCOL_VERSION,
         },
         DoomslugThresholdMode::NoApprovals,
+        true,
     )
     .unwrap();
     let test_account = "test".parse::<AccountId>().unwrap();
@@ -1292,6 +1312,7 @@ pub fn setup_with_validators(
             protocol_version: PROTOCOL_VERSION,
         },
         DoomslugThresholdMode::NoApprovals,
+        true,
     )
     .unwrap();
     (chain, runtime, signers)
@@ -1314,7 +1335,7 @@ pub fn display_chain(me: &Option<AccountId>, chain: &mut Chain, tail: bool) {
         head.last_block_hash
     );
     let mut headers = vec![];
-    for (key, _) in chain_store.store().clone().iter(ColBlockHeader) {
+    for (key, _) in chain_store.store().clone().iter(DBCol::BlockHeader) {
         let header = chain_store
             .get_block_header(&CryptoHash::try_from(key.as_ref()).unwrap())
             .unwrap()

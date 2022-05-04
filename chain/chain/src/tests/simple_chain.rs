@@ -25,7 +25,7 @@ fn empty_chain() {
     let hash = chain.head().unwrap().last_block_hash;
     // The hashes here will have to be modified after each change to genesis file.
     #[cfg(feature = "nightly_protocol")]
-    assert_eq!(hash, CryptoHash::from_str("2VFkBfWwcTqyVJ83zy78n5WUNadwGuJbLc2KEp9SJ8dV").unwrap());
+    assert_eq!(hash, CryptoHash::from_str("3eSPNwhSs9pT2jeG8Y8M14cCqXwZ5ikGA6c4bhubcHWv").unwrap());
     #[cfg(not(feature = "nightly_protocol"))]
     assert_eq!(hash, CryptoHash::from_str("8t6f63ezCoqS2nNxT7KivhvHH5tvNND4dj7RY3Hwhn64").unwrap());
     assert_eq!(count_utc, 1);
@@ -46,6 +46,7 @@ fn build_chain() {
         // Instant calls for CryptoHashTimer.
         mock_clock_guard.add_instant(Instant::now());
         mock_clock_guard.add_instant(Instant::now());
+        mock_clock_guard.add_instant(Instant::now());
     }
 
     let (mut chain, _, signer) = setup();
@@ -54,7 +55,7 @@ fn build_chain() {
     #[cfg(feature = "nightly_protocol")]
     assert_eq!(
         prev_hash,
-        CryptoHash::from_str("299HrY4hpubeFXa3V9DNtR36dGEtiz4AVfMbfL6hT2sq").unwrap()
+        CryptoHash::from_str("8F4vXPPNevoQXVGdwKAZQfzzxhSyqWp3xJiik4RMUKSk").unwrap()
     );
     #[cfg(not(feature = "nightly_protocol"))]
     assert_eq!(
@@ -73,11 +74,11 @@ fn build_chain() {
     let count_instant = mock_clock_guard.instant_call_count();
     let count_utc = mock_clock_guard.utc_call_count();
     assert_eq!(count_utc, 9);
-    assert_eq!(count_instant, 8);
+    assert_eq!(count_instant, 12);
     #[cfg(feature = "nightly_protocol")]
     assert_eq!(
         chain.head().unwrap().last_block_hash,
-        CryptoHash::from_str("A1ZqLuyanSg6YeD3HxGco2tJYEAsmHvAva5n4dsPTgij").unwrap()
+        CryptoHash::from_str("DrW7MsRaFhEdjQcxjqrTXvNmQ1eptgURQ7RUTeZnrBXC").unwrap()
     );
     #[cfg(not(feature = "nightly_protocol"))]
     assert_eq!(
@@ -116,6 +117,7 @@ fn build_chain_with_orhpans() {
         &*signer,
         *last_block.header().next_bp_hash(),
         CryptoHash::default(),
+        None,
     );
     assert_eq!(chain.process_block_test(&None, block).unwrap_err().kind(), ErrorKind::Orphan);
     assert_eq!(
