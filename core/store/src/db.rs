@@ -506,9 +506,9 @@ fn rocksdb_options(store_config: &StoreConfig) -> Options {
     opts.set_use_fsync(false);
     opts.set_max_open_files(store_config.max_open_files.try_into().unwrap_or(i32::MAX));
     opts.set_keep_log_file_num(1);
-    opts.set_bytes_per_sync(bytesize::KIB);
-    opts.set_write_buffer_size(1 * bytesize::KIB as usize);
-    opts.set_max_bytes_for_level_base(1 * bytesize::KIB);
+    opts.set_bytes_per_sync(bytesize::MIB);
+    opts.set_write_buffer_size(256 * bytesize::MIB as usize);
+    opts.set_max_bytes_for_level_base(256 * bytesize::MIB);
     if cfg!(feature = "single_thread_rocksdb") {
         opts.set_disable_auto_compactions(true);
         opts.set_max_background_jobs(0);
@@ -555,7 +555,10 @@ fn rocksdb_block_based_options(block_size: usize, cache_size: usize) -> BlockBas
 }
 
 fn choose_cache_size(col: DBCol, store_config: &StoreConfig) -> usize {
-    1
+    match col {
+        DBCol::State => store_config.col_state_cache_size,
+        _ => 32 * 1024 * 1024,
+    }
 }
 
 fn rocksdb_column_options(col: DBCol, store_config: &StoreConfig) -> Options {
@@ -580,12 +583,12 @@ fn rocksdb_column_options(col: DBCol, store_config: &StoreConfig) -> Options {
     // the rest use LZ4 compression.
     // See the implementation here:
     //      https://github.com/facebook/rocksdb/blob/c18c4a081c74251798ad2a1abf83bad417518481/options/options.cc#L588.
-    let memtable_memory_budget = 2 * bytesize::KIB as usize;
+    let memtable_memory_budget = 256 * bytesize::MIB as usize;
     opts.optimize_level_style_compaction(memtable_memory_budget);
-    opts.set_min_write_buffer_number(1);
-    opts.set_min_write_buffer_number(1);
+    // opts.set_min_write_buffer_number(1);
+    // opts.set_max_write_buffer_number(1);
 
-    opts.set_target_file_size_base(1 * bytesize::KIB);
+    opts.set_target_file_size_base(128 * bytesize::MIB);
     if col.is_rc() {
         opts.set_merge_operator("refcount merge", RocksDB::refcount_merge, RocksDB::refcount_merge);
         opts.set_compaction_filter("empty value filter", RocksDB::empty_value_compaction_filter);
