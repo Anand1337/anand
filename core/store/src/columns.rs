@@ -326,7 +326,7 @@ const OPTIONAL_GC_COLUMNS: [bool; DBCol::COUNT] = col_set(&[
 ]);
 
 const RC_COLUMNS: [bool; DBCol::COUNT] =
-    col_set(&[DBCol::State, DBCol::Transactions, DBCol::Receipts, DBCol::ReceiptIdToShardId]);
+    col_set(&[DBCol::State, DBCol::State128MIB, DBCol::State256MIB, DBCol::State512MIB, DBCol::State1024MIB, DBCol::Transactions, DBCol::Receipts, DBCol::ReceiptIdToShardId]);
 
 const INSERT_ONLY_COLUMNS: [bool; DBCol::COUNT] = col_set(&[DBCol::BlockInfo]);
 
