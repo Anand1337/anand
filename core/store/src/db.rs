@@ -911,24 +911,29 @@ fn rocksdb_column_options(col: DBCol) -> Options {
     opts.optimize_level_style_compaction(memtable_memory_budget);
     match col {
         DBCol::ColState128MIB => {
-            opts.set_max_bytes_for_level_base(256 * bytesize::MIB);
+            opts.set_write_buffer_size(64 * bytesize::MIB as usize);
             opts.set_target_file_size_base(128 * bytesize::MIB);
+            opts.set_max_bytes_for_level_base(256 * bytesize::MIB);
         }
         DBCol::ColState256MIB => {
-            opts.set_max_bytes_for_level_base(512 * bytesize::MIB);
+            opts.set_write_buffer_size(128 * bytesize::MIB as usize);
             opts.set_target_file_size_base(256 * bytesize::MIB);
+            opts.set_max_bytes_for_level_base(512 * bytesize::MIB);
         }
         DBCol::ColState512MIB => {
-            opts.set_max_bytes_for_level_base(1024 * bytesize::MIB);
+            opts.set_write_buffer_size(256 * bytesize::MIB as usize);
             opts.set_target_file_size_base(512 * bytesize::MIB);
+            opts.set_max_bytes_for_level_base(1024 * bytesize::MIB);
         }
         DBCol::ColState1024MIB => {
-            opts.set_max_bytes_for_level_base(2048 * bytesize::MIB);
+            opts.set_write_buffer_size(512 * bytesize::MIB as usize);
             opts.set_target_file_size_base(1024 * bytesize::MIB);
+            opts.set_max_bytes_for_level_base(2048 * bytesize::MIB);
         }
         _ => {
-            opts.set_max_bytes_for_level_base(128 * bytesize::MIB);
+            opts.set_write_buffer_size(32 * bytesize::MIB as usize);
             opts.set_target_file_size_base(64 * bytesize::MIB);
+            opts.set_max_bytes_for_level_base(128 * bytesize::MIB);
         }
     }
     if col.is_rc() {
