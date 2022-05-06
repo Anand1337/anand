@@ -84,7 +84,7 @@ impl ShardTries {
         let mut shards = HashMap::new();
         for op in &transaction.ops {
             match op {
-                DBOp::UpdateRefcount { col, ref key, ref value } if *col == DBCol::State0 || *col == DBCol::State1 || *col == DBCol::State2 || *col == DBCol::State3 => {
+                DBOp::UpdateRefcount { col, ref key, ref value } if *col == DBCol::State || *col == DBCol::State0 || *col == DBCol::State1 || *col == DBCol::State2 || *col == DBCol::State3 => {
                     let (shard_uid, hash) =
                         TrieCachingStorage::get_shard_uid_and_hash_from_key(key)?;
                     shards.entry(shard_uid).or_insert(vec![]).push((hash, Some(value)));
