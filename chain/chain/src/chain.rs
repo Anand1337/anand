@@ -2333,10 +2333,13 @@ impl Chain {
             let prev_block = self.store.get_block(block.header().prev_hash())?.clone();
 
             let mut chain_update = self.chain_update();
+            let receipts_by_shard =
+                chain_update.collect_incoming_receipts_from_block(me, &block)?;
             let work = chain_update.apply_chunks_preprocessing(
                 me,
                 &block,
                 &prev_block,
+                &receipts_by_shard,
                 ApplyChunksMode::CatchingUp,
             )?;
             blocks_catch_up_state
@@ -2906,8 +2909,8 @@ impl Chain {
     pub fn get_shard_id_for_receipt_id(
         &mut self,
         receipt_id: &CryptoHash,
-    ) -> Result<&ShardId, Error> {
-        self.store.get_shard_id_for_receipt_id(receipt_id)
+    ) -> Result<ShardId, Error> {
+        self.store.get_shard_id_for_receipt_id(receipt_id).cloned()
     }
 
     /// Get next block hash for which there is a new chunk for the shard.
@@ -3437,13 +3440,20 @@ impl<'a> ChainUpdate<'a> {
         Ok(())
     }
 
-    pub fn save_incoming_receipts_from_block(
+    /// Collect all incoming receipts generated in `block`, return a map from target shard id to the
+    /// list of receipts that the target shard receives.
+    /// The receipts are sorted by the order that they will be processed.
+    /// Note that the receipts returned in this function do not equal all receipts that will be
+    /// processed as incoming receipts in this block, because that may include incoming receipts
+    /// generated in previous blocks too, if some shards in the previous blocks did not produce
+    /// new chunks.
+    pub fn collect_incoming_receipts_from_block(
         &mut self,
         me: &Option<AccountId>,
         block: &Block,
-    ) -> Result<(), Error> {
+    ) -> Result<HashMap<ShardId, Vec<ReceiptProof>>, Error> {
         if !self.care_about_any_shard_or_part(me, *block.header().prev_hash())? {
-            return Ok(());
+            return Ok(HashMap::new());
         }
         let height = block.header().height();
         let mut receipt_proofs_by_shard_id = HashMap::new();
@@ -3462,16 +3472,15 @@ impl<'a> ChainUpdate<'a> {
                 }
             }
         }
-
-        for (shard_id, mut receipt_proofs) in receipt_proofs_by_shard_id {
+        // sort the receipts deterministically so the order that they will be processed is deterministic
+        for (_, receipt_proofs) in receipt_proofs_by_shard_id.iter_mut() {
             let mut slice = [0u8; 32];
             slice.copy_from_slice(block.hash().as_ref());
             let mut rng: StdRng = SeedableRng::from_seed(slice);
             receipt_proofs.shuffle(&mut rng);
-            self.chain_store_update.save_incoming_receipt(block.hash(), shard_id, receipt_proofs);
         }
 
-        Ok(())
+        Ok(receipt_proofs_by_shard_id)
     }
 
     pub fn create_chunk_state_challenge(
@@ -3544,6 +3553,56 @@ impl<'a> ChainUpdate<'a> {
         })
     }
 
+    /// For all the outgoing receipts generated in block `hash` at the shards we are tracking
+    /// in this epoch,
+    /// save a mapping from receipt ids to the destination shard ids that the receipt will be sent
+    /// to in the next block.
+    /// Note that this function should be called after `save_block` is called on this block because
+    /// it requires that the block info is available in EpochManager, otherwise it will return an
+    /// error.
+    pub fn save_receipt_id_to_shard_id_for_block(
+        &mut self,
+        me: &Option<AccountId>,
+        hash: &CryptoHash,
+        prev_hash: &CryptoHash,
+        num_shards: NumShards,
+    ) -> Result<(), Error> {
+        for shard_id in 0..num_shards {
+            if self.runtime_adapter.cares_about_shard(
+                me.as_ref(),
+                &prev_hash,
+                shard_id as ShardId,
+                true,
+            ) {
+                let receipt_id_to_shard_id: HashMap<_, _> = {
+                    // it can be empty if there is no new chunk for this shard
+                    if let Ok(outgoing_receipts) =
+                        self.chain_store_update.get_outgoing_receipts(hash, shard_id)
+                    {
+                        let shard_layout =
+                            self.runtime_adapter.get_shard_layout_from_prev_block(hash)?;
+                        outgoing_receipts
+                            .into_iter()
+                            .map(|receipt| {
+                                (
+                                    receipt.receipt_id,
+                                    account_id_to_shard_id(&receipt.receiver_id, &shard_layout),
+                                )
+                            })
+                            .collect()
+                    } else {
+                        HashMap::new()
+                    }
+                };
+                for (receipt_id, shard_id) in receipt_id_to_shard_id {
+                    self.chain_store_update.save_receipt_id_to_shard_id(receipt_id, shard_id);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Applies chunks and processes results
     fn apply_chunks_and_process_results(
         &mut self,
@@ -3592,18 +3651,12 @@ impl<'a> ChainUpdate<'a> {
         me: &Option<AccountId>,
         block: &Block,
         prev_block: &Block,
+        incoming_receipts: &HashMap<ShardId, Vec<ReceiptProof>>,
         mode: ApplyChunksMode,
     ) -> Result<Vec<Box<dyn FnOnce() -> Result<ApplyChunkResult, Error> + Send + 'static>>, Error>
     {
         let mut result: Vec<Box<dyn FnOnce() -> Result<ApplyChunkResult, Error> + Send + 'static>> =
             Vec::new();
-        let challenges_result = self.verify_challenges(
-            block.challenges(),
-            block.header().epoch_id(),
-            block.header().prev_hash(),
-            Some(block.hash()),
-        )?;
-        self.chain_store_update.save_block_extra(block.hash(), BlockExtra { challenges_result });
         #[cfg(not(feature = "mock_node"))]
         let protocol_version =
             self.runtime_adapter.get_epoch_protocol_version(block.header().epoch_id())?;
@@ -3670,14 +3723,6 @@ impl<'a> ChainUpdate<'a> {
             if should_apply_transactions {
                 if is_new_chunk {
                     let prev_chunk_height_included = prev_chunk_header.height_included();
-                    if cares_about_shard_this_epoch {
-                        self.chain_store_update.save_receipt_id_to_shard_id(
-                            &*self.runtime_adapter,
-                            prev_hash,
-                            shard_id,
-                            prev_chunk_height_included,
-                        )?;
-                    }
                     // Validate state root.
                     let prev_chunk_extra =
                         self.chain_store_update.get_chunk_extra(prev_hash, &shard_uid)?.clone();
@@ -3709,13 +3754,16 @@ impl<'a> ChainUpdate<'a> {
                             Err(err) => err,
                         }
                     })?;
-                    let receipt_proof_response: Vec<ReceiptProofResponse> =
-                        self.chain_store_update.get_incoming_receipts_for_shard(
+                    // we can't use hash from the current block here yet because the incoming receipts
+                    // for this block is not stored yet
+                    let mut receipts = collect_receipts(incoming_receipts.get(&shard_id).unwrap());
+                    receipts.extend(collect_receipts_from_response(
+                        &self.chain_store_update.get_incoming_receipts_for_shard(
                             shard_id,
-                            *block.hash(),
+                            prev_hash.clone(),
                             prev_chunk_height_included,
-                        )?;
-                    let receipts = collect_receipts_from_response(&receipt_proof_response);
+                        )?,
+                    ));
                     let chunk = self
                         .chain_store_update
                         .get_chunk_clone_from_header(&chunk_header.clone())?;
@@ -4180,6 +4228,50 @@ impl<'a> ChainUpdate<'a> {
         }
     }
 
+    /// Do basic validation of the information that we can get from the chunk headers in `block`
+    fn validate_chunk_headers(&mut self, block: &Block, prev_block: &Block) -> Result<(), Error> {
+        let prev_chunk_headers = Chain::get_prev_chunk_headers(&*self.runtime_adapter, prev_block)?;
+        for (chunk_header, prev_chunk_header) in
+            block.chunks().iter().zip(prev_chunk_headers.iter())
+        {
+            if chunk_header.height_included() == block.header().height() {
+                if &chunk_header.prev_block_hash() != block.header().prev_hash() {
+                    return Err(ErrorKind::InvalidChunk.into());
+                }
+            } else {
+                if prev_chunk_header != chunk_header {
+                    return Err(ErrorKind::InvalidChunk.into());
+                }
+            }
+        }
+
+        // Verify that proposals from chunks match block header proposals.
+        let block_height = block.header().height();
+        for pair in block
+            .chunks()
+            .iter()
+            .filter(|chunk| block_height == chunk.height_included())
+            .flat_map(|chunk| chunk.validator_proposals())
+            .zip_longest(block.header().validator_proposals())
+        {
+            match pair {
+                itertools::EitherOrBoth::Both(cp, hp) => {
+                    if hp != cp {
+                        // Proposals differed!
+                        return Err(ErrorKind::InvalidValidatorProposals.into());
+                    }
+                }
+                _ => {
+                    // Can only occur if there were a different number of proposals in the header
+                    // and chunks
+                    return Err(ErrorKind::InvalidValidatorProposals.into());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     /// Runs the block processing, including validation and finding a place for the new block in the chain.
     /// Returns new head if chain head updated, as well as a boolean indicating if we need to start
     ///    fetching state for the next epoch.
@@ -4277,7 +4369,7 @@ impl<'a> ChainUpdate<'a> {
         debug!(target: "chain", "{:?} Process block {}, is_caught_up: {}", me, block.hash(), is_caught_up);
 
         // Check the header is valid before we proceed with the full block.
-        self.process_header_for_block(block.header(), provenance, on_challenge)?;
+        self.validate_header(block.header(), provenance, on_challenge)?;
 
         self.runtime_adapter.verify_block_vrf(
             block.header().epoch_id(),
@@ -4312,64 +4404,53 @@ impl<'a> ChainUpdate<'a> {
             return Err(ErrorKind::InvalidGasPrice.into());
         }
 
+        let challenges_result = self.verify_challenges(
+            block.challenges(),
+            block.header().epoch_id(),
+            block.header().prev_hash(),
+            Some(block.hash()),
+        )?;
+
         let prev_block = self.chain_store_update.get_block(&prev_hash)?.clone();
 
-        self.ping_missing_chunks(me, prev_hash, block)?;
-        self.save_incoming_receipts_from_block(me, block)?;
+        self.validate_chunk_headers(&block, &prev_block)?;
 
-        // Do basic validation of chunks before applying the transactions
-        let prev_chunk_headers =
-            Chain::get_prev_chunk_headers(&*self.runtime_adapter, &prev_block)?;
-        for (chunk_header, prev_chunk_header) in
-            block.chunks().iter().zip(prev_chunk_headers.iter())
-        {
-            if chunk_header.height_included() == block.header().height() {
-                if &chunk_header.prev_block_hash() != block.header().prev_hash() {
-                    return Err(ErrorKind::InvalidChunk.into());
-                }
-            } else {
-                if prev_chunk_header != chunk_header {
-                    return Err(ErrorKind::InvalidChunk.into());
-                }
-            }
-        }
+        self.ping_missing_chunks(me, prev_hash, block)?;
+        let receipts_by_shard = self.collect_incoming_receipts_from_block(me, block)?;
 
         // If we have the state for shards in the next epoch already downloaded, apply the state transition
         // for these states as well
         // otherwise put the block into the permanent storage, waiting for be caught up
         let apply_chunk_work = if is_caught_up {
-            self.apply_chunks_preprocessing(me, block, &prev_block, ApplyChunksMode::IsCaughtUp)?
+            self.apply_chunks_preprocessing(
+                me,
+                block,
+                &prev_block,
+                &receipts_by_shard,
+                ApplyChunksMode::IsCaughtUp,
+            )?
         } else {
             debug!("Add block to catch up {:?} {:?}", prev_hash, *block.hash());
             self.chain_store_update.add_block_to_catchup(prev_hash, *block.hash());
-            self.apply_chunks_preprocessing(me, block, &prev_block, ApplyChunksMode::NotCaughtUp)?
+            self.apply_chunks_preprocessing(
+                me,
+                block,
+                &prev_block,
+                &receipts_by_shard,
+                ApplyChunksMode::NotCaughtUp,
+            )?
         };
 
         self.apply_chunks_and_process_results(block, &prev_block, apply_chunk_work)?;
 
-        // Verify that proposals from chunks match block header proposals.
-        let block_height = block.header().height();
-        for pair in block
-            .chunks()
-            .iter()
-            .filter(|chunk| block_height == chunk.height_included())
-            .flat_map(|chunk| chunk.validator_proposals())
-            .zip_longest(block.header().validator_proposals())
-        {
-            match pair {
-                itertools::EitherOrBoth::Both(cp, hp) => {
-                    if hp != cp {
-                        // Proposals differed!
-                        return Err(ErrorKind::InvalidValidatorProposals.into());
-                    }
-                }
-                _ => {
-                    // Can only occur if there were a different number of proposals in the header
-                    // and chunks
-                    return Err(ErrorKind::InvalidValidatorProposals.into());
-                }
-            }
+        for (shard_id, receipt_proofs) in receipts_by_shard {
+            self.chain_store_update.save_incoming_receipt(block.hash(), shard_id, receipt_proofs);
         }
+
+        self.chain_store_update.save_block_extra(block.hash(), BlockExtra { challenges_result });
+
+        self.chain_store_update.save_block_header(block.header().clone())?;
+        self.update_header_head_if_not_challenged(block.header())?;
 
         // If block checks out, record validator proposals for given block.
         let last_final_block = block.header().last_final_block();
@@ -4387,6 +4468,14 @@ impl<'a> ChainUpdate<'a> {
         // Add validated block to the db, even if it's not the canonical fork.
         self.chain_store_update.save_block(block.clone().into_inner());
         self.chain_store_update.inc_block_refcount(block.header().prev_hash())?;
+
+        // Save receipt_id_to_shard_id for all outgoing receipts generated in this block
+        self.save_receipt_id_to_shard_id_for_block(
+            me,
+            block.hash(),
+            &prev_hash,
+            block.chunks().len() as NumShards,
+        )?;
 
         // Update the chain head if it's the new tip
         let res = self.update_head(block.header())?;
@@ -4440,20 +4529,6 @@ impl<'a> ChainUpdate<'a> {
         // returns true if the block is ready to have state applied for the current epoch (and
         // otherwise should be orphaned)
         Ok(!self.chain_store_update.get_blocks_to_catchup(prev_prev_hash)?.contains(prev_hash))
-    }
-
-    /// Process a block header as part of processing a full block.
-    /// We want to be sure the header is valid before processing the full block.
-    fn process_header_for_block(
-        &mut self,
-        header: &BlockHeader,
-        provenance: &Provenance,
-        on_challenge: &mut dyn FnMut(ChallengeBody),
-    ) -> Result<(), Error> {
-        self.validate_header(header, provenance, on_challenge)?;
-        self.chain_store_update.save_block_header(header.clone())?;
-        self.update_header_head_if_not_challenged(header)?;
-        Ok(())
     }
 
     fn validate_header(
