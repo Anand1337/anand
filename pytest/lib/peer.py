@@ -2,11 +2,13 @@ import asyncio
 import concurrent
 import hashlib
 import struct
-
+import google
+import logging
 import base58
 
 from configured_logger import logger
 from messages import schema
+from messages import network_pb2
 from messages.crypto import PublicKey, Signature
 from messages.network import (EdgeInfo, GenesisId, Handshake, PeerChainInfoV2,
                               PeerMessage, RoutedMessage, PeerIdOrHash)
@@ -26,8 +28,7 @@ class Connection:
         self.is_closed = False
 
     async def send(self, message):
-        raw_message = BinarySerializer(schema).serialize(message)
-        await self.send_raw(raw_message)
+        await self.send_raw(message.SerializeToString())
 
     async def send_raw(self, raw_message):
         length = struct.pack('I', len(raw_message))
@@ -42,12 +43,21 @@ class Connection:
 
             # Connection was closed on the other side
             if response_raw is None:
+                logging.info("connection closed")
                 return None
+            
+            logging.info(f"got {len(response_raw)} bytes")
 
-            response = BinarySerializer(schema).deserialize(
-                response_raw, PeerMessage)
+            response = network_pb2.PeerMessage()
+            try:
+                response.ParseFromString(response_raw)
+            except google.protobuf.message.DecodeError:
+                BinarySerializer(schema).deserialize(response_raw, PeerMessage)
+                logging.info("ignoring Borsh message")
+                continue
 
-            if expected is None or response.enum == expected or (
+
+            if expected is None or response.WhichOneof("message_type") == expected or (
                     callable(expected) and expected(response)):
                 return response
 
@@ -98,61 +108,61 @@ def create_handshake(my_key_pair_nacl,
         - genesis_id.hash
         - edge_info.signature
     """
-    handshake = Handshake()
-    handshake.version = version
+
+    genesis_id = network_pb2.GenesisId()
+    genesis_id.chain_id = 'moo'
+    genesis_id.hash.hash = bytes([0] * 32)
+
+    chain_info = network_pb2.PeerChainInfo()
+    chain_info.genesis_id.CopyFrom(genesis_id)
+    chain_info.height = 0
+    chain_info.tracked_shards.extend([])
+    chain_info.archival = False
+
+    sender_peer_id = PublicKey()
+    sender_peer_id.keyType = 0
+    sender_peer_id.data = bytes(my_key_pair_nacl.verify_key)
+    
+    target_peer_id = PublicKey()
+    target_peer_id.keyType = 0
+    target_peer_id.data = base58.b58decode(their_pk_serialized[len(ED_PREFIX):])
+
+    handshake = network_pb2.Handshake()
+    handshake.protocol_version = version
     handshake.oldest_supported_version = version
-    handshake.peer_id = PublicKey()
-    handshake.target_peer_id = PublicKey()
-    handshake.listen_port = listen_port
-    handshake.chain_info = PeerChainInfoV2()
-    handshake.edge_info = EdgeInfo()
-
-    handshake.peer_id.keyType = 0
-    handshake.peer_id.data = bytes(my_key_pair_nacl.verify_key)
-
-    handshake.target_peer_id.keyType = 0
-    handshake.target_peer_id.data = base58.b58decode(
-        their_pk_serialized[len(ED_PREFIX):])
-
-    handshake.chain_info.genesis_id = GenesisId()
-    handshake.chain_info.height = 0
-    handshake.chain_info.tracked_shards = []
-    handshake.chain_info.archival = False
-
-    handshake.chain_info.genesis_id.chain_id = 'moo'
-    handshake.chain_info.genesis_id.hash = bytes([0] * 32)
-
-    handshake.edge_info.nonce = 1
-    handshake.edge_info.signature = Signature()
-
-    handshake.edge_info.signature.keyType = 0
-    handshake.edge_info.signature.data = bytes([0] * 64)
-
-    peer_message = PeerMessage()
-    peer_message.enum = 'Handshake'
-    peer_message.Handshake = handshake
-
+    handshake.sender_peer_id.borsh = BinarySerializer(schema).serialize(sender_peer_id)
+    handshake.target_peer_id.borsh = BinarySerializer(schema).serialize(target_peer_id)
+    handshake.sender_listen_port = listen_port
+    handshake.sender_chain_info.CopyFrom(chain_info)
+    
+    peer_message = network_pb2.PeerMessage()
+    peer_message.handshake.CopyFrom(handshake)
     return peer_message
 
 
 def create_peer_request():
     peer_message = PeerMessage()
-    peer_message.enum = 'PeersRequest'
-    peer_message.PeersRequest = ()
+    peer_message.peers_request.CopyFrom(network_pb2.PeersRequest())
     return peer_message
 
 
 def sign_handshake(my_key_pair_nacl, handshake):
-    peer0 = handshake.peer_id
-    peer1 = handshake.target_peer_id
+    peer0 = BinarySerializer(schema).deserialize(handshake.sender_peer_id.borsh,PublicKey)
+    peer1 = BinarySerializer(schema).deserialize(handshake.target_peer_id.borsh,PublicKey)
     if peer1.data < peer0.data:
         peer0, peer1 = peer1, peer0
 
+    edge = EdgeInfo()
+    edge.nonce = 1
+    edge.signature = Signature()
+    edge.signature.keyType = 0
+    edge.signature.data = bytes([0] * 64)
     arr = bytes(
         bytearray([0]) + peer0.data + bytearray([0]) + peer1.data +
-        struct.pack('Q', handshake.edge_info.nonce))
-    handshake.edge_info.signature.data = my_key_pair_nacl.sign(
+        struct.pack('Q', edge.nonce))
+    edge.signature.data = my_key_pair_nacl.sign(
         hashlib.sha256(arr).digest()).signature
+    handshake.partial_edge_info.borsh = BinarySerializer(schema).serialize(edge)
 
 
 async def run_handshake(conn: Connection,
@@ -162,32 +172,23 @@ async def run_handshake(conn: Connection,
     handshake = create_handshake(key_pair, target_public_key, listen_port)
 
     async def send_handshake():
-        sign_handshake(key_pair, handshake.Handshake)
+        sign_handshake(key_pair, handshake.handshake)
         await conn.send(handshake)
         # The peer might sent us an unsolicited message before replying to
         # a successful handshake.  This is because node is multi-threaded and
         # peers are added to PeerManager before the reply is sent.  Since we
         # don’t care about those messages, ignore them and wait for some kind of
         # Handshake reply.
-        return await conn.recv(lambda msg: msg.enum.startswith('Handshake'))
+        return await conn.recv(lambda msg: msg.HasField("handshake") or msg.HasField("handshake_failure"))
 
     response = await send_handshake()
 
-    if response.enum == 'HandshakeFailure' and response.HandshakeFailure[
-            1].enum == 'ProtocolVersionMismatch':
-        pvm = response.HandshakeFailure[1].ProtocolVersionMismatch.version
-        handshake.Handshake.version = pvm
+    if response.HasField("handshake_failure"):
+        handshake.handshake.protocol_version = response.handshake_failure.version
+        handshake.handshake.sender_chain_info.genesis_id.CopyFrom(response.handshake_failure.genesis_id)
         response = await send_handshake()
 
-    if response.enum == 'HandshakeFailure' and response.HandshakeFailure[
-            1].enum == 'GenesisMismatch':
-        gm = response.HandshakeFailure[1].GenesisMismatch
-        handshake.Handshake.chain_info.genesis_id.chain_id = gm.chain_id
-        handshake.Handshake.chain_info.genesis_id.hash = gm.hash
-        response = await send_handshake()
-
-    assert response.enum == 'Handshake', response.enum if response.enum != 'HandshakeFailure' else response.HandshakeFailure[
-        1].enum
+    assert response.HasField("handshake"), response.WhichOneof("message_type") 
 
 
 def create_and_sign_routed_peer_message(routed_msg_body, target_node,
