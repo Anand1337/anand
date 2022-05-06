@@ -17,8 +17,10 @@ import nacl.signing
 sys.path.append(str(pathlib.Path(__file__).resolve().parents[3] / 'lib'))
 from cluster import start_cluster
 from messages import schema
+from messages.network import PeerInfo
 from peer import ED_PREFIX, connect, run_handshake, create_peer_request
 from utils import obj_to_string
+from serializer import BinarySerializer
 
 nodes = start_cluster(1, 0, 4, None, [], {})
 
@@ -32,8 +34,8 @@ async def main():
                         listen_port=12345)
     peer_request = create_peer_request()
     await conn0.send(peer_request)
-    response = await conn0.recv('PeersResponse')
-    assert response.enum == 'PeersResponse', obj_to_string(response)
+    response = await conn0.recv("peers_response")
+    assert response.HasField("peers_response"), obj_to_string(response)
 
     key_pair_1 = nacl.signing.SigningKey.generate()
     conn1 = await connect(nodes[0].addr())
@@ -43,10 +45,10 @@ async def main():
                         listen_port=12346)
     peer_request = create_peer_request()
     await conn1.send(peer_request)
-    response = await conn1.recv('PeersResponse')
-    assert response.enum == 'PeersResponse', obj_to_string(response)
-    assert any(peer_info.addr.V4[1] == 12345
-               for peer_info in response.PeersResponse), obj_to_string(response)
+    response = await conn1.recv("peers_response")
+    assert response.HasField("peers_response"), obj_to_string(response)
+    assert any(BinarySerializer(schema).deserialize(peer_info.borsh,PeerInfo).addr.V4[1] == 12345
+               for peer_info in response.peers_response.peers), obj_to_string(response)
 
 
 asyncio.run(main())

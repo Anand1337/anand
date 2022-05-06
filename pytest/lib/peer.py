@@ -141,7 +141,7 @@ def create_handshake(my_key_pair_nacl,
 
 
 def create_peer_request():
-    peer_message = PeerMessage()
+    peer_message = network_pb2.PeerMessage()
     peer_message.peers_request.CopyFrom(network_pb2.PeersRequest())
     return peer_message
 
@@ -183,8 +183,11 @@ async def run_handshake(conn: Connection,
 
     response = await send_handshake()
 
-    if response.HasField("handshake_failure"):
+    if response.HasField("handshake_failure") and response.handshake_failure.reason == network_pb2.HandshakeFailure.Reason.ProtocolVersionMismatch:
         handshake.handshake.protocol_version = response.handshake_failure.version
+        response = await send_handshake()
+
+    if response.HasField("handshake_failure") and response.handshake_failure.reason == network_pb2.HandshakeFailure.Reason.GenesisMismatch:
         handshake.handshake.sender_chain_info.genesis_id.CopyFrom(response.handshake_failure.genesis_id)
         response = await send_handshake()
 

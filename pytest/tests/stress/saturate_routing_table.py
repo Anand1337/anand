@@ -21,8 +21,11 @@ from cluster import start_cluster
 from configured_logger import logger
 from peer import connect, run_handshake, Connection
 from utils import LogTracker
+from messages import schema
+from messages import network_pb2
 from messages.network import Edge, SyncData, PeerMessage
 from messages.crypto import PublicKey, Signature
+from serializer import BinarySerializer
 from random import randint, seed
 import base58
 
@@ -39,13 +42,11 @@ async def consume(conn: Connection):
 
 
 def create_sync_data(accounts=[], edges=[]):
-    sync_data = SyncData()
-    sync_data.accounts = accounts
-    sync_data.edges = edges
-
-    peer_message = PeerMessage()
-    peer_message.enum = 'Sync'
-    peer_message.Sync = sync_data
+    peer_message = network_pb2.PeerMessage()
+    for e in edges:
+        peer_message.sync_routing_table.edges.add().borsh = BinarySerializer(schema).serialize(e)
+    for a in accounts:
+        peer_message.sync_routing_table.accounts.add().borsh = BinarySerializer(schema).serialize(a)
     return peer_message
 
 
