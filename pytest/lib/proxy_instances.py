@@ -10,9 +10,11 @@ class RejectListHandler(ProxyHandler):
         self.drop_probability = drop_probability
 
     async def handle(self, msg, fr, to):
-        msg_type = msg.enum if msg.enum != 'Routed' else msg.Routed.body.enum
+        msg_type = msg.WhichOneof("message_type")
+        # if msg_type == "routed": msg_type = msg.routed.borsh # TODO
 
-        if (self.drop_probability > 0 and 'Handshake' not in msg_type and
+        # TODO: why are we testing resilience to dropping packages, while using TCP?
+        if (self.drop_probability > 0 and msg_type != "handshake" and
                 random.uniform(0, 1) < self.drop_probability):
             logging.info(
                 f'NODE {self.ordinal} dropping message {msg_type} from {fr} to {to}'

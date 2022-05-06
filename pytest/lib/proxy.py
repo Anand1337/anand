@@ -37,6 +37,7 @@ import time
 import logging
 
 from configured_logger import logger
+from messages import network_pb2
 from messages import schema
 from messages.crypto import PublicKey, Signature
 from messages.network import PeerIdOrHash, PeerMessage
@@ -86,14 +87,20 @@ class ProxyHandler:
         sender_ordinal = port_holder_to_node_ord(sender_port_holder)
         receiver_ordinal = port_holder_to_node_ord(receiver_port_holder)
         try:
-            message = BinarySerializer(schema).deserialize(
-                raw_message, PeerMessage)
-            assert BinarySerializer(schema).serialize(message) == raw_message
+            message = network_pb2.PeerMessage()
+            bytes_read = message.ParseFromString(raw_message)
+            if bytes_read!=len(raw_message):
+                logging.info(f"message.ParseFromString() = {bytes_read}, want {len(raw_message)}")
+                msg2 = BinarySerializer(schema).deserialize(raw_message, PeerMessage)
+                logging.info(f"yep, it was a borsh message {msg2.enum}")
+                return False
 
-            if message.enum == 'Handshake':
-                message.Handshake.listen_port += 100
+
+            if message.HasField("handshake"):
+                #TODO: wtf is this?
+                message.handshake.sender_listen_port += 100
                 if sender_port_holder[0] is None:
-                    sender_port_holder[0] = message.Handshake.listen_port
+                    sender_port_holder[0] = message.handshake.sender_listen_port
 
             other_ordinal = self.other(sender_ordinal, receiver_ordinal)
 
@@ -103,36 +110,15 @@ class ProxyHandler:
             decision = await self.handle(message, sender_ordinal,
                                          receiver_ordinal)
 
-            if decision is True and message.enum == 'Handshake':
+            if decision is True and message.HasField("handshake"):
                 decision = message
 
             if not isinstance(decision, bool):
-                decision = BinarySerializer(schema).serialize(decision)
-
+                decision = decision.SerializeToString() 
+            
             return decision
         except:
-            # TODO: Remove this
-            if raw_message[0] == 13:
-                # raw_message[0] == 13 is RoutedMessage. Skip leading fields to get to the RoutedMessageBody
-                ser = BinarySerializer(schema)
-                ser.array = bytearray(raw_message)
-                ser.offset = 1
-                ser.deserialize_field(PeerIdOrHash)
-                ser.deserialize_field(PublicKey)
-                ser.deserialize_field(Signature)
-                ser.deserialize_field('u8')
-
-                # The next byte is the variant ordinal of the `RoutedMessageBody`.
-                # Skip if it's the ordinal of a variant for which the schema is not ported yet
-                if raw_message[ser.offset] in [3, 4, 5, 7]:
-                    # Allow the handler determine if the message should be passed even when it couldn't be deserialized
-                    return await self.handle(None, sender_ordinal,
-                                             receiver_ordinal) is not False
-                logger.info(f"ERROR 13 {int(raw_message[ser.offset])}")
-
-            else:
-                logger.info(f"ERROR {int(raw_message[0])}")
-
+            logger.info(f"ERROR {int(raw_message[0])}")
             raise
 
         return True
