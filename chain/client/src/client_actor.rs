@@ -807,24 +807,20 @@ impl Handler<Status> for ClientActor {
                     .chain
                     .blocks_with_missing_chunks
                     .list_blocks_by_height(),
-                epoch_info: EpochInfoView {
-                    epoch_id: head.epoch_id.0,
-                    height: epoch_start_height,
-                    first_block_hash: self
-                        .client
-                        .chain
-                        .get_block_by_height(epoch_start_height)?
-                        .header()
-                        .hash()
-                        .clone(),
-                    start_time: self
-                        .client
-                        .chain
-                        .get_block_by_height(epoch_start_height)?
-                        .header()
-                        .timestamp()
-                        .to_rfc3339(),
-                    validators: validators.to_vec(),
+                epoch_info: {
+                    EpochInfoView {
+                        epoch_id: head.epoch_id.0,
+                        height: epoch_start_height,
+                        first_block: self
+                            .client
+                            .chain
+                            .get_block_by_height(epoch_start_height)
+                            .ok()
+                            .map(|block| {
+                                (block.header().hash().clone(), block.header().timestamp())
+                            }),
+                        validators: validators.to_vec(),
+                    }
                 },
             })
         } else {
@@ -1768,6 +1764,11 @@ impl ClientActor {
             .get_validator_info(epoch_identifier)
             .map(get_validator_epoch_stats)
             .unwrap_or_default();
+        let statistics = if self.client.config.enable_statistics_export {
+            self.client.chain.store().get_store_statistics()
+        } else {
+            None
+        };
         self.info_helper.info(
             self.client.chain.store().get_genesis_height(),
             &head,
@@ -1785,7 +1786,7 @@ impl ClientActor {
                 .get_protocol_upgrade_block_height(head.last_block_hash)
                 .unwrap_or(None)
                 .unwrap_or(0),
-            self.client.chain.store().get_store_statistics(),
+            statistics,
         );
         debug!(target: "stats", "{}", self.client.detailed_upcoming_blocks_info().unwrap_or(String::from("Upcoming block info failed.")));
     }

@@ -89,9 +89,9 @@ impl ShardTries {
                         TrieCachingStorage::get_shard_uid_and_hash_from_key(key)?;
                     shards.entry(shard_uid).or_insert(vec![]).push((hash, Some(value)));
                 }
-                DBOp::Insert { col, .. } if *col == DBCol::State0 || *col == DBCol::State1 || *col == DBCol::State2 || *col == DBCol::State3 => unreachable!(),
-                DBOp::Delete { col, .. } if *col == DBCol::State0 || *col == DBCol::State1 || *col == DBCol::State2 || *col == DBCol::State3 => unreachable!(),
-                DBOp::DeleteAll { col } if *col == DBCol::State0 || *col == DBCol::State1 || *col == DBCol::State2 || *col == DBCol::State3 => {
+                DBOp::Set { col, .. } if *col == DBCol::State || *col == DBCol::State0 || *col == DBCol::State1 || *col == DBCol::State2 || *col == DBCol::State3 => unreachable!(),
+                DBOp::Delete { col, .. } if *col == DBCol::State || *col == DBCol::State0 || *col == DBCol::State1 || *col == DBCol::State2 || *col == DBCol::State3 => unreachable!(),
+                DBOp::DeleteAll { col } if *col == DBCol::State || *col == DBCol::State0 || *col == DBCol::State1 || *col == DBCol::State2 || *col == DBCol::State3 => {
                     // Delete is possible in reset_data_pre_state_sync
                     for (_, cache) in caches.iter() {
                         cache.clear();
