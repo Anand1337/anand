@@ -33,19 +33,19 @@ class Handler(ProxyHandler):
 
     async def handle(self, msg, fr, to):
         if msg is not None:
-            if msg.enum == 'Block':
+            if msg.HasField("block_response"):
                 loop = asyncio.get_running_loop()
                 send = functools.partial(self.do_send_message, msg, 1)
                 if should_sync.value:
                     loop.call_later(1, send)
                 return False
-            elif msg.enum == 'BlockRequest':
+            elif msg.HasField("block_request"):
                 loop = asyncio.get_running_loop()
                 send = functools.partial(self.do_send_message, msg, 0)
                 if should_sync.value:
                     loop.call_later(6, send)
                 return False
-            elif msg.enum == 'BlockHeaders':
+            elif msg.HasField("block_headers_response"):
                 if should_ban:
                     return False
                 loop = asyncio.get_running_loop()

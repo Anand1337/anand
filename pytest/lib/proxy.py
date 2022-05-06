@@ -143,8 +143,7 @@ class ProxyHandler:
             await writer.drain()
 
     async def send_message(self, message, to, fr=None):
-        raw_message = BinarySerializer(schema).serialize(message)
-        await self.send_binary(raw_message, to, fr)
+        await self.send_binary(message.SerializeToString() , to, fr)
 
     def do_send_binary(self, raw_message, to, fr=None):
         self.loop.create_task(self.send_binary(raw_message, to, fr))

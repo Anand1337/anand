@@ -43,8 +43,9 @@ class Handler(ProxyHandler):
         self.responses = responses
 
     async def handle(self, msg, fr, to):
-        if msg.enum == 'Routed':
-            msg_kind = msg.Routed.body.enum
+        if msg.HasField("routed"):
+            routed = BinarySerializer(schema).deserialize(msg.routed.borsh,RoutedMessage)
+            msg_kind = routed.body.enum
             if msg_kind == 'PartialEncodedChunk':
                 header = msg.Routed.body.PartialEncodedChunk.header
                 height = header.inner.height_created

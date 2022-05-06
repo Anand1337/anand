@@ -30,16 +30,17 @@ class Handler(ProxyHandler):
         self.peers_response = 0
 
     async def handle(self, msg, fr, to):
-        if msg.enum.startswith('Peers'):
-            logger.info(f"{msg.enum} {fr} {to}")
+        if msg.HasField("peers_request") or msg.HasField("peers_response"):
+            message_type = msg.WhichOneof("message_type")
+            logger.info(f"{message_type} {fr} {to}")
 
-        if to == 0 and msg.enum == 'PeersRequest':
+        if to == 0 and msg.HasField("peers_request"):
             self.peers_request = msg
             loop = asyncio.get_running_loop()
             send = functools.partial(self.do_send_message, msg, 0)
             loop.call_later(3, send)
 
-        if to == 1 and msg.enum == 'PeersResponse':
+        if to == 1 and msg.HasField("peers_response"):
             self.peers_response += 1
             logger.info(f"Total PeersResponses = {self.peers_response}")
             if self.peers_response == 2:

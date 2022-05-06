@@ -29,17 +29,16 @@ success = Value('i', 0)
 class Handler(ProxyHandler):
 
     async def handle(self, msg, fr, to):
-        if msg.enum == "RoutingTableSync":
-            logger.info("RoutingTableSync")
-        if msg.enum == "RoutingTableSyncV2" and msg.RoutingTableSyncV2.enum == "Version2":
-            if msg.RoutingTableSyncV2.Version2.routing_state.enum == "Done":
-                success.value = 1
-            logger.info("ROUTING_STATE %s" %
-                        msg.RoutingTableSyncV2.Version2.routing_state.enum)
-            logger.info("* known_edges %s" %
-                        msg.RoutingTableSyncV2.Version2.known_edges)
-            logger.info("* edges %s" %
-                        len(msg.RoutingTableSyncV2.Version2.edges))
+        if msg.HasField("sync_routing_table"):
+            logger.info("sync_routing_table")
+        if msg.HasField("routing_table_sync_v2"):
+            sync = BinarySerializer(schema).deserialize(msg.routing_table_sync_v2.borsh,RoutingTableSyncV2)
+            if sync.enum == "Version2":
+                if sync.Version2.routing_state.enum == "Done":
+                    success.value = 1
+                logger.info("ROUTING_STATE %s" % sync.Version2.routing_state.enum)
+                logger.info("* known_edges %s" % sync.Version2.known_edges)
+                logger.info("* edges %s" % len(sync.Version2.edges))
         return True
 
 

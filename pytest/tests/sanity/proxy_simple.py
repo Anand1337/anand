@@ -11,6 +11,8 @@ from cluster import start_cluster
 from configured_logger import logger
 from peer import *
 from proxy import ProxyHandler
+from serializer import BinarySerializer
+from messages.network import Block
 
 from multiprocessing import Value
 from utils import obj_to_string
@@ -22,8 +24,9 @@ success = Value('i', 0)
 class Handler(ProxyHandler):
 
     async def handle(self, msg, fr, to):
-        if msg.enum == 'Block':
-            h = msg.Block.BlockV2.header.inner_lite().height
+        if msg.HasField("block_response"):
+            b = BinarySerializer(schema).deserialize(msg.block_response.block.borsh,Block)
+            h = b.BlockV2.header.inner_lite().height
             logger.info(f"Height: {h}")
             if h >= 10:
                 logger.info('SUCCESS')
