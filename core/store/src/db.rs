@@ -665,21 +665,14 @@ impl RocksDB {
             }
             let seconds_elapsed = latency_get.1.unwrap().elapsed().as_secs();
 
-            if latency_us < 15 {
-                latency_get.2 += 1;
-            } else {
-                let _ = latency_get.0.add(latency_us as i32);
-            }
+            let _ = latency_get.0.add(latency_us as i32);
 
-            let fast_calls = latency_get.2;
             let slow_calls = latency_get.0.total_count();
             if seconds_elapsed > 30 {
-                println!("total: {} fast: {} slow: {} ratio: {:.2} slow latency: {:?}",
-                         fast_calls + slow_calls, fast_calls, slow_calls, fast_calls as f64 / slow_calls as f64,
+                println!("total: {} slow latency: {:?}", slow_calls,
                          latency_get.0.get_distribution(&vec![1., 5., 10., 50., 90., 95., 99.]));
                 latency_get.0.clear();
                 latency_get.1 = Some(current_time);
-                latency_get.2 = 0;
             }
         }
     }
