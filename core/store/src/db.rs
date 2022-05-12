@@ -669,7 +669,7 @@ impl RocksDB {
 
             let slow_calls = latency_get.0.total_count();
             if seconds_elapsed > 30 {
-                println!("total: {} slow latency: {:?}", slow_calls,
+                println!("total: {} latency: {:?}", slow_calls,
                          latency_get.0.get_distribution(&vec![1., 5., 10., 50., 90., 95., 99.]));
                 latency_get.0.clear();
                 latency_get.1 = Some(current_time);
