@@ -20,6 +20,7 @@ fn setup_subscriber_from_filter(mut env_filter: EnvFilter) {
     let _ = subscriber_fmt::Subscriber::builder()
         .with_span_events(subscriber_fmt::format::FmtSpan::CLOSE)
         .with_env_filter(env_filter)
+        .with_ansi(false) // Disable colored logs.
         .with_writer(subscriber_fmt::TestWriter::new())
         .try_init();
 }

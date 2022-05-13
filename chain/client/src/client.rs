@@ -1664,41 +1664,14 @@ impl Client {
             } else if check_only {
                 Ok(NetworkClientResponses::ValidTx)
             } else {
-                let active_validator = self.active_validator(shard_id)?;
-
-                // If I'm not an active validator I should forward tx to next validators.
-
-                // Active validator:
-                //   possibly forward to next epoch validators
-                // Not active validator:
-                //   forward to current epoch validators,
-                //   possibly forward to next epoch validators
-                if active_validator {
-                    trace!(target: "client", account = ?me, shard_id, is_forwarded, "Recording a transaction.");
-                    metrics::TRANSACTION_RECEIVED_VALIDATOR.inc();
-                    self.shards_mgr.insert_transaction(shard_id, tx.clone());
-
-                    if !is_forwarded {
-                        self.possibly_forward_tx_to_next_epoch(tx)?;
-                    }
-                    Ok(NetworkClientResponses::ValidTx)
-                } else if !is_forwarded {
-                    trace!(target: "client", shard_id, "Forwarding a transaction.");
-                    metrics::TRANSACTION_RECEIVED_NON_VALIDATOR.inc();
-                    self.forward_tx(&epoch_id, tx)?;
-                    Ok(NetworkClientResponses::RequestRouted)
-                } else {
-                    trace!(target: "client", shard_id, "Non-validator received a forwarded transaction, dropping it.");
-                    metrics::TRANSACTION_RECEIVED_NON_VALIDATOR_FORWARDED.inc();
-                    Ok(NetworkClientResponses::NoResponse)
-                }
+                self.record_transaction(tx, epoch_id, shard_id, is_forwarded)
             }
         } else if check_only {
             Ok(NetworkClientResponses::DoesNotTrackShard)
         } else {
             if is_forwarded {
                 // received forwarded transaction but we are not tracking the shard
-                debug!(target: "client", "Received forwarded transaction but no tracking shard {}, I'm {:?}", shard_id, me);
+                trace!(target: "client", "Received forwarded transaction but no tracking shard {}, I'm {:?}", shard_id, me);
                 return Ok(NetworkClientResponses::NoResponse);
             }
             // We are not tracking this shard, so there is no way to validate this tx. Just rerouting.
@@ -1708,10 +1681,42 @@ impl Client {
         }
     }
 
-    /// Determine if I am a validator in next few blocks for specified shard, assuming epoch doesn't change.
-    fn active_validator(&self, shard_id: ShardId) -> Result<bool, Error> {
+    fn record_transaction(&mut self, tx: &SignedTransaction, epoch_id: EpochId, shard_id: ShardId, is_forwarded: bool) -> Result<NetworkClientResponses, Error> {
+        let _span = tracing::debug_span!(target: "client", "record_transaction", shard_id, ?epoch_id, me = self.validator_signer.as_ref().map(|x| x.validator_id())).entered();
+        let active_validator = self.active_validator(shard_id, &epoch_id, tx)?;
+
+        // Active validator:
+        //   add to mempool
+        // Not active validator:
+        //   forward to active validators
+        if active_validator {
+            trace!(target: "client", is_forwarded, "Recording a transaction.");
+            metrics::TRANSACTION_RECEIVED_VALIDATOR.inc();
+            self.shards_mgr.insert_transaction(shard_id, tx.clone());
+
+            if !is_forwarded {
+                self.possibly_forward_tx_to_next_epoch(tx)?;
+            }
+            Ok(NetworkClientResponses::ValidTx)
+        } else if !is_forwarded {
+            trace!(target: "client", "Forwarding a transaction.");
+            metrics::TRANSACTION_RECEIVED_NON_VALIDATOR.inc();
+            self.forward_tx(&epoch_id, tx)?;
+
+            Ok(NetworkClientResponses::RequestRouted)
+        } else {
+            trace!(target: "client", "Not an active validator received a forwarded transaction, dropping it.");
+            metrics::TRANSACTION_RECEIVED_NON_VALIDATOR_FORWARDED.inc();
+            Ok(NetworkClientResponses::NoResponse)
+        }
+    }
+
+    /// Determine if I am a validator in next few blocks for the shard containing the given transaction.
+    /// Also handles epoch boundaries assuming the new epoch will start at the first possible block.
+    fn active_validator(&self, shard_id: ShardId, epoch_id: &EpochId, tx: &SignedTransaction) -> Result<bool, Error> {
+        let _span = tracing::trace_span!(target: "client", "active_validator").entered();
         let head = self.chain.head()?;
-        let epoch_id = self.runtime_adapter.get_epoch_id_from_prev_block(&head.last_block_hash)?;
+        let next_epoch_estimated_height = self.runtime_adapter.get_epoch_start_height(&head.last_block_hash)? + self.config.epoch_length;
 
         let account_id = if let Some(vs) = self.validator_signer.as_ref() {
             vs.validator_id()
@@ -1719,11 +1724,29 @@ impl Client {
             return Ok(false);
         };
 
-        for i in 1..=TX_ROUTING_HEIGHT_HORIZON {
-            let chunk_producer =
-                self.runtime_adapter.get_chunk_producer(&epoch_id, head.height + i, shard_id)?;
-            if &chunk_producer == account_id {
-                return Ok(true);
+        if next_epoch_estimated_height > head.height {
+            let diff = std::cmp::min(TX_ROUTING_HEIGHT_HORIZON, next_epoch_estimated_height - head.height);
+            for horizon in 1..=diff {
+                let chunk_producer = self.runtime_adapter.get_chunk_producer(epoch_id, head.height + horizon, shard_id)?;
+                if &chunk_producer == account_id {
+                    trace!(target: "client", ?epoch_id, ?shard_id, height = head.height + horizon, "Will be a chunk producer in the current epoch");
+                    return Ok(true);
+                }
+            }
+        }
+
+        if head.height + TX_ROUTING_HEIGHT_HORIZON >= next_epoch_estimated_height {
+            let next_epoch_id = self.runtime_adapter.get_next_epoch_id_from_prev_block(&head.last_block_hash)?;
+            let next_shard_id = self
+                .runtime_adapter
+                .account_id_to_shard_id(&tx.transaction.signer_id, &next_epoch_id)?;
+
+            for horizon in (next_epoch_estimated_height-head.height+1)..=TX_ROUTING_HEIGHT_HORIZON {
+                let chunk_producer = self.runtime_adapter.get_chunk_producer(&next_epoch_id, head.height + horizon, next_shard_id)?;
+                if &chunk_producer == account_id {
+                    trace!(target: "client", ?next_epoch_id, ?next_shard_id, height = head.height + horizon, "Will be a chunk producer in the next epoch");
+                    return Ok(true);
+                }
             }
         }
         Ok(false)

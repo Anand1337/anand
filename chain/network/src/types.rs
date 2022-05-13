@@ -474,7 +474,7 @@ pub enum NetworkClientMessages {
 #[derive(Eq, PartialEq, Debug, actix::MessageResponse)]
 #[allow(clippy::large_enum_variant)]
 pub enum NetworkClientResponses {
-    /// Adv controls.
+    /// Adversarial controls.
     #[cfg(feature = "test_features")]
     AdvResult(u64),
 
@@ -486,11 +486,11 @@ pub enum NetworkClientResponses {
     NoResponse,
     /// Valid transaction inserted into mempool as response to Transaction.
     ValidTx,
-    /// Invalid transaction inserted into mempool as response to Transaction.
+    /// Invalid transaction, rejected.
     InvalidTx(InvalidTxError),
-    /// The request is routed to other shards
+    /// The request is routed to other nodes.
     RequestRouted,
-    /// The node being queried does not track the shard needed and therefore cannot provide userful
+    /// The node being queried does not track the shard needed and therefore cannot provide useful
     /// response.
     DoesNotTrackShard,
     /// Ban peer for malicious behavior.
