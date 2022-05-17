@@ -1678,8 +1678,14 @@ impl Client {
         }
     }
 
-    fn record_transaction(&mut self, tx: &SignedTransaction, epoch_id: EpochId, shard_id: ShardId, is_forwarded: bool) -> Result<NetworkClientResponses, Error> {
-        let _span = tracing::debug_span!(target: "client", "record_transaction", shard_id, ?epoch_id, me = self.validator_signer.as_ref().map(|x| x.validator_id())).entered();
+    fn record_transaction(
+        &mut self,
+        tx: &SignedTransaction,
+        epoch_id: EpochId,
+        shard_id: ShardId,
+        is_forwarded: bool,
+    ) -> Result<NetworkClientResponses, Error> {
+        let _span = tracing::debug_span!(target: "client", "record_transaction", shard_id, ?epoch_id, me = ?self.validator_signer.as_ref().map(|x| x.validator_id())).entered();
         let active_validator = self.active_validator(shard_id, &epoch_id, tx)?;
 
         // Active validator:
@@ -1710,10 +1716,17 @@ impl Client {
 
     /// Determine if I am a validator in next few blocks for the shard containing the given transaction.
     /// Also handles epoch boundaries assuming the new epoch will start at the first possible block.
-    fn active_validator(&self, shard_id: ShardId, epoch_id: &EpochId, tx: &SignedTransaction) -> Result<bool, Error> {
+    fn active_validator(
+        &self,
+        shard_id: ShardId,
+        epoch_id: &EpochId,
+        tx: &SignedTransaction,
+    ) -> Result<bool, Error> {
         let _span = tracing::trace_span!(target: "client", "active_validator").entered();
         let head = self.chain.head()?;
-        let next_epoch_estimated_height = self.runtime_adapter.get_epoch_start_height(&head.last_block_hash)? + self.config.epoch_length;
+        let next_epoch_estimated_height =
+            self.runtime_adapter.get_epoch_start_height(&head.last_block_hash)?
+                + self.config.epoch_length;
 
         let account_id = if let Some(vs) = self.validator_signer.as_ref() {
             vs.validator_id()
@@ -1722,9 +1735,14 @@ impl Client {
         };
 
         if next_epoch_estimated_height > head.height {
-            let diff = std::cmp::min(TX_ROUTING_HEIGHT_HORIZON, next_epoch_estimated_height - head.height);
+            let diff =
+                std::cmp::min(TX_ROUTING_HEIGHT_HORIZON, next_epoch_estimated_height - head.height);
             for horizon in 1..=diff {
-                let chunk_producer = self.runtime_adapter.get_chunk_producer(epoch_id, head.height + horizon, shard_id)?;
+                let chunk_producer = self.runtime_adapter.get_chunk_producer(
+                    epoch_id,
+                    head.height + horizon,
+                    shard_id,
+                )?;
                 if &chunk_producer == account_id {
                     trace!(target: "client", ?epoch_id, ?shard_id, height = head.height + horizon, "Will be a chunk producer in the current epoch");
                     return Ok(true);
@@ -1733,19 +1751,27 @@ impl Client {
         }
 
         if head.height + TX_ROUTING_HEIGHT_HORIZON >= next_epoch_estimated_height {
-            let next_epoch_id = self.runtime_adapter.get_next_epoch_id_from_prev_block(&head.last_block_hash)?;
+            let next_epoch_id =
+                self.runtime_adapter.get_next_epoch_id_from_prev_block(&head.last_block_hash)?;
             let next_shard_id = self
                 .runtime_adapter
                 .account_id_to_shard_id(&tx.transaction.signer_id, &next_epoch_id)?;
 
-            for horizon in (next_epoch_estimated_height-head.height+1)..=TX_ROUTING_HEIGHT_HORIZON {
-                let chunk_producer = self.runtime_adapter.get_chunk_producer(&next_epoch_id, head.height + horizon, next_shard_id)?;
+            for horizon in
+                (next_epoch_estimated_height - head.height + 1)..=TX_ROUTING_HEIGHT_HORIZON
+            {
+                let chunk_producer = self.runtime_adapter.get_chunk_producer(
+                    &next_epoch_id,
+                    head.height + horizon,
+                    next_shard_id,
+                )?;
                 if &chunk_producer == account_id {
                     trace!(target: "client", ?next_epoch_id, ?next_shard_id, height = head.height + horizon, "Will be a chunk producer in the next epoch");
                     return Ok(true);
                 }
             }
         }
+
         Ok(false)
     }
 

@@ -1023,7 +1023,9 @@ impl RuntimeAdapter for KeyValueRuntime {
     }
 
     fn get_epoch_start_height(&self, block_hash: &CryptoHash) -> Result<BlockHeight, Error> {
-        let epoch_id = self.get_epoch_and_valset(*block_hash)?.0;
+        // EpochId is defined as the last block of the prev prev epoch: https://nomicon.io/BlockchainLayer/EpochManager/Epoch
+        // Therefore, epoch id of the next epoch is the hash of the last block in the previous epoch.
+        let epoch_id = self.get_epoch_and_valset(*block_hash)?.2;
         match self.get_block_header(&epoch_id.0)? {
             Some(block_header) => Ok(block_header.height()),
             None => Ok(0),
