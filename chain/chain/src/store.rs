@@ -2269,11 +2269,11 @@ impl<'a> ChainStoreUpdate<'a> {
             self.chain_store.block_hash_per_height.put(key.clone(), epoch_to_hashes);
         }
         self.inc_gc(DBCol::BlockPerHeight);
-        println!("222");
         let timer =
             near_store::metrics::DATABASE_OP_LATENCY_HIST.with_label_values(&["get", "222"]).start_timer();
         let x = self.is_height_processed(height)?;
         timer.observe_duration();
+        println!("222 {} {}", height, x);
         if x {
             self.gc_col(DBCol::ProcessedBlockHeights, &key);
         }
