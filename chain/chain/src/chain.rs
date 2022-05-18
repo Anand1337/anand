@@ -736,9 +736,11 @@ impl Chain {
 
         let timer =
             near_store::metrics::DATABASE_OP_LATENCY_HIST.with_label_values(&["get", "333"]).start_timer();
+        let start_time = std::time::Instant::now();
         let x = chain_store_update.is_height_processed(block_height)?;
+        let latency = start_time.elapsed().as_micros();
         timer.observe_duration();
-        println!("333 {} {}", block_height, x);
+        println!("333 block_height: {} latency: {} value: {}", block_height, latency, x);
 
         if !x {
             chain_store_update.save_block_height_processed(block_height);
