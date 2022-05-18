@@ -733,7 +733,14 @@ impl Chain {
 
     fn save_block_height_processed(&mut self, block_height: BlockHeight) -> Result<(), Error> {
         let mut chain_store_update = ChainStoreUpdate::new(&mut self.store);
-        if !chain_store_update.is_height_processed(block_height)? {
+        println!("333");
+
+        let timer =
+            near_store::metrics::DATABASE_OP_LATENCY_HIST.with_label_values(&["get", "333"]).start_timer();
+        let x = chain_store_update.is_height_processed(block_height)?;
+        timer.observe_duration();
+
+        if !x {
             chain_store_update.save_block_height_processed(block_height);
         }
         chain_store_update.commit()?;

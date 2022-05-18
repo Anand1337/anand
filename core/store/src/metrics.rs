@@ -1,7 +1,7 @@
 use near_metrics::{try_create_histogram_vec, HistogramVec};
 use once_cell::sync::Lazy;
 
-pub(crate) static DATABASE_OP_LATENCY_HIST: Lazy<HistogramVec> = Lazy::new(|| {
+pub static DATABASE_OP_LATENCY_HIST: Lazy<HistogramVec> = Lazy::new(|| {
     try_create_histogram_vec(
         "near_database_op_latency_by_op_and_column",
         "Database operations latency by operation and column.",

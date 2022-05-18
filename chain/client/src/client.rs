@@ -759,7 +759,13 @@ impl Client {
                     .head()
                     .map_or_else(|_| CryptoHash::default(), |tip| tip.last_block_hash)
         {
-            match self.chain.mut_store().is_height_processed(block.header().height()) {
+            println!("111");
+            let mut_store = self.chain.mut_store();
+            let timer =
+                near_store::metrics::DATABASE_OP_LATENCY_HIST.with_label_values(&["get", "111"]).start_timer();
+            let x = mut_store.is_height_processed(block.header().height());
+            timer.observe_duration();
+            match x {
                 Ok(true) => return (vec![], Ok(None)),
                 Ok(false) => {}
                 Err(e) => return (vec![], Err(e)),
