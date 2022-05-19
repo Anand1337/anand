@@ -235,7 +235,6 @@ pub(crate) trait Database: Sync + Send {
         DBTransaction { ops: Vec::new() }
     }
     fn get(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError>;
-    fn get_raw(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError>;
     fn iter<'a>(&'a self, column: DBCol) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a>;
     fn iter_raw_bytes<'a>(
         &'a self,
@@ -263,18 +262,6 @@ impl Database for RocksDB {
         let read_options = rocksdb_read_options();
         let result = self.db.get_cf_opt(unsafe { &*self.cfs[col as usize] }, key, &read_options)?;
         let result = Ok(RocksDB::get_with_rc_logic(col, result));
-
-        timer.observe_duration();
-        result
-    }
-
-    fn get_raw(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError> {
-        let timer =
-            metrics::DATABASE_OP_LATENCY_HIST.with_label_values(&["get", col.into()]).start_timer();
-
-        let read_options = rocksdb_read_options();
-        let result = self.db.get_cf_opt(unsafe { &*self.cfs[col as usize] }, key, &read_options)?;
-        let result = Ok(result);
 
         timer.observe_duration();
         result
@@ -394,11 +381,6 @@ impl Database for TestDB {
     fn get(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError> {
         let result = self.db.read().unwrap()[col as usize].get(key).cloned();
         Ok(RocksDB::get_with_rc_logic(col, result))
-    }
-
-    fn get_raw(&self, col: DBCol, key: &[u8]) -> Result<Option<Vec<u8>>, DBError> {
-        let result = self.db.read().unwrap()[col as usize].get(key).cloned();
-        Ok(result)
     }
 
     fn iter<'a>(&'a self, col: DBCol) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
@@ -583,12 +565,12 @@ fn rocksdb_column_options(col: DBCol, store_config: &StoreConfig) -> Options {
     // the rest use LZ4 compression.
     // See the implementation here:
     //      https://github.com/facebook/rocksdb/blob/c18c4a081c74251798ad2a1abf83bad417518481/options/options.cc#L588.
-    let memtable_memory_budget = 256 * bytesize::MIB as usize;
+    let memtable_memory_budget = 128 * bytesize::MIB as usize;
     opts.optimize_level_style_compaction(memtable_memory_budget);
     // opts.set_min_write_buffer_number(1);
     // opts.set_max_write_buffer_number(1);
 
-    opts.set_target_file_size_base(128 * bytesize::MIB);
+    opts.set_target_file_size_base(64 * bytesize::MIB);
     if col.is_rc() {
         opts.set_merge_operator("refcount merge", RocksDB::refcount_merge, RocksDB::refcount_merge);
         opts.set_compaction_filter("empty value filter", RocksDB::empty_value_compaction_filter);
