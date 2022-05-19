@@ -104,7 +104,7 @@ impl DBTransaction {
 }
 
 pub struct RocksDB {
-    pub db: DB,
+    db: DB,
     db_opt: Options,
     cfs: Vec<*const ColumnFamily>,
 
