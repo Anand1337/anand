@@ -60,10 +60,6 @@ impl Store {
         self.storage.get(column, key).map_err(io::Error::from)
     }
 
-    pub fn get_raw(&self, column: DBCol, key: &[u8]) -> io::Result<Option<Vec<u8>>> {
-        self.storage.get_raw(column, key).map_err(io::Error::from)
-    }
-
     pub fn get_ser<T: BorshDeserialize>(&self, column: DBCol, key: &[u8]) -> io::Result<Option<T>> {
         match self.get(column, key)? {
             Some(bytes) => Ok(Some(T::try_from_slice(&bytes)?)),
