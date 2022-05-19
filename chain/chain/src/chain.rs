@@ -2488,6 +2488,15 @@ impl Chain {
         id: &CryptoHash,
     ) -> Result<Vec<ExecutionOutcomeWithIdView>, Error> {
         let outcome: ExecutionOutcomeWithIdView = self.get_execution_outcome(id)?.into();
+        if let ExecutionStatusView::Failure(_) | ExecutionStatusView::SuccessValue(_) =
+            outcome.outcome.status
+        {
+            return Ok(vec![outcome]);
+        }
+        // match outcome.outcome.status {
+        //     ExecutionStatusView::Failure(_) | ExecutionStatusView::SuccessValue(_) => return vec[outcome],
+        //     _ => {},
+        // }
         let receipt_ids = outcome.outcome.receipt_ids.clone();
         let mut results = vec![outcome];
         for receipt_id in &receipt_ids {
