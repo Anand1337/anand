@@ -1,5 +1,4 @@
 use std::fs;
-use rand::Rng;
 use std::path::Path;
 use near_store::{StoreConfig, create_store_with_config, DBCol};
 
@@ -17,8 +16,11 @@ fn main() {
 
     let store = create_store_with_config(Path::new(path), &StoreConfig::read_write());
     for i in 0..65_000_000 {
+        let key = u32_to_vec(i);
+        let f: Option<bool> = store.get_ser(DBCol::ProcessedBlockHeights, &key).unwrap();
+        assert!(f.is_none(), ":(");
         let mut store_update = store.store_update();
-        store_update.set_ser(DBCol::State, &u32_to_vec(i), &true).unwrap();
+        store_update.set_ser(DBCol::ProcessedBlockHeights, &key, &true).unwrap();
         let _ = store_update.commit();
     }
 }

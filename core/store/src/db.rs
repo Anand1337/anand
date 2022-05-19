@@ -260,10 +260,15 @@ impl Database for RocksDB {
             metrics::DATABASE_OP_LATENCY_HIST.with_label_values(&["get", col.into()]).start_timer();
 
         let read_options = rocksdb_read_options();
+        let start_time = std::time::Instant::now();
         let result = self.db.get_cf_opt(unsafe { &*self.cfs[col as usize] }, key, &read_options)?;
+        let latency = start_time.elapsed().as_micros();
         let result = Ok(RocksDB::get_with_rc_logic(col, result));
 
         timer.observe_duration();
+        if key[key.len() - 1] == 0 && key[key.len() - 2] == 0 {
+            println!("{:?} {}", key, latency);
+        }
         result
     }
 
