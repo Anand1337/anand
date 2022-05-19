@@ -6,8 +6,6 @@ use near_chain::{
     Chain, ChainGenesis, ChainStore, ChainStoreAccess, DoomslugThresholdMode, RuntimeAdapter,
 };
 use near_chain_configs::GenesisConfig;
-#[cfg(feature = "test_features")]
-use near_client::AdversarialControls;
 use near_client::{start_client, start_view_client, ClientActor, ViewClientActor};
 use near_epoch_manager::EpochManager;
 use near_network::test_utils::NetworkRecipient;
@@ -127,6 +125,9 @@ impl FromStr for MockNetworkMode {
 /// `target_height`: height that the simulated peers will produce blocks until. If None, will
 ///                  use the height from the chain head in storage
 /// `in_memory_storage`: if true, make client use in memory storage instead of rocksdb
+///
+/// Returns an actix::Addr handle to each of the actors spawned, plus a Vec of Servers representing
+/// the ports that the mock node is currently listening on.
 pub fn setup_mock_node(
     client_home_dir: &Path,
     network_home_dir: &Path,
@@ -136,7 +137,13 @@ pub fn setup_mock_node(
     client_start_height: Option<BlockHeight>,
     target_height: Option<BlockHeight>,
     in_memory_storage: bool,
-) -> (Addr<MockPeerManagerActor>, Addr<ClientActor>, Addr<ViewClientActor>) {
+) -> (
+    Addr<MockPeerManagerActor>,
+    Addr<ClientActor>,
+    Addr<ViewClientActor>,
+    Option<Vec<(&'static str, actix_web::dev::ServerHandle)>>,
+) {
+    let parent_span = tracing::debug_span!(target: "mock_node", "setup_mock_node").entered();
     let client_runtime = setup_runtime(client_home_dir, &config, in_memory_storage);
     let mock_network_runtime = setup_runtime(network_home_dir, &config, false);
 
@@ -145,8 +152,7 @@ pub fn setup_mock_node(
 
     let node_id = PeerId::new(config.network_config.public_key.clone().into());
     let network_adapter = Arc::new(NetworkRecipient::default());
-    #[cfg(feature = "test_features")]
-    let adv = Arc::new(std::sync::RwLock::new(AdversarialControls::default()));
+    let adv = near_client::adversarial::Controls::default();
 
     // if no start height is provided for the mock network at ProduceNewBlocks mode, fall back to
     // client start height
@@ -233,6 +239,14 @@ pub fn setup_mock_node(
             (0..num_parts)
                 .into_par_iter()
                 .try_for_each(|part_id| -> anyhow::Result<()> {
+                    let _span = tracing::debug_span!(
+                        target: "mock_node",
+                        parent: &parent_span,
+                        "obtain_and_apply_state_part",
+                        part_id,
+                        shard_id)
+                    .entered();
+
                     let state_part = mock_network_runtime
                         .obtain_state_part(
                             shard_id,
@@ -278,7 +292,6 @@ pub fn setup_mock_node(
         config.validator_signer.clone(),
         telemetry,
         None,
-        #[cfg(feature = "test_features")]
         adv.clone(),
     );
 
@@ -288,8 +301,7 @@ pub fn setup_mock_node(
         client_runtime.clone(),
         network_adapter.clone(),
         config.client_config.clone(),
-        #[cfg(feature = "test_features")]
-        adv.clone(),
+        adv,
     );
 
     let arbiter = Arbiter::new();
@@ -310,19 +322,23 @@ pub fn setup_mock_node(
                 !archival,
             )
         });
+    network_adapter.set_recipient(mock_network_actor.clone().recipient());
+
     // for some reason, with "test_features", start_http requires PeerManagerActor,
     // we are not going to run start_mock_network with test_features, so let's disable that for now
     #[cfg(not(feature = "test_features"))]
-    if let Some(rpc_config) = config.rpc_config {
+    let server = config.rpc_config.map(|rpc_config| {
         near_jsonrpc::start_http(
             rpc_config,
             config.genesis.config,
             client_actor.clone(),
             view_client.clone(),
-        );
-    }
-    network_adapter.set_recipient(mock_network_actor.clone().recipient());
-    (mock_network_actor, client_actor, view_client)
+        )
+    });
+    #[cfg(feature = "test_features")]
+    let server = None;
+
+    (mock_network_actor, client_actor, view_client, server)
 }
 
 #[cfg(test)]
@@ -439,7 +455,7 @@ mod test {
         near_config1.client_config.tracked_shards =
             (0..near_config1.genesis.config.shard_layout.num_shards()).collect();
         run_actix(async move {
-            let (_mock_network, _client, view_client) = setup_mock_node(
+            let (_mock_network, _client, view_client, _) = setup_mock_node(
                 dir1.path().clone(),
                 dir.path().clone(),
                 near_config1,

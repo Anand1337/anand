@@ -91,8 +91,7 @@ use tracing::{debug, error, warn};
 
 use near_chain::validate::validate_chunk_proofs;
 use near_chain::{
-    byzantine_assert, Chain, ChainStore, ChainStoreAccess, ChainStoreUpdate, ErrorKind,
-    RuntimeAdapter,
+    byzantine_assert, Chain, ChainStore, ChainStoreAccess, ChainStoreUpdate, RuntimeAdapter,
 };
 use near_network::types::{
     NetworkRequests, PeerManagerAdapter, PeerManagerMessageRequest, WrappedInstant,
@@ -119,7 +118,7 @@ use near_primitives::version::ProtocolVersion;
 use near_primitives::{checked_feature, unwrap_or_return};
 
 use crate::chunk_cache::{EncodedChunksCache, EncodedChunksCacheEntry};
-use near_chain::near_chain_primitives::error::ErrorKind::DBNotFoundErr;
+use near_chain::near_chain_primitives::error::Error::DBNotFoundErr;
 pub use near_chunks_primitives::Error;
 use near_network_primitives::types::{
     AccountIdOrPeerTrackingShard, PartialEncodedChunkForwardMsg, PartialEncodedChunkRequestMsg,
@@ -492,6 +491,7 @@ impl ShardsManager {
         network_adapter: Arc<dyn PeerManagerAdapter>,
         rng_seed: RngSeed,
     ) -> Self {
+        TransactionPool::init_metrics();
         Self {
             me: me.clone(),
             tx_pools: HashMap::new(),
@@ -888,6 +888,11 @@ impl ShardsManager {
 
     /// Resends chunk requests if haven't received it within expected time.
     pub fn resend_chunk_requests(&mut self, header_head: &Tip) {
+        let _span = tracing::debug_span!(
+            target: "client",
+            "resend_chunk_requests",
+            header_head_height = header_head.height)
+        .entered();
         // Process chunk one part requests.
         let requests = self.requested_partial_encoded_chunks.fetch();
         for (chunk_hash, chunk_request) in requests {
@@ -1004,7 +1009,16 @@ impl ShardsManager {
         chain_store: &mut ChainStore,
         rs: &mut ReedSolomonWrapper,
     ) {
-        debug!(target: "chunks", "Received partial encoded chunk request for {:?}, part_ordinals: {:?}, shards: {:?}, I'm {:?}", request.chunk_hash.0, request.part_ords, request.tracking_shards, self.me);
+        let _span = tracing::debug_span!(
+            target: "chunks",
+            "process_partial_encoded_chunk_request",
+            chunk_hash = %request.chunk_hash.0)
+        .entered();
+        debug!(target: "chunks",
+            chunk_hash = %request.chunk_hash.0,
+            part_ords = ?request.part_ords,
+            shards = ?request.tracking_shards,
+            account = ?self.me);
 
         let (started, key, response) =
             self.prepare_partial_encoded_chunk_response(request, chain_store, rs);
@@ -1596,7 +1610,7 @@ impl ShardsManager {
         let chunk_requested = self.requested_partial_encoded_chunks.contains_key(&chunk_hash);
         if !chunk_requested {
             if !self.encoded_chunks.height_within_horizon(header.height_created()) {
-                return Err(Error::ChainError(ErrorKind::InvalidChunkHeight.into()));
+                return Err(Error::ChainError(near_chain::Error::InvalidChunkHeight));
             }
             // We shouldn't process unrequested chunk if we have seen one with same (height_created + shard_id) but different chunk_hash
             if let Ok(hash) = chain_store
@@ -1613,10 +1627,10 @@ impl ShardsManager {
         match partial_encoded_chunk
             .validate_with(|pec| self.validate_chunk_header(chain_head, &pec.header).map(|()| true))
         {
-            Err(Error::ChainError(chain_error)) => match chain_error.kind() {
+            Err(Error::ChainError(chain_error)) => match chain_error {
                 // validate_chunk_header returns DBNotFoundError if the previous block is not ready
                 // in this case, we return NeedBlock instead of error
-                ErrorKind::DBNotFoundErr(_) => {
+                near_chain::Error::DBNotFoundErr(_) => {
                     debug!(target:"client", "Dropping partial encoded chunk {:?} height {}, shard_id {} because we don't have enough information to validate it",
                            header.chunk_hash(), header.height_created(), header.shard_id());
                     return Ok(ProcessPartialEncodedChunkResult::NeedBlock);
@@ -1647,7 +1661,7 @@ impl ShardsManager {
             let receipt_hash = hash(&ReceiptList(shard_id, shard_receipts).try_to_vec().unwrap());
             if !verify_path(header.outgoing_receipts_root(), &receipt_proof.proof, &receipt_hash) {
                 byzantine_assert!(false);
-                return Err(Error::ChainError(ErrorKind::InvalidReceiptsProof.into()));
+                return Err(Error::ChainError(near_chain::Error::InvalidReceiptsProof));
             }
         }
 
