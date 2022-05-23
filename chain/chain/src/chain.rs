@@ -866,6 +866,7 @@ impl Chain {
             if gc_blocks_remaining == 0 {
                 return Ok(());
             }
+            debug!(target: "chain", height, "canonical chain clearing");
             let mut chain_store_update = self.store.store_update();
             if let Ok(blocks_current_height) =
                 chain_store_update.get_chain_store().get_all_block_hashes_by_height(height)

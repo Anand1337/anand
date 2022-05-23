@@ -410,6 +410,7 @@ impl ClientActor {
                 self.client.process_tx(transaction, is_forwarded, check_only)
             }
             NetworkClientMessages::Block(block, peer_id, was_requested) => {
+                debug!(target: "client", "Receive Block");
                 let blocks_at_height = self
                     .client
                     .chain
@@ -453,6 +454,7 @@ impl ClientActor {
                 }
             }
             NetworkClientMessages::BlockHeaders(headers, peer_id) => {
+                debug!(target: "client", "Receive BlockHeaders");
                 if self.receive_headers(headers, peer_id) {
                     NetworkClientResponses::NoResponse
                 } else {
@@ -466,6 +468,7 @@ impl ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::StateResponse(state_response_info) => {
+                debug!(target: "client", "Receive StateResponse");
                 let shard_id = state_response_info.shard_id();
                 let hash = state_response_info.sync_hash();
                 let state_response = state_response_info.take_state_response();
@@ -585,14 +588,17 @@ impl ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::EpochSyncResponse(_peer_id, _response) => {
+                debug!(target: "client", "Receive EpochSyncResponse");
                 // TODO #3488
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::EpochSyncFinalizationResponse(_peer_id, _response) => {
+                debug!(target: "client", "Receive EpochSyncFinalizationResponse");
                 // TODO #3488
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::PartialEncodedChunkRequest(part_request_msg, route_back) => {
+                debug!(target: "client", "Receive PartialEncodedChunkRequest");
                 let _ = self.client.shards_mgr.process_partial_encoded_chunk_request(
                     part_request_msg,
                     route_back,
@@ -602,6 +608,7 @@ impl ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::PartialEncodedChunkResponse(response, time) => {
+                debug!(target: "client", "Receive PartialEncodedChunkResponse");
                 PARTIAL_ENCODED_CHUNK_RESPONSE_DELAY.observe(time.elapsed().as_secs_f64());
                 if let Ok(accepted_blocks) =
                     self.client.process_partial_encoded_chunk_response(response)
@@ -611,6 +618,7 @@ impl ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::PartialEncodedChunk(partial_encoded_chunk) => {
+                debug!(target: "client", "Receive PartialEncodedChunk");
                 if let Ok(accepted_blocks) = self
                     .client
                     .process_partial_encoded_chunk(MaybeValidated::from(partial_encoded_chunk))
@@ -620,6 +628,7 @@ impl ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::PartialEncodedChunkForward(forward) => {
+                debug!(target: "client", "Receive PartialEncodedChunkForward");
                 match self.client.process_partial_encoded_chunk_forward(forward) {
                     Ok(accepted_blocks) => self.process_accepted_blocks(accepted_blocks),
                     // Unknown chunk is normal if we get parts before the header
@@ -631,6 +640,7 @@ impl ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::Challenge(challenge) => {
+                debug!(target: "client", "Receive Challenge");
                 match self.client.process_challenge(challenge) {
                     Ok(_) => {}
                     Err(err) => {
@@ -640,6 +650,7 @@ impl ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::NetworkInfo(network_info) => {
+                debug!(target: "client", "Receive NetworkInfo");
                 self.network_info = network_info;
                 NetworkClientResponses::NoResponse
             }
