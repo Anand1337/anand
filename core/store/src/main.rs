@@ -23,9 +23,17 @@ fn main() {
         if i % 1_000_000 <= 2 {
             let f: Option<bool> = store.get_ser(DBCol::ProcessedBlockHeights, &key).unwrap();
             assert!(f.is_none(), ":(");
+            if i % 1_000_000 <= 0 {
+                let f: Option<bool> = store.get_ser(DBCol::ProcessedBlockHeights, &key).unwrap();
+                assert!(f.is_none(), ":(");
+            }
         }
         let mut store_update = store.store_update();
         store_update.set_ser(DBCol::ProcessedBlockHeights, &key, &true).unwrap();
         let _ = store_update.commit();
+        if i % 1_000_000 <= 2 {
+            let f: Option<bool> = store.get_ser(DBCol::ProcessedBlockHeights, &key).unwrap();
+            assert!(f.is_some(), ":(");
+        }
     }
 }
