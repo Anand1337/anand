@@ -273,9 +273,7 @@ impl Database for RocksDB {
         let result = Ok(RocksDB::get_with_rc_logic(col, result));
 
         timer.observe_duration();
-        if key[key.len() - 1] == 0 && key[key.len() - 2] == 0 {
-            println!("{:?} {}", key, latency);
-        }
+        println!("Get ket: {:?} latency: {}", key, latency);
         result
     }
 
