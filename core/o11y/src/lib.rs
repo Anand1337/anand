@@ -3,20 +3,28 @@
 pub use {backtrace, tracing, tracing_appender, tracing_subscriber};
 
 use once_cell::sync::OnceCell;
+use opentelemetry::sdk::trace::{self, IdGenerator, Sampler};
 use std::borrow::Cow;
+use tracing::level_filters::LevelFilter;
 use tracing_appender::non_blocking::NonBlocking;
-use tracing_subscriber::filter::ParseError;
+use tracing_subscriber::filter::{Filtered, ParseError};
 use tracing_subscriber::fmt::format::{DefaultFields, Format};
-use tracing_subscriber::fmt::Layer;
-use tracing_subscriber::layer::Layered;
-#[cfg(feature = "opentelemetry")]
-use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::reload::{Error, Handle};
-use tracing_subscriber::{EnvFilter, Registry};
+use tracing_subscriber::{EnvFilter, Layer, Registry};
+// #[cfg(feature = "opentelemetry")]
+use tracing_subscriber::layer::SubscriberExt;
 
 static ENV_FILTER_RELOAD_HANDLE: OnceCell<
-    Handle<EnvFilter, Layered<Layer<Registry, DefaultFields, Format, NonBlocking>, Registry>>,
+    Handle<
+        Filtered<
+            tracing_subscriber::fmt::Layer<Registry, DefaultFields, Format, NonBlocking>,
+            EnvFilter,
+            Registry,
+        >,
+        Registry,
+    >,
 > = OnceCell::new();
+static WRITER: OnceCell<NonBlocking> = OnceCell::new();
 
 /// The default value for the `RUST_LOG` environment variable if one isn't specified otherwise.
 pub const DEFAULT_RUST_LOG: &'static str = "tokio_reactor=info,\
@@ -105,13 +113,14 @@ fn is_terminal() -> bool {
 /// let _subscriber = runtime.block_on(async { near_o11y::default_subscriber(filter, &near_o11y::ColorOutput::Auto).await.global() });
 /// ```
 pub async fn default_subscriber(
-    log_filter: EnvFilter,
+    env_filter: EnvFilter,
     color_output: &ColorOutput,
 ) -> DefaultSubcriberGuard<impl tracing::Subscriber + Send + Sync> {
     // Do not lock the `stderr` here to allow for things like `dbg!()` work during development.
     let stderr = std::io::stderr();
     let lined_stderr = std::io::LineWriter::new(stderr);
     let (writer, writer_guard) = tracing_appender::non_blocking(lined_stderr);
+    WRITER.set(writer).unwrap();
 
     let ansi = match color_output {
         ColorOutput::Always => true,
@@ -119,30 +128,36 @@ pub async fn default_subscriber(
         ColorOutput::Auto => std::env::var_os("NO_COLOR").is_none() && is_terminal(),
     };
 
-    let subscriber_builder = tracing_subscriber::FmtSubscriber::builder()
+    let layer = tracing_subscriber::fmt::layer()
         .with_ansi(ansi)
         // Synthesizing ENTER and CLOSE events lets us log durations of spans to the log.
         .with_span_events(
             tracing_subscriber::fmt::format::FmtSpan::ENTER
                 | tracing_subscriber::fmt::format::FmtSpan::CLOSE,
         )
-        .with_writer(writer)
-        .with_env_filter(log_filter)
-        .with_filter_reloading();
-    let reload_handle = subscriber_builder.reload_handle();
-    ENV_FILTER_RELOAD_HANDLE.set(reload_handle).unwrap();
+        .with_writer(WRITER.get().unwrap().clone())
+        .with_filter(env_filter);
+    let (layer, handle) = tracing_subscriber::reload::Layer::new(layer);
+    ENV_FILTER_RELOAD_HANDLE.set(handle).unwrap();
 
-    let subscriber = subscriber_builder.finish();
+    let tracer = opentelemetry_jaeger::new_pipeline()
+        .with_service_name("neard")
+        .with_trace_config(
+            trace::config()
+                .with_sampler(Sampler::AlwaysOn)
+                .with_id_generator(IdGenerator::default())
+                .with_max_events_per_span(64)
+                .with_max_attributes_per_span(16)
+                .with_max_events_per_span(16), // .with_resource(Resource::new(vec![KeyValue::new("key", "value"), KeyValue::new("process_key", "process_value")])),
+        )
+        .install_batch(opentelemetry::runtime::Tokio)
+        .unwrap();
+    let opentelemetry =
+        tracing_opentelemetry::layer().with_tracer(tracer).with_filter(LevelFilter::DEBUG);
 
-    #[cfg(feature = "opentelemetry")]
-    let subscriber = {
-        let tracer = opentelemetry_jaeger::new_pipeline()
-            .with_service_name("neard")
-            .install_batch(opentelemetry::runtime::Tokio)
-            .unwrap();
-        let opentelemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-        subscriber.with(opentelemetry)
-    };
+    let subscriber = tracing_subscriber::registry();
+    let subscriber = subscriber.with(layer);
+    let subscriber = subscriber.with(opentelemetry);
 
     DefaultSubcriberGuard {
         subscriber: Some(subscriber),
@@ -181,9 +196,18 @@ pub fn reload_env_filter(
         if let Some(module) = verbose_module {
             builder = builder.verbose(Some(module));
         }
-        reload_handle
-            .reload(builder.finish().map_err(ReloadError::Parse)?)
-            .map_err(ReloadError::Reload)?;
+
+        let layer = tracing_subscriber::fmt::layer()
+            .with_ansi(false)
+            // Synthesizing ENTER and CLOSE events lets us log durations of spans to the log.
+            .with_span_events(
+                tracing_subscriber::fmt::format::FmtSpan::ENTER
+                    | tracing_subscriber::fmt::format::FmtSpan::CLOSE,
+            )
+            .with_writer(WRITER.get().unwrap().clone())
+            .with_filter(builder.finish().map_err(ReloadError::Parse)?);
+
+        reload_handle.reload(layer).map_err(ReloadError::Reload)?;
         Ok(())
     })
 }
