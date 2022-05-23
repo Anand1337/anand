@@ -3931,7 +3931,7 @@ impl<'a> ChainUpdate<'a> {
                                     apply_split_result_or_state_changes,
                                 }))
                             }
-                            Err(err) => Err(Error::Other(err.to_string()).into()),
+                            Err(err) => Err(err),
                         }
                     }));
                 } else {
@@ -4000,7 +4000,7 @@ impl<'a> ChainUpdate<'a> {
                                     apply_split_result_or_state_changes,
                                 }))
                             }
-                            Err(err) => Err(Error::Other(err.to_string()).into()),
+                            Err(err) => Err(err),
                         }
                     }));
                 }
