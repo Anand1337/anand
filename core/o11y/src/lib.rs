@@ -12,8 +12,10 @@ use tracing_subscriber::reload::{Error, Handle};
 use tracing_subscriber::{EnvFilter, Layer, Registry};
 #[cfg(feature = "opentelemetry")]
 use {
-    opentelemetry::sdk::trace::{self, IdGenerator, Sampler},
+    opentelemetry::sdk::trace::{self, IdGenerator, Sampler, Tracer},
     tracing::level_filters::LevelFilter,
+    tracing_opentelemetry::OpenTelemetryLayer,
+    tracing_subscriber::registry::LookupSpan,
 };
 
 static LOG_LAYER_RELOAD_HANDLE: OnceCell<
@@ -121,6 +123,28 @@ fn make_log_layer(
     layer
 }
 
+#[cfg(feature = "opentelemetry")]
+fn make_opentelemetry_layer<S>() -> Filtered<OpenTelemetryLayer<S, Tracer>, LevelFilter, S>
+where
+    S: tracing::Subscriber + for<'span> LookupSpan<'span>,
+{
+    let tracer = opentelemetry_jaeger::new_pipeline()
+        .with_service_name("neard")
+        .with_instrumentation_library_tags(false)
+        // auto_split has a performance impact.
+        // Tuning max_events_per_span and similar options may result in better performance.
+        .with_auto_split_batch(true)
+        .with_trace_config(
+            trace::config()
+                .with_sampler(Sampler::AlwaysOn)
+                .with_id_generator(IdGenerator::default()),
+        )
+        .install_batch(opentelemetry::runtime::Tokio)
+        .unwrap();
+    let layer = tracing_opentelemetry::layer().with_tracer(tracer).with_filter(LevelFilter::DEBUG);
+    layer
+}
+
 /// Run the code with a default subscriber set to the option appropriate for the NEAR code.
 ///
 /// This will override any subscribers set until now, and will be in effect until the value
@@ -157,27 +181,8 @@ pub async fn default_subscriber(
 
     let subscriber = tracing_subscriber::registry();
     let subscriber = subscriber.with(log_layer);
-
     #[cfg(feature = "opentelemetry")]
-    let subscriber = {
-        let tracer = opentelemetry_jaeger::new_pipeline()
-            .with_service_name("neard")
-            .with_instrumentation_library_tags(false)
-            // auto_split has a performance impact.
-            // Tuning max_events_per_span and similar options may result in better performance.
-            .with_auto_split_batch(true)
-            .with_trace_config(
-                trace::config()
-                    .with_sampler(Sampler::AlwaysOn)
-                    .with_id_generator(IdGenerator::default()),
-            )
-            .install_batch(opentelemetry::runtime::Tokio)
-            .unwrap();
-        let opentelemetry =
-            tracing_opentelemetry::layer().with_tracer(tracer).with_filter(LevelFilter::DEBUG);
-
-        subscriber.with(opentelemetry)
-    };
+    let subscriber = subscriber.with(make_opentelemetry_layer());
 
     DefaultSubcriberGuard {
         subscriber: Some(subscriber),

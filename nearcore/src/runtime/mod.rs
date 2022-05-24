@@ -649,7 +649,7 @@ impl NightshadeRuntime {
                 let parent_span = &span;
                 scope.spawn(move |_| {
                     let _span = tracing::debug_span!(
-                        target: "runtime",
+                        target: "vm",
                         parent: parent_span,
                         "precompile_contract")
                     .entered();
