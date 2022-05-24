@@ -1114,11 +1114,16 @@ impl Chain {
         mut headers: Vec<BlockHeader>,
         on_challenge: &mut dyn FnMut(ChallengeBody),
     ) -> Result<(), Error> {
+        let _span = tracing::debug_span!(target: "chain", "sync_block_headers").entered();
         // Sort headers by heights if they are out of order.
         headers.sort_by_key(|left| left.height());
 
         if let Some(header) = headers.first() {
-            debug!(target: "chain", "Sync block headers: {} headers from {} at {}", headers.len(), header.hash(), header.height());
+            debug!(
+                target: "chain",
+                num_headers=headers.len(),
+                from_hash=?header.hash(),
+                from_height=header.height());
         } else {
             return Ok(());
         };
@@ -4534,6 +4539,7 @@ impl<'a> ChainUpdate<'a> {
         preprocess_block_info: BlockPreprocessInfo,
         apply_chunks_results: Vec<Result<ApplyChunkResult, Error>>,
     ) -> Result<Option<Tip>, Error> {
+        let _span = tracing::debug_span!(target: "chain", "postprocess_block").entered();
         let prev_hash = block.header().prev_hash();
         let prev_block = self.chain_store_update.get_block(prev_hash)?.clone();
         self.apply_chunk_postprocessing(block, &prev_block, apply_chunks_results)?;

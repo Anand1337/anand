@@ -624,11 +624,11 @@ impl NightshadeRuntime {
         epoch_id: &EpochId,
         contract_codes: Vec<ContractCode>,
     ) -> Result<(), Error> {
-        let _span = tracing::debug_span!(
+        let span = tracing::debug_span!(
             target: "runtime",
             "precompile_contracts",
-            num_contracts = contract_codes.len())
-        .entered();
+            num_contracts = contract_codes.len());
+        let _span_guard = span.enter();
         let protocol_version = self.get_epoch_protocol_version(epoch_id)?;
         let runtime_config = self.runtime_config_store.get_config(protocol_version);
         let compiled_contract_cache: Option<Arc<dyn CompiledContractCache>> =
@@ -646,7 +646,13 @@ impl NightshadeRuntime {
                 slot_receiver.recv().expect("could not receive a slot to compile contract");
                 let contract_cache = compiled_contract_cache.as_ref().map(Arc::clone);
                 let slot_sender = slot_sender.clone();
+                let parent_span = &span;
                 scope.spawn(move |_| {
+                    let _span = tracing::debug_span!(
+                        target: "runtime",
+                        parent: parent_span,
+                        "precompile_contract")
+                    .entered();
                     precompile_contract(
                         &code,
                         &runtime_config.wasm_config,

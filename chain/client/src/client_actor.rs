@@ -1493,7 +1493,7 @@ impl ClientActor {
     }
 
     fn receive_headers(&mut self, headers: Vec<BlockHeader>, peer_id: PeerId) -> bool {
-        info!(target: "client", "Received {} block headers from {}", headers.len(), peer_id);
+        info!(target: "client", num_headers=headers.len(), %peer_id, "Received block headers");
         if headers.len() == 0 {
             return true;
         }
@@ -1501,10 +1501,10 @@ impl ClientActor {
             Ok(_) => true,
             Err(err) => {
                 if err.is_bad_data() {
-                    error!(target: "client", "Error processing sync blocks: {}", err);
+                    error!(target: "client", %err, "Error processing sync blocks");
                     false
                 } else {
-                    debug!(target: "client", "Block headers refused by chain: {}", err);
+                    debug!(target: "client", %err, "Block headers refused by chain");
                     true
                 }
             }

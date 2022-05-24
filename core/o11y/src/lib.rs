@@ -14,7 +14,7 @@ use tracing_subscriber::{EnvFilter, Layer, Registry};
 // #[cfg(feature = "opentelemetry")]
 use tracing_subscriber::layer::SubscriberExt;
 
-static ENV_FILTER_RELOAD_HANDLE: OnceCell<
+static LOG_LAYER_RELOAD_HANDLE: OnceCell<
     Handle<
         Filtered<
             tracing_subscriber::fmt::Layer<Registry, DefaultFields, Format, NonBlocking>,
@@ -24,7 +24,7 @@ static ENV_FILTER_RELOAD_HANDLE: OnceCell<
         Registry,
     >,
 > = OnceCell::new();
-static WRITER: OnceCell<NonBlocking> = OnceCell::new();
+static LOG_LAYER_DATA: OnceCell<(NonBlocking, bool)> = OnceCell::new();
 
 /// The default value for the `RUST_LOG` environment variable if one isn't specified otherwise.
 pub const DEFAULT_RUST_LOG: &'static str = "tokio_reactor=info,\
@@ -99,6 +99,26 @@ fn is_terminal() -> bool {
     atty::is(atty::Stream::Stderr)
 }
 
+fn make_log_layer(
+    env_filter: EnvFilter,
+) -> Filtered<
+    tracing_subscriber::fmt::Layer<Registry, DefaultFields, Format, NonBlocking>,
+    EnvFilter,
+    Registry,
+> {
+    let (writer, ansi) = LOG_LAYER_DATA.get().unwrap();
+    let layer = tracing_subscriber::fmt::layer()
+        .with_ansi(*ansi)
+        // Synthesizing ENTER and CLOSE events lets us log durations of spans to the log.
+        .with_span_events(
+            tracing_subscriber::fmt::format::FmtSpan::ENTER
+                | tracing_subscriber::fmt::format::FmtSpan::CLOSE,
+        )
+        .with_writer(writer.clone())
+        .with_filter(env_filter);
+    layer
+}
+
 /// Run the code with a default subscriber set to the option appropriate for the NEAR code.
 ///
 /// This will override any subscribers set until now, and will be in effect until the value
@@ -120,7 +140,6 @@ pub async fn default_subscriber(
     let stderr = std::io::stderr();
     let lined_stderr = std::io::LineWriter::new(stderr);
     let (writer, writer_guard) = tracing_appender::non_blocking(lined_stderr);
-    WRITER.set(writer).unwrap();
 
     let ansi = match color_output {
         ColorOutput::Always => true,
@@ -128,20 +147,16 @@ pub async fn default_subscriber(
         ColorOutput::Auto => std::env::var_os("NO_COLOR").is_none() && is_terminal(),
     };
 
-    let layer = tracing_subscriber::fmt::layer()
-        .with_ansi(ansi)
-        // Synthesizing ENTER and CLOSE events lets us log durations of spans to the log.
-        .with_span_events(
-            tracing_subscriber::fmt::format::FmtSpan::ENTER
-                | tracing_subscriber::fmt::format::FmtSpan::CLOSE,
-        )
-        .with_writer(WRITER.get().unwrap().clone())
-        .with_filter(env_filter);
-    let (layer, handle) = tracing_subscriber::reload::Layer::new(layer);
-    ENV_FILTER_RELOAD_HANDLE.set(handle).unwrap();
+    LOG_LAYER_DATA.set((writer, ansi)).unwrap();
+
+    let log_layer = make_log_layer(env_filter);
+    let (log_layer, handle) = tracing_subscriber::reload::Layer::new(log_layer);
+    LOG_LAYER_RELOAD_HANDLE.set(handle).unwrap();
 
     let tracer = opentelemetry_jaeger::new_pipeline()
         .with_service_name("neard")
+        .with_instrumentation_library_tags(false)
+        .with_auto_split_batch(true)
         .with_trace_config(
             trace::config()
                 .with_sampler(Sampler::AlwaysOn)
@@ -156,7 +171,7 @@ pub async fn default_subscriber(
         tracing_opentelemetry::layer().with_tracer(tracer).with_filter(LevelFilter::DEBUG);
 
     let subscriber = tracing_subscriber::registry();
-    let subscriber = subscriber.with(layer);
+    let subscriber = subscriber.with(log_layer);
     let subscriber = subscriber.with(opentelemetry);
 
     DefaultSubcriberGuard {
@@ -184,11 +199,11 @@ pub enum ReloadError {
 /// `rust_log` is equivalent to setting `RUST_LOG` environment variable.
 /// `verbose` indicates whether `--verbose` command-line flag is present.
 /// `verbose_module` is equivalent to the value of the `--verbose` command-line flag.
-pub fn reload_env_filter(
+pub fn reload_log_layer(
     rust_log: Option<&str>,
     verbose_module: Option<&str>,
 ) -> Result<(), ReloadError> {
-    ENV_FILTER_RELOAD_HANDLE.get().map_or(Err(ReloadError::NoReloadHandle), |reload_handle| {
+    LOG_LAYER_RELOAD_HANDLE.get().map_or(Err(ReloadError::NoReloadHandle), |reload_handle| {
         let mut builder = rust_log.map_or_else(
             || EnvFilterBuilder::from_env(),
             |rust_log| EnvFilterBuilder::new(rust_log),
@@ -196,18 +211,10 @@ pub fn reload_env_filter(
         if let Some(module) = verbose_module {
             builder = builder.verbose(Some(module));
         }
+        let env_filter = builder.finish().map_err(ReloadError::Parse)?;
 
-        let layer = tracing_subscriber::fmt::layer()
-            .with_ansi(false)
-            // Synthesizing ENTER and CLOSE events lets us log durations of spans to the log.
-            .with_span_events(
-                tracing_subscriber::fmt::format::FmtSpan::ENTER
-                    | tracing_subscriber::fmt::format::FmtSpan::CLOSE,
-            )
-            .with_writer(WRITER.get().unwrap().clone())
-            .with_filter(builder.finish().map_err(ReloadError::Parse)?);
-
-        reload_handle.reload(layer).map_err(ReloadError::Reload)?;
+        let log_layer = make_log_layer(env_filter);
+        reload_handle.reload(log_layer).map_err(ReloadError::Reload)?;
         Ok(())
     })
 }
