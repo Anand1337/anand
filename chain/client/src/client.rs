@@ -922,9 +922,11 @@ impl Client {
         partial_encoded_chunk: MaybeValidated<PartialEncodedChunk>,
     ) -> Result<Vec<AcceptedBlock>, Error> {
         let chunk_hash = partial_encoded_chunk.chunk_hash();
-        let _span =
-            tracing::debug_span!(target: "client", "process_partial_encoded_chunk", ?chunk_hash)
-                .entered();
+        let _span = tracing::debug_span!(
+                target: "client",
+                "process_partial_encoded_chunk",
+                chunk_hash=%chunk_hash.0)
+        .entered();
         let pec_v2: MaybeValidated<PartialEncodedChunkV2> = partial_encoded_chunk.map(Into::into);
         let process_result = self.shards_mgr.process_partial_encoded_chunk(
             pec_v2.as_ref(),
@@ -932,7 +934,7 @@ impl Client {
             self.chain.mut_store(),
             &mut self.rs,
         )?;
-        debug!(target: "client", ?chunk_hash, ?process_result);
+        debug!(target: "client", chunk_hash=%chunk_hash.0, ?process_result);
 
         Ok(self.process_process_partial_encoded_chunk_result(
             pec_v2.into_inner().header,

@@ -1604,99 +1604,84 @@ impl ShardsManager {
         .entered();
 
         // Verify the partial encoded chunk is valid and worth processing
-        let partial_encoded_chunk = {
-            let _span =
-                tracing::debug_span!(target: "chunks", "validate_partial_encoded_chunk").entered();
-
-            // 1.a Leave if we received known chunk
-            if let Some(entry) = self.encoded_chunks.get(&chunk_hash) {
-                if entry.complete {
-                    return Ok(ProcessPartialEncodedChunkResult::Known);
-                }
-            };
-
-            // 1.b Checking chunk height
-            let chunk_requested = self.requested_partial_encoded_chunks.contains_key(&chunk_hash);
-            if !chunk_requested {
-                if !self.encoded_chunks.height_within_horizon(header.height_created()) {
-                    return Err(Error::ChainError(near_chain::Error::InvalidChunkHeight));
-                }
-                // We shouldn't process unrequested chunk if we have seen one with same (height_created + shard_id) but different chunk_hash
-                if let Ok(hash) = chain_store
-                    .get_any_chunk_hash_by_height_shard(header.height_created(), header.shard_id())
-                {
-                    if *hash != chunk_hash {
-                        warn!(target: "client", "Rejecting unrequested chunk {:?}, height {}, shard_id {}, because of having {:?}", chunk_hash, header.height_created(), header.shard_id(), hash);
-                        return Err(Error::DuplicateChunkHeight.into());
-                    }
-                }
+        // 1.a Leave if we received known chunk
+        if let Some(entry) = self.encoded_chunks.get(&chunk_hash) {
+            if entry.complete {
+                return Ok(ProcessPartialEncodedChunkResult::Known);
             }
-
-            // 1.c checking header validity
-            match partial_encoded_chunk.validate_with(|pec| {
-                self.validate_chunk_header(chain_head, &pec.header).map(|()| true)
-            }) {
-                Err(Error::ChainError(chain_error)) => match chain_error {
-                    // validate_chunk_header returns DBNotFoundError if the previous block is not ready
-                    // in this case, we return NeedBlock instead of error
-                    near_chain::Error::DBNotFoundErr(_) => {
-                        debug!(target:"client", "Dropping partial encoded chunk {:?} height {}, shard_id {} because we don't have enough information to validate it",
-                           header.chunk_hash(), header.height_created(), header.shard_id());
-                        return Ok(ProcessPartialEncodedChunkResult::NeedBlock);
-                    }
-                    _ => return Err(chain_error.into()),
-                },
-                Err(err) => return Err(err),
-                Ok(_) => (),
-            }
-            let partial_encoded_chunk = partial_encoded_chunk.into_inner();
-
-            // 1.d Checking part_ords' validity
-            let num_total_parts = self.runtime_adapter.num_total_parts();
-            for part_info in partial_encoded_chunk.parts.iter() {
-                // TODO: only validate parts we care about
-                // https://github.com/near/nearcore/issues/5885
-                self.validate_part(header.encoded_merkle_root(), part_info, num_total_parts)?;
-            }
-
-            // 1.e Checking receipts validity
-            for proof in partial_encoded_chunk.receipts.iter() {
-                // TODO: only validate receipts we care about
-                // https://github.com/near/nearcore/issues/5885
-                // we can't simply use prev_block_hash to check if the node tracks this shard or not
-                // because prev_block_hash may not be ready
-                let shard_id = proof.1.to_shard_id;
-                let ReceiptProof(shard_receipts, receipt_proof) = proof;
-                let receipt_hash =
-                    hash(&ReceiptList(shard_id, shard_receipts).try_to_vec().unwrap());
-                if !verify_path(
-                    header.outgoing_receipts_root(),
-                    &receipt_proof.proof,
-                    &receipt_hash,
-                ) {
-                    byzantine_assert!(false);
-                    return Err(Error::ChainError(near_chain::Error::InvalidReceiptsProof));
-                }
-            }
-            partial_encoded_chunk
         };
+
+        // 1.b Checking chunk height
+        let chunk_requested = self.requested_partial_encoded_chunks.contains_key(&chunk_hash);
+        if !chunk_requested {
+            if !self.encoded_chunks.height_within_horizon(header.height_created()) {
+                return Err(Error::ChainError(near_chain::Error::InvalidChunkHeight));
+            }
+            // We shouldn't process unrequested chunk if we have seen one with same (height_created + shard_id) but different chunk_hash
+            if let Ok(hash) = chain_store
+                .get_any_chunk_hash_by_height_shard(header.height_created(), header.shard_id())
+            {
+                if *hash != chunk_hash {
+                    warn!(target: "client", "Rejecting unrequested chunk {:?}, height {}, shard_id {}, because of having {:?}", chunk_hash, header.height_created(), header.shard_id(), hash);
+                    return Err(Error::DuplicateChunkHeight.into());
+                }
+            }
+        }
+
+        // 1.c checking header validity
+        match partial_encoded_chunk
+            .validate_with(|pec| self.validate_chunk_header(chain_head, &pec.header).map(|()| true))
+        {
+            Err(Error::ChainError(chain_error)) => match chain_error {
+                // validate_chunk_header returns DBNotFoundError if the previous block is not ready
+                // in this case, we return NeedBlock instead of error
+                near_chain::Error::DBNotFoundErr(_) => {
+                    debug!(target:"client", "Dropping partial encoded chunk {:?} height {}, shard_id {} because we don't have enough information to validate it",
+                           header.chunk_hash(), header.height_created(), header.shard_id());
+                    return Ok(ProcessPartialEncodedChunkResult::NeedBlock);
+                }
+                _ => return Err(chain_error.into()),
+            },
+            Err(err) => return Err(err),
+            Ok(_) => (),
+        }
+        let partial_encoded_chunk = partial_encoded_chunk.into_inner();
+
+        // 1.d Checking part_ords' validity
+        let num_total_parts = self.runtime_adapter.num_total_parts();
+        for part_info in partial_encoded_chunk.parts.iter() {
+            // TODO: only validate parts we care about
+            // https://github.com/near/nearcore/issues/5885
+            self.validate_part(header.encoded_merkle_root(), part_info, num_total_parts)?;
+        }
+
+        // 1.e Checking receipts validity
+        for proof in partial_encoded_chunk.receipts.iter() {
+            // TODO: only validate receipts we care about
+            // https://github.com/near/nearcore/issues/5885
+            // we can't simply use prev_block_hash to check if the node tracks this shard or not
+            // because prev_block_hash may not be ready
+            let shard_id = proof.1.to_shard_id;
+            let ReceiptProof(shard_receipts, receipt_proof) = proof;
+            let receipt_hash = hash(&ReceiptList(shard_id, shard_receipts).try_to_vec().unwrap());
+            if !verify_path(header.outgoing_receipts_root(), &receipt_proof.proof, &receipt_hash) {
+                byzantine_assert!(false);
+                return Err(Error::ChainError(near_chain::Error::InvalidReceiptsProof));
+            }
+        }
 
         // 2. Consider it valid and stores it
         // Store chunk hash into chunk_hash_per_height_shard collection
-        {
-            let _span =
-                tracing::debug_span!(target: "chunks", "store_partial_encoded_chunk").entered();
-            let mut store_update = chain_store.store_update();
-            store_update.save_chunk_hash(
-                header.height_created(),
-                header.shard_id(),
-                chunk_hash.clone(),
-            );
-            store_update.commit()?;
+        let mut store_update = chain_store.store_update();
+        store_update.save_chunk_hash(
+            header.height_created(),
+            header.shard_id(),
+            chunk_hash.clone(),
+        );
+        store_update.commit()?;
 
-            // Merge parts and receipts included in the partial encoded chunk into chunk cache
-            self.encoded_chunks.merge_in_partial_encoded_chunk(partial_encoded_chunk);
-        }
+        // Merge parts and receipts included in the partial encoded chunk into chunk cache
+        self.encoded_chunks.merge_in_partial_encoded_chunk(partial_encoded_chunk);
 
         // 3. Process the forwarded parts in chunk_forwards_cache
         if let Some(forwarded_parts) = self.chunk_forwards_cache.pop(&chunk_hash) {
@@ -1720,23 +1705,19 @@ impl ShardsManager {
         }
 
         // 4. Forward my parts to others tracking this chunk's shard
+        let epoch_id = match self
+            .runtime_adapter
+            .get_epoch_id_from_prev_block(&partial_encoded_chunk.header.prev_block_hash())
         {
-            let _span =
-                tracing::debug_span!(target: "chunks", "forward_partial_encoded_chunks").entered();
-            let epoch_id = match self
-                .runtime_adapter
-                .get_epoch_id_from_prev_block(&partial_encoded_chunk.header.prev_block_hash())
-            {
-                Ok(epoch_id) => epoch_id,
-                Err(_) => {
-                    return Ok(ProcessPartialEncodedChunkResult::NeedBlock);
-                }
-            };
-            let protocol_version = self.runtime_adapter.get_epoch_protocol_version(&epoch_id)?;
-            if checked_feature!("stable", ForwardChunkParts, protocol_version) {
-                self.send_partial_encoded_chunk_to_chunk_trackers(partial_encoded_chunk)?;
-            };
-        }
+            Ok(epoch_id) => epoch_id,
+            Err(_) => {
+                return Ok(ProcessPartialEncodedChunkResult::NeedBlock);
+            }
+        };
+        let protocol_version = self.runtime_adapter.get_epoch_protocol_version(&epoch_id)?;
+        if checked_feature!("stable", ForwardChunkParts, protocol_version) {
+            self.send_partial_encoded_chunk_to_chunk_trackers(partial_encoded_chunk)?;
+        };
 
         self.try_process_chunk_parts_and_receipts(&partial_encoded_chunk.header, chain_store, rs)
     }
@@ -2092,7 +2073,7 @@ impl ShardsManager {
                 Ok(shard_chunk)
             })
         {
-            debug!(target: "chunks", "Reconstructed and decoded chunk {}, encoded length was {}, num txs: {}, I'm {:?}", chunk_hash.0, encoded_chunk.encoded_length(), shard_chunk.transactions().len(), self.me);
+            debug!(target: "chunks", encoded_length=encoded_chunk.encoded_length(), num_txs=shard_chunk.transactions().len());
 
             self.create_and_persist_partial_chunk(
                 &encoded_chunk,
