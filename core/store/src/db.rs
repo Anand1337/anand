@@ -276,7 +276,9 @@ impl Database for RocksDB {
         let result = Ok(RocksDB::get_with_rc_logic(col, result));
 
         timer.observe_duration();
-        self.update_latency_get_and_print_if_needed(start_time, start_time.elapsed().as_micros());
+        if col == DBCol::State  {
+            self.update_latency_get_and_print_if_needed(start_time, start_time.elapsed().as_micros());
+        }
         result
     }
 
@@ -538,13 +540,17 @@ fn rocksdb_read_options() -> ReadOptions {
     read_options
 }
 
-fn rocksdb_block_based_options(block_size: usize, cache_size: usize) -> BlockBasedOptions {
+fn rocksdb_block_based_options(block_size: usize, cache_size: usize, col: DBCol) -> BlockBasedOptions {
     let mut block_opts = BlockBasedOptions::default();
     block_opts.set_block_size(block_size);
     // We create block_cache for each of 47 columns, so the total cache size is 32 * 47 = 1504mb
     block_opts.set_block_cache(&Cache::new_lru_cache(cache_size).unwrap());
-    block_opts.set_pin_l0_filter_and_index_blocks_in_cache(true);
-    block_opts.set_cache_index_and_filter_blocks(true);
+    if col == DBCol::ProcessedBlockHeights || col == DBCol::BlockPerHeight {
+        block_opts.set_cache_index_and_filter_blocks(false);
+    } else {
+        block_opts.set_pin_l0_filter_and_index_blocks_in_cache(true);
+        block_opts.set_cache_index_and_filter_blocks(true);
+    }
     block_opts.set_bloom_filter(10.0, true);
     block_opts
 }
@@ -564,6 +570,7 @@ fn rocksdb_column_options(col: DBCol, store_config: &StoreConfig) -> Options {
     opts.set_block_based_table_factory(&rocksdb_block_based_options(
         store_config.block_size,
         cache_size,
+        col,
     ));
 
     // Note that this function changes a lot of rustdb parameters including:
