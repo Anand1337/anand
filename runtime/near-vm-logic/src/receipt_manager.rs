@@ -32,8 +32,8 @@ pub struct ReceiptMetadata {
 }
 
 #[derive(Default, Clone, PartialEq)]
-pub(crate) struct ReceiptManager {
-    pub(crate) action_receipts: ActionReceipts,
+pub struct ReceiptManager {
+    pub action_receipts: ActionReceipts,
     gas_weights: Vec<(FunctionCallActionIndex, GasWeight)>,
 }
 

@@ -159,9 +159,7 @@ impl<'a> VMLogic<'a> {
         &self.receipt_manager.action_receipts
     }
 
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn receipt_manager(&self) -> &ReceiptManager {
+    pub fn receipt_manager(&self) -> &ReceiptManager {
         &self.receipt_manager
     }
 
