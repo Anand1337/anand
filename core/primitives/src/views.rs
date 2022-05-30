@@ -462,7 +462,7 @@ pub struct StatusResponse {
     pub sync_info: StatusSyncInfo,
     /// Validator id of the node
     pub validator_account_id: Option<AccountId>,
-    /// Information about last blocks, sync, epoch, chunk and chain info.
+    /// Information about last blocks, network, epoch and chain & chunk info.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detailed_debug_status: Option<DetailedDebugStatus>,
 }
@@ -609,7 +609,7 @@ impl From<BlockHeaderView> for BlockHeader {
                 hash: CryptoHash::default(),
             };
             header.init();
-            BlockHeader::BlockHeaderV1(Box::new(header))
+            BlockHeader::BlockHeaderV1(Arc::new(header))
         } else if last_header_v2_version.is_none()
             || view.latest_protocol_version <= last_header_v2_version.unwrap()
         {
@@ -641,7 +641,7 @@ impl From<BlockHeaderView> for BlockHeader {
                 hash: CryptoHash::default(),
             };
             header.init();
-            BlockHeader::BlockHeaderV2(Box::new(header))
+            BlockHeader::BlockHeaderV2(Arc::new(header))
         } else {
             let mut header = BlockHeaderV3 {
                 prev_hash: view.prev_hash,
@@ -673,7 +673,7 @@ impl From<BlockHeaderView> for BlockHeader {
                 hash: CryptoHash::default(),
             };
             header.init();
-            BlockHeader::BlockHeaderV3(Box::new(header))
+            BlockHeader::BlockHeaderV3(Arc::new(header))
         }
     }
 }
