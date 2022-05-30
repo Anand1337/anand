@@ -2759,6 +2759,25 @@ impl<'a> VMLogic<'a> {
         }
     }
 
+    pub fn clone_outcome(&self) -> VMOutcome {
+        let burnt_gas = self.gas_counter.burnt_gas();
+        let used_gas = self.gas_counter.used_gas();
+
+        let mut profile = self.gas_counter.profile_data();
+        profile.compute_wasm_instruction_cost(burnt_gas);
+
+        VMOutcome {
+            balance: self.current_account_balance,
+            storage_usage: self.current_storage_usage,
+            return_data: self.return_data.clone(),
+            burnt_gas,
+            used_gas,
+            logs: self.logs.clone(),
+            profile,
+            action_receipts: self.receipt_manager.action_receipts.clone(),
+        }
+    }
+
     /// Add a cost for loading the contract code in the VM.
     ///
     /// This cost does not consider the structure of the contract code, only the
