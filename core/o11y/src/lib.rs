@@ -66,6 +66,18 @@ pub struct Options {
     #[clap(long)]
     opentelemetry: bool,
 
+    /// URL of a Jaeger collector. If missing, then assumes a jaeger instance is running on localhost.
+    #[clap(long)]
+    ot_collector_endpoint: Optional<String>,
+
+    /// Username to authenticate to opentelemetry collector.
+    #[clap(long)]
+    ot_collector_username: Optional<String>,
+
+    /// Password to authenticate to opentelemetry collector.
+    #[clap(long)]
+    ot_collector_password: Optional<String>,
+
     /// Whether the log needs to be colored.
     #[clap(long, arg_enum, default_value = "auto")]
     color: ColorOutput,
@@ -124,8 +136,8 @@ fn make_log_layer<S>(
     writer: NonBlocking,
     ansi: bool,
 ) -> Filtered<tracing_subscriber::fmt::Layer<S, DefaultFields, Format, NonBlocking>, EnvFilter, S>
-where
-    S: tracing::Subscriber + for<'span> LookupSpan<'span>,
+    where
+        S: tracing::Subscriber + for<'span> LookupSpan<'span>,
 {
     let layer = tracing_subscriber::fmt::layer()
         .with_ansi(ansi)
@@ -146,10 +158,10 @@ where
 async fn make_opentelemetry_layer<S>(
     config: &Options,
 ) -> Filtered<OpenTelemetryLayer<S, Tracer>, LevelFilter, S>
-where
-    S: tracing::Subscriber + for<'span> LookupSpan<'span>,
+    where
+        S: tracing::Subscriber + for<'span> LookupSpan<'span>,
 {
-    let tracer = opentelemetry_jaeger::new_pipeline()
+    let mut tracer = opentelemetry_jaeger::new_pipeline()
         .with_service_name("neard")
         .with_instrumentation_library_tags(false)
         // auto_split has a performance impact.
@@ -159,9 +171,17 @@ where
             trace::config()
                 .with_sampler(Sampler::AlwaysOn)
                 .with_id_generator(IdGenerator::default()),
-        )
-        .install_batch(opentelemetry::runtime::Tokio)
-        .unwrap();
+        );
+    if let Some(endpoint) = config.ot_collector_endpoint {
+        tracer = tracer.with_collector_endpoint(endpoint);
+    }
+    if let Some(username) = config.ot_collector_username {
+        tracer = tracer.with_collector_username(username);
+    }
+    if let Some(password) = config.ot_collector_password {
+        tracer = tracer.with_collector_password(password);
+    }
+    let tracer = tracer.install_batch(opentelemetry::runtime::Tokio).unwrap();
     let filter = if config.opentelemetry { LevelFilter::DEBUG } else { LevelFilter::OFF };
     let layer = tracing_opentelemetry::layer().with_tracer(tracer).with_filter(filter);
     layer
