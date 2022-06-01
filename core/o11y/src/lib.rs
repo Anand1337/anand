@@ -66,18 +66,6 @@ pub struct Options {
     #[clap(long)]
     opentelemetry: bool,
 
-    /// URL of a Jaeger collector. If missing, then assumes a jaeger instance is running on localhost.
-    #[clap(long)]
-    ot_collector_endpoint: Option<String>,
-
-    /// Username to authenticate to opentelemetry collector.
-    #[clap(long)]
-    ot_collector_username: Option<String>,
-
-    /// Password to authenticate to opentelemetry collector.
-    #[clap(long)]
-    ot_collector_password: Option<String>,
-
     /// Whether the log needs to be colored.
     #[clap(long, arg_enum, default_value = "auto")]
     color: ColorOutput,
@@ -161,7 +149,7 @@ async fn make_opentelemetry_layer<S>(
 where
     S: tracing::Subscriber + for<'span> LookupSpan<'span>,
 {
-    let mut tracer = opentelemetry_jaeger::new_pipeline()
+    let tracer = opentelemetry_jaeger::new_pipeline()
         .with_service_name("neard")
         .with_instrumentation_library_tags(false)
         // auto_split has a performance impact.
@@ -171,17 +159,10 @@ where
             trace::config()
                 .with_sampler(Sampler::AlwaysOn)
                 .with_id_generator(IdGenerator::default()),
-        );
-    if let Some(endpoint) = &config.ot_collector_endpoint {
-        tracer = tracer.with_collector_endpoint(endpoint);
-    }
-    if let Some(username) = &config.ot_collector_username {
-        tracer = tracer.with_collector_username(username);
-    }
-    if let Some(password) = &config.ot_collector_password {
-        tracer = tracer.with_collector_password(password);
-    }
-    let tracer = tracer.install_batch(opentelemetry::runtime::Tokio).unwrap();
+        )
+        .with_http_client(isahc::HttpClient::new().unwrap())
+        .install_batch(opentelemetry::runtime::Tokio)
+        .unwrap();
     let filter = if config.opentelemetry { LevelFilter::DEBUG } else { LevelFilter::OFF };
     let layer = tracing_opentelemetry::layer().with_tracer(tracer).with_filter(filter);
     layer

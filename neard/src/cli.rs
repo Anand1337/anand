@@ -465,6 +465,7 @@ impl RunCmd {
                 debug!(target: "neard", "{} server stopped", name);
             }))
             .await;
+            opentelemetry::global::shutdown_tracer_provider(); // Send remaining spans.
             actix::System::current().stop();
         });
         sys.run().unwrap();
