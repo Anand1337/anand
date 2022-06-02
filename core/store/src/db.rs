@@ -545,7 +545,12 @@ fn rocksdb_block_based_options(block_size: usize, cache_size: usize, col: DBCol)
     block_opts.set_block_size(block_size);
     // We create block_cache for each of 47 columns, so the total cache size is 32 * 47 = 1504mb
     block_opts.set_block_cache(&Cache::new_lru_cache(cache_size).unwrap());
-    if col == DBCol::ProcessedBlockHeights || col == DBCol::BlockPerHeight {
+    if col == DBCol::ProcessedBlockHeights
+        || col == DBCol::BlockHeight
+        || col == DBCol::ChunkHashesByHeight
+        || col == DBCol::HeaderHashesByHeight
+        || col == DBCol::BlockPerHeight
+        || col == DBCol::BlockRefCount {
         block_opts.set_cache_index_and_filter_blocks(false);
     } else {
         block_opts.set_pin_l0_filter_and_index_blocks_in_cache(true);
