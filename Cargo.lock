@@ -3552,6 +3552,7 @@ dependencies = [
  "serde_json",
  "shell-escape",
  "state-viewer",
+ "store-validator",
  "thiserror",
  "tikv-jemallocator",
  "tokio",

@@ -94,6 +94,10 @@ impl NeardCmd {
             NeardSubCommand::RecompressStorage(cmd) => {
                 cmd.run(&home_dir);
             }
+
+            NeardSubCommand::StoreValidator(_cmd) => {
+                near_store_validator::run(&home_dir);
+            }
         };
         Ok(())
     }
@@ -134,6 +138,9 @@ pub(super) struct StateViewerCommand {
     #[clap(subcommand)]
     subcmd: StateViewerSubCommand,
 }
+
+#[derive(Parser)]
+pub(super) struct StoreValidatorCommand {}
 
 fn unsafe_reset(command: &str, path: &std::path::Path, what: &str, default: &str) {
     let dir =
@@ -228,6 +235,9 @@ pub(super) enum NeardSubCommand {
     /// tool, it is planned to be removed by the end of 2022.
     #[clap(alias = "recompress_storage")]
     RecompressStorage(RecompressStorageSubCommand),
+    /// Runs store-validator.
+    #[clap(name = "validate-store")]
+    StoreValidator(StoreValidatorCommand),
 }
 
 #[derive(Parser)]
