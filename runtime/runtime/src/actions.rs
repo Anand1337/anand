@@ -124,11 +124,14 @@ pub(crate) fn execute_function_call(
 
     if let VMResult::Ok(ref vm_outcome) = result {
         let mut cost = vm_outcome.profile.get_ext_cost(ExtCosts::touching_trie_node);
-        assert!(cost % 16101955926 == 0, "Incorrect trie cost: {}", cost);
+        assert!(cost % 16101955926 == 0, "Incorrect real trie cost: {}", cost);
         cost /= 16101955926;
-        println!("fn_ok {:?} {:?} {:?}", cost, vm_outcome.burnt_gas, function_call.gas);
+        let mut cost2 = vm_outcome.profile.get_ext_cost(ExtCosts::read_cached_trie_node);
+        assert!(cost2 % 2280000000 == 0, "Incorrect cached trie cost: {}", cost);
+        cost2 /= 2280000000;
+        println!("fn_ok {:?} {:?} {:?} {:?}", cost, cost2, vm_outcome.burnt_gas, function_call.gas);
     } else {
-        println!("fn_failure");
+        println!("fn_fail");
     }
 
     result
