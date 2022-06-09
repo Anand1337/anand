@@ -21,6 +21,6 @@ with open("fn_data") as f:
             new_failures += 1
 
 
-print("overall fn-s:", ok + fail)
-print("current failure rate:", str(round(fail / (ok + fail) * 100, 2)) + "%")
+print("total function calls:", ok + fail)
+print("current failures:", str(round(fail / (ok + fail) * 100, 2)) + "%")
 print("additional new failures:", str(round(new_failures / (ok + fail) * 100, 2)) + "%")
