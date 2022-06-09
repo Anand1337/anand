@@ -574,7 +574,7 @@ impl NightshadeRuntime {
             match &outcome.outcome.metadata {
                 ExecutionMetadata::V1 => println!("Unexpected V1 execution metadata"),
                 ExecutionMetadata::V2(profile_data) => {
-                    println!("profile_data: {:?}", profile_data.get_ext_cost(ExtCosts::touching_trie_node));
+                    println!("profile_data: {:?} {:?}", profile_data.get_ext_cost(ExtCosts::touching_trie_node), outcome.outcome.gas_burnt);
                 },
             }
         }
