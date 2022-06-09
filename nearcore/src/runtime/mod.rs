@@ -574,7 +574,10 @@ impl NightshadeRuntime {
             match &outcome.outcome.metadata {
                 ExecutionMetadata::V1 => println!("Unexpected V1 execution metadata"),
                 ExecutionMetadata::V2(profile_data) => {
-                    println!("profile_data: {:?} {:?}", profile_data.get_ext_cost(ExtCosts::touching_trie_node), outcome.outcome.gas_burnt);
+                    let mut cost = profile_data.get_ext_cost(ExtCosts::touching_trie_node);
+                    assert!(cost % 16101955926 == 0, "Incorrect trie cost: {}", cost);
+                    cost /= 16101955926;
+                    println!("profile_data: {:?} {:?}", cost, outcome.outcome.gas_burnt);
                 },
             }
         }
