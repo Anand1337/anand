@@ -343,4 +343,6 @@ message PeerMessage {
     
     RoutingSyncV2 routing_table_sync_v2 = 24;
   }
+
+  bytes span_context = 25;
 }

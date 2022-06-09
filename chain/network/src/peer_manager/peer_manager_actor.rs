@@ -2312,6 +2312,7 @@ impl PeerManagerActor {
     }
 
     fn handle_msg_peer_request(&mut self, msg: PeerRequest) -> PeerResponse {
+        let _span = tracing::info_span!(target: "peermanager", "handle_msg_peer_request").entered();
         let _d =
             delay_detector::DelayDetector::new(|| format!("peer request {}", msg.as_ref()).into());
         match msg {
@@ -2333,6 +2334,7 @@ impl PeerManagerActor {
                 PeerResponse::NoResponse
             }
             PeerRequest::ReceivedMessage(peer_id, last_time_received_message) => {
+                let _span = tracing::info_span!(target: "peermanager", "handle_msg_peer_request_ReceivedMessage").entered();
                 if let Some(connected_peer) = self.connected_peers.get_mut(&peer_id) {
                     connected_peer.last_time_received_message = last_time_received_message;
                 }

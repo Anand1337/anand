@@ -55,6 +55,7 @@ use near_primitives::views::{
 };
 use near_store::DBCol;
 use near_telemetry::TelemetryActor;
+use opentelemetry::trace::TraceContextExt;
 use rand::seq::SliceRandom;
 use rand::{thread_rng, Rng};
 use std::collections::HashMap;
@@ -63,6 +64,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tokio::sync::oneshot;
 use tracing::{debug, error, info, trace, warn};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 /// Multiplier on `max_block_time` to wait until deciding that chain stalled.
 const STATUS_WAIT_TIME_MULTIPLIER: u64 = 10;
@@ -265,6 +267,7 @@ impl Handler<NetworkClientMessages> for ClientActor {
             "handle",
             handler="NetworkClientMessages")
         .entered();
+        tracing::info!(target:"client", trace_id=?tracing::span::Span::current().context().span().span_context().trace_id(), "handle NetworkClientMessages");
         self.check_triggers(ctx);
 
         let _d = delay_detector::DelayDetector::new(|| {
@@ -282,6 +285,7 @@ impl Handler<NetworkClientMessages> for ClientActor {
 
 impl ClientActor {
     fn handle_client_messages(&mut self, msg: NetworkClientMessages) -> NetworkClientResponses {
+        let _span = tracing::info_span!(target: "client_actor", "handle_client_messages").entered();
         match msg {
             #[cfg(feature = "test_features")]
             NetworkClientMessages::Adversarial(adversarial_msg) => {
@@ -414,9 +418,11 @@ impl ClientActor {
                 };
             }
             NetworkClientMessages::Transaction { transaction, is_forwarded, check_only } => {
+                let _span = tracing::info_span!(target: "client_actor", "Transaction").entered();
                 self.client.process_tx(transaction, is_forwarded, check_only)
             }
             NetworkClientMessages::Block(block, peer_id, was_requested) => {
+                let _span = tracing::info_span!(target: "client_actor", "Block").entered();
                 let blocks_at_height = self
                     .client
                     .chain
@@ -460,6 +466,7 @@ impl ClientActor {
                 }
             }
             NetworkClientMessages::BlockHeaders(headers, peer_id) => {
+                let _span = tracing::info_span!(target: "client_actor", "BlockHeaders").entered();
                 if self.receive_headers(headers, peer_id) {
                     NetworkClientResponses::NoResponse
                 } else {
@@ -468,11 +475,13 @@ impl ClientActor {
                 }
             }
             NetworkClientMessages::BlockApproval(approval, peer_id) => {
+                let _span = tracing::info_span!(target: "client_actor", "BlockApproval").entered();
                 debug!(target: "client", "Receive approval {:?} from peer {:?}", approval, peer_id);
                 self.client.collect_block_approval(&approval, ApprovalType::PeerApproval(peer_id));
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::StateResponse(state_response_info) => {
+                let _span = tracing::info_span!(target: "client_actor", "StateResponse").entered();
                 let shard_id = state_response_info.shard_id();
                 let hash = state_response_info.sync_hash();
                 let state_response = state_response_info.take_state_response();
@@ -600,6 +609,9 @@ impl ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::PartialEncodedChunkRequest(part_request_msg, route_back) => {
+                let _span =
+                    tracing::info_span!(target: "client_actor", "PartialEncodedChunkRequest")
+                        .entered();
                 let _ = self.client.shards_mgr.process_partial_encoded_chunk_request(
                     part_request_msg,
                     route_back,
@@ -609,6 +621,9 @@ impl ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::PartialEncodedChunkResponse(response, time) => {
+                let _span =
+                    tracing::info_span!(target: "client_actor", "PartialEncodedChunkResponse")
+                        .entered();
                 PARTIAL_ENCODED_CHUNK_RESPONSE_DELAY.observe(time.elapsed().as_secs_f64());
                 if let Ok(accepted_blocks) =
                     self.client.process_partial_encoded_chunk_response(response)
@@ -618,6 +633,8 @@ impl ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::PartialEncodedChunk(partial_encoded_chunk) => {
+                let _span =
+                    tracing::info_span!(target: "client_actor", "PartialEncodedChunk").entered();
                 if let Ok(accepted_blocks) = self
                     .client
                     .process_partial_encoded_chunk(MaybeValidated::from(partial_encoded_chunk))
@@ -627,6 +644,9 @@ impl ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::PartialEncodedChunkForward(forward) => {
+                let _span =
+                    tracing::info_span!(target: "client_actor", "PartialEncodedChunkForward")
+                        .entered();
                 match self.client.process_partial_encoded_chunk_forward(forward) {
                     Ok(accepted_blocks) => self.process_accepted_blocks(accepted_blocks),
                     // Unknown chunk is normal if we get parts before the header
@@ -638,6 +658,7 @@ impl ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::Challenge(challenge) => {
+                let _span = tracing::info_span!(target: "client_actor", "Challenge").entered();
                 match self.client.process_challenge(challenge) {
                     Ok(_) => {}
                     Err(err) => {
@@ -647,6 +668,7 @@ impl ClientActor {
                 NetworkClientResponses::NoResponse
             }
             NetworkClientMessages::NetworkInfo(network_info) => {
+                let _span = tracing::info_span!(target: "client_actor", "NetworkInfo").entered();
                 self.network_info = network_info;
                 NetworkClientResponses::NoResponse
             }

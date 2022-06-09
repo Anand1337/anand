@@ -15,8 +15,11 @@ use near_primitives::network::{AnnounceAccount, PeerId};
 use near_primitives::syncing::{EpochSyncFinalizationResponse, EpochSyncResponse};
 use near_primitives::transaction::SignedTransaction;
 use near_primitives::types::EpochId;
+use opentelemetry::trace::{SpanContext, TraceContextExt};
 use protobuf::MessageField as MF;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 #[derive(Error, Debug)]
 #[error("[{idx}]: {source}")]
@@ -399,6 +402,15 @@ impl TryFrom<&proto::Block> for Block {
 
 impl From<&PeerMessage> for proto::PeerMessage {
     fn from(x: &PeerMessage) -> Self {
+        let _span = tracing::info_span!(target: "conv", "from_PeerMessage_into_proto::PeerMessage")
+            .entered();
+        let span_context_vec = vec![];
+        let mut serializer = serde_json::Serializer::new(span_context_vec);
+        let context = tracing::span::Span::current().context();
+        tracing::info!(target: "conv",trace_id=?context.span().span_context().trace_id(), span_id=?context.span().span_context().span_id(), is_sampled=?context.span().span_context().is_sampled(), "context");
+        context.span().span_context().serialize(&mut serializer).unwrap();
+        let span_context_vec = serializer.into_inner();
+
         Self {
             message_type: Some(match x {
                 PeerMessage::Handshake(h) => ProtoMT::Handshake(h.into()),
@@ -491,6 +503,7 @@ impl From<&PeerMessage> for proto::PeerMessage {
                     })
                 }
             }),
+            span_context: span_context_vec,
             ..Default::default()
         }
     }
@@ -621,5 +634,103 @@ impl TryFrom<&proto::PeerMessage> for PeerMessage {
                     .map_err(Self::Error::RoutingTableSyncV2)?,
             ),
         })
+    }
+}
+
+impl PeerMessage {
+    pub fn try_from_with_span_context(
+        x: &proto::PeerMessage,
+    ) -> Result<(PeerMessage, SpanContext), ParsePeerMessageError> {
+        let _span = tracing::info_span!(target: "conv", "try_from_with_span_context").entered();
+        let msg = match x.message_type.as_ref().ok_or(ParsePeerMessageError::Empty)? {
+            ProtoMT::Handshake(h) => {
+                PeerMessage::Handshake(h.try_into().map_err(ParsePeerMessageError::Handshake)?)
+            }
+            ProtoMT::HandshakeFailure(hf) => {
+                let (pi, hfr) = hf.try_into().map_err(ParsePeerMessageError::HandshakeFailure)?;
+                PeerMessage::HandshakeFailure(pi, hfr)
+            }
+            ProtoMT::LastEdge(le) => PeerMessage::LastEdge(
+                try_from_required(&le.edge).map_err(ParsePeerMessageError::LastEdge)?,
+            ),
+            ProtoMT::SyncRoutingTable(rtu) => PeerMessage::SyncRoutingTable(
+                rtu.try_into().map_err(ParsePeerMessageError::SyncRoutingTable)?,
+            ),
+            ProtoMT::UpdateNonceRequest(unr) => PeerMessage::RequestUpdateNonce(
+                try_from_required(&unr.partial_edge_info)
+                    .map_err(ParsePeerMessageError::UpdateNonceRequest)?,
+            ),
+            ProtoMT::UpdateNonceResponse(unr) => PeerMessage::ResponseUpdateNonce(
+                try_from_required(&unr.edge).map_err(ParsePeerMessageError::UpdateNonceResponse)?,
+            ),
+            ProtoMT::PeersRequest(_) => PeerMessage::PeersRequest,
+            ProtoMT::PeersResponse(pr) => PeerMessage::PeersResponse(
+                try_from_vec(&pr.peers).map_err(ParsePeerMessageError::PeersResponse)?,
+            ),
+            ProtoMT::BlockHeadersRequest(bhr) => PeerMessage::BlockHeadersRequest(
+                try_from_vec(&bhr.block_hashes)
+                    .map_err(ParsePeerMessageError::BlockHeadersRequest)?,
+            ),
+            ProtoMT::BlockHeadersResponse(bhr) => PeerMessage::BlockHeaders(
+                try_from_vec(&bhr.block_headers)
+                    .map_err(ParsePeerMessageError::BlockHeadersResponse)?,
+            ),
+            ProtoMT::BlockRequest(br) => PeerMessage::BlockRequest(
+                try_from_required(&br.block_hash).map_err(ParsePeerMessageError::BlockRequest)?,
+            ),
+            ProtoMT::BlockResponse(br) => PeerMessage::Block(
+                try_from_required(&br.block).map_err(ParsePeerMessageError::BlockResponse)?,
+            ),
+            ProtoMT::Transaction(t) => PeerMessage::Transaction(
+                SignedTransaction::try_from_slice(&t.borsh)
+                    .map_err(ParsePeerMessageError::Transaction)?,
+            ),
+            ProtoMT::Routed(r) => PeerMessage::Routed(Box::new(
+                RoutedMessage::try_from_slice(&r.borsh).map_err(ParsePeerMessageError::Routed)?,
+            )),
+            ProtoMT::Disconnect(_) => PeerMessage::Disconnect,
+            ProtoMT::Challenge(c) => PeerMessage::Challenge(
+                Challenge::try_from_slice(&c.borsh).map_err(ParsePeerMessageError::Challenge)?,
+            ),
+            ProtoMT::EpochSyncRequest(esr) => PeerMessage::EpochSyncRequest(EpochId(
+                try_from_required(&esr.epoch_id)
+                    .map_err(ParsePeerMessageError::EpochSyncRequest)?,
+            )),
+            ProtoMT::EpochSyncResponse(esr) => PeerMessage::EpochSyncResponse(Box::new(
+                EpochSyncResponse::try_from_slice(&esr.borsh)
+                    .map_err(ParsePeerMessageError::EpochSyncResponse)?,
+            )),
+            ProtoMT::EpochSyncFinalizationRequest(esr) => {
+                PeerMessage::EpochSyncFinalizationRequest(EpochId(
+                    try_from_required(&esr.epoch_id)
+                        .map_err(ParsePeerMessageError::EpochSyncFinalizationRequest)?,
+                ))
+            }
+            ProtoMT::EpochSyncFinalizationResponse(esr) => {
+                PeerMessage::EpochSyncFinalizationResponse(Box::new(
+                    EpochSyncFinalizationResponse::try_from_slice(&esr.borsh)
+                        .map_err(ParsePeerMessageError::EpochSyncFinalizationResponse)?,
+                ))
+            }
+            ProtoMT::RoutingTableSyncV2(rts) => PeerMessage::RoutingTableSyncV2(
+                RoutingSyncV2::try_from_slice(&rts.borsh)
+                    .map_err(ParsePeerMessageError::RoutingTableSyncV2)?,
+            ),
+        };
+        let span_context_ser = &x.span_context;
+        let mut deserializer = serde_json::Deserializer::from_slice(span_context_ser);
+        let span_context =
+            opentelemetry::trace::SpanContext::deserialize(&mut deserializer).unwrap();
+
+        Ok((
+            msg,
+            SpanContext::new(
+                span_context.trace_id(),
+                span_context.span_id(),
+                span_context.trace_flags(),
+                true,
+                span_context.trace_state().clone(),
+            ),
+        ))
     }
 }

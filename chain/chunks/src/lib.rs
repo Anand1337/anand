@@ -542,6 +542,7 @@ impl ShardsManager {
         request_own_parts_from_others: bool,
         request_from_archival: bool,
     ) -> Result<(), near_chain::Error> {
+        tracing::info!(target: "net", "request_partial_encoded_chunk");
         let mut bp_to_parts = HashMap::<_, Vec<u64>>::new();
 
         let cache_entry = self.encoded_chunks.get(chunk_hash);
@@ -939,6 +940,7 @@ impl ShardsManager {
 
     /// Returns true if transaction is not in the pool before call
     pub fn insert_transaction(&mut self, shard_id: ShardId, tx: SignedTransaction) -> bool {
+        let _span = tracing::info_span!(target: "shardsmanager", "insert_transaction").entered();
         self.pool_for_shard(shard_id).insert_transaction(tx)
     }
 

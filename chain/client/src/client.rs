@@ -1493,6 +1493,7 @@ impl Client {
 
     /// Forwards given transaction to upcoming validators.
     fn forward_tx(&self, epoch_id: &EpochId, tx: &SignedTransaction) -> Result<(), Error> {
+        let _span = tracing::debug_span!(target: "client", "forward_tx");
         let shard_id =
             self.runtime_adapter.account_id_to_shard_id(&tx.transaction.signer_id, epoch_id)?;
         let head = self.chain.head()?;
@@ -1545,6 +1546,7 @@ impl Client {
         is_forwarded: bool,
         check_only: bool,
     ) -> NetworkClientResponses {
+        let _span = tracing::info_span!(target: "client", "process_tx").entered();
         unwrap_or_return!(self.process_tx_internal(&tx, is_forwarded, check_only), {
             let me = self.validator_signer.as_ref().map(|vs| vs.validator_id());
             warn!(target: "client", "I'm: {:?} Dropping tx: {:?}", me, tx);
@@ -1575,6 +1577,7 @@ impl Client {
     /// If we're a validator in one of the next few chunks, but epoch switch could happen soon,
     /// we forward to a validator from next epoch.
     fn possibly_forward_tx_to_next_epoch(&mut self, tx: &SignedTransaction) -> Result<(), Error> {
+        let _span = tracing::debug_span!(target: "client", "possibly_forward_tx_to_next_epoch");
         let head = self.chain.head()?;
         if let Some(next_epoch_id) = self.get_next_epoch_id_if_at_boundary(&head)? {
             self.forward_tx(&next_epoch_id, tx)?;
@@ -1591,6 +1594,7 @@ impl Client {
         is_forwarded: bool,
         check_only: bool,
     ) -> Result<NetworkClientResponses, Error> {
+        let _span = tracing::debug_span!(target: "client", "process_tx_internal");
         let head = self.chain.head()?;
         let me = self.validator_signer.as_ref().map(|vs| vs.validator_id());
         let cur_block_header = self.chain.head_header()?;

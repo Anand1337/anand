@@ -9,7 +9,7 @@ mod _proto {
 
 pub use _proto::network as proto;
 
-use ::borsh::{BorshDeserialize as _, BorshSerialize as _};
+// use ::borsh::{BorshDeserialize as _, BorshSerialize as _};
 use near_network_primitives::types::{
     Edge, PartialEdgeInfo, PeerChainInfoV2, PeerInfo, RoutedMessage, RoutedMessageBody,
 };
@@ -21,6 +21,7 @@ use near_primitives::syncing::{EpochSyncFinalizationResponse, EpochSyncResponse}
 use near_primitives::transaction::SignedTransaction;
 use near_primitives::types::{EpochId, ProtocolVersion};
 use near_primitives::version::PEER_MIN_ALLOWED_PROTOCOL_VERSION;
+use opentelemetry::trace::SpanContext;
 use protobuf::Message as _;
 use std::fmt;
 use thiserror::Error;
@@ -76,6 +77,41 @@ pub enum HandshakeFailureReason {
     InvalidTarget,
 }
 
+/*
+#[derive(Eq, PartialEq, Clone, Debug)]
+pub struct PeerMessageWithSpanContext {
+    msg: PeerMessage,
+    span_context: Vec<u8>,
+}
+
+impl PeerMessageWithSpanContext {
+    pub(crate) fn serialize(&self, enc: Encoding) -> Vec<u8> {
+        match enc {
+            Encoding::Borsh => borsh::PeerMessageWithSpanContext::from(self).try_to_vec().unwrap(),
+            Encoding::Proto => {
+                proto::PeerMessageWithSpanContext::from(self).write_to_bytes().unwrap()
+            }
+        }
+    }
+
+    pub(crate) fn deserialize(
+        enc: Encoding,
+        data: &[u8],
+    ) -> Result<PeerMessageWithSpanContext, ParsePeerMessageError> {
+        Ok(match enc {
+            Encoding::Borsh => (&borsh::PeerMessageWithSpanContext::try_from_slice(data)
+                .map_err(ParsePeerMessageError::BorshDecode)?)
+                .try_into()
+                .map_err(ParsePeerMessageError::BorshConv)?,
+            Encoding::Proto => (&proto::PeerMessageWithSpanContext::parse_from_bytes(data)
+                .map_err(ParsePeerMessageError::ProtoDecode)?)
+                .try_into()
+                .map_err(ParsePeerMessageError::ProtoConv)?,
+        })
+    }
+}
+ */
+
 #[derive(PartialEq, Eq, Clone, Debug, strum::IntoStaticStr, strum::EnumVariantNames)]
 #[allow(clippy::large_enum_variant)]
 pub enum PeerMessage {
@@ -125,10 +161,10 @@ pub enum Encoding {
 
 #[derive(Error, Debug)]
 pub enum ParsePeerMessageError {
-    #[error("BorshDecode")]
-    BorshDecode(std::io::Error),
-    #[error("BorshConv")]
-    BorshConv(borsh_conv::ParsePeerMessageError),
+    //    #[error("BorshDecode")]
+    //    BorshDecode(std::io::Error),
+    //    #[error("BorshConv")]
+    //    BorshConv(borsh_conv::ParsePeerMessageError),
     #[error("ProtoDecode")]
     ProtoDecode(protobuf::Error),
     #[error("ProtoConv")]
@@ -138,26 +174,51 @@ pub enum ParsePeerMessageError {
 impl PeerMessage {
     pub(crate) fn serialize(&self, enc: Encoding) -> Vec<u8> {
         match enc {
-            Encoding::Borsh => borsh::PeerMessage::from(self).try_to_vec().unwrap(),
+            Encoding::Borsh => {
+                panic!("");
+                // borsh::PeerMessage::from(self).try_to_vec().unwrap()
+            }
             Encoding::Proto => proto::PeerMessage::from(self).write_to_bytes().unwrap(),
         }
     }
 
+    pub(crate) fn deserialize_with_span_context(
+        enc: Encoding,
+        data: &[u8],
+    ) -> Result<(PeerMessage, SpanContext), ParsePeerMessageError> {
+        Ok(match enc {
+            Encoding::Borsh => {
+                panic!("");
+                // (&borsh::PeerMessage::try_from_slice(data).map_err(ParsePeerMessageError::BorshDecode)?).try_into().map_err(ParsePeerMessageError::BorshConv)?
+            }
+            Encoding::Proto => {
+                let msg = &proto::PeerMessage::parse_from_bytes(data)
+                    .map_err(ParsePeerMessageError::ProtoDecode)?;
+                let (msg, span_context) = PeerMessage::try_from_with_span_context(msg)
+                    .map_err(ParsePeerMessageError::ProtoConv)?;
+                (msg, span_context)
+            }
+        })
+    }
+    /*
     pub(crate) fn deserialize(
         enc: Encoding,
         data: &[u8],
     ) -> Result<PeerMessage, ParsePeerMessageError> {
         Ok(match enc {
-            Encoding::Borsh => (&borsh::PeerMessage::try_from_slice(data)
-                .map_err(ParsePeerMessageError::BorshDecode)?)
-                .try_into()
-                .map_err(ParsePeerMessageError::BorshConv)?,
-            Encoding::Proto => (&proto::PeerMessage::parse_from_bytes(data)
-                .map_err(ParsePeerMessageError::ProtoDecode)?)
-                .try_into()
-                .map_err(ParsePeerMessageError::ProtoConv)?,
+            Encoding::Borsh => {
+                panic!("");
+                // (&borsh::PeerMessage::try_from_slice(data).map_err(ParsePeerMessageError::BorshDecode)?).try_into().map_err(ParsePeerMessageError::BorshConv)?
+            }
+            Encoding::Proto => {
+                let msg = &proto::PeerMessage::parse_from_bytes(data).map_err(ParsePeerMessageError::ProtoDecode)?;
+                let (msg,span_context) = PeerMessage::try_from_with_span_context(msg).map_err(ParsePeerMessageError::ProtoConv)?;
+                msg
+            },
         })
     }
+
+     */
 
     pub(crate) fn msg_variant(&self) -> &'static str {
         match self {
