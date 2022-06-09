@@ -1,6 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use near_crypto::PublicKey;
+use near_primitives::config::ExtCosts;
 use near_primitives::account::{AccessKey, AccessKeyPermission, Account};
 use near_primitives::checked_feature;
 use near_primitives::contract::ContractCode;
@@ -119,6 +120,15 @@ pub(crate) fn execute_function_call(
     );
     if checked_feature!("stable", ChunkNodesCache, protocol_version) {
         runtime_ext.set_trie_cache_mode(TrieCacheMode::CachingShard);
+    }
+
+    if let VMResult::Ok(ref vm_outcome) = result {
+        let mut cost = vm_outcome.profile.get_ext_cost(ExtCosts::touching_trie_node);
+        assert!(cost % 16101955926 == 0, "Incorrect trie cost: {}", cost);
+        cost /= 16101955926;
+        println!("fn_ok {:?} {:?} {:?}", cost, vm_outcome.burnt_gas, function_call.gas);
+    } else {
+        println!("fn_failure");
     }
 
     result

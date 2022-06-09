@@ -16,7 +16,6 @@ use near_chain_configs::{
 use near_crypto::{PublicKey, Signature};
 use near_epoch_manager::EpochManager;
 use near_pool::types::PoolIterator;
-use near_primitives::config::ExtCosts;
 use near_primitives::account::{AccessKey, Account};
 use near_primitives::block::{Approval, ApprovalInner};
 use near_primitives::challenge::ChallengesResult;
@@ -36,7 +35,7 @@ use near_primitives::sharding::ChunkHash;
 use near_primitives::state_part::PartId;
 use near_primitives::state_record::{state_record_to_account_id, StateRecord};
 use near_primitives::syncing::{get_num_state_parts, STATE_PART_MEMORY_LIMIT};
-use near_primitives::transaction::{SignedTransaction, ExecutionMetadata};
+use near_primitives::transaction::SignedTransaction;
 use near_primitives::types::validator_stake::{ValidatorStake, ValidatorStakeIter};
 use near_primitives::types::{
     AccountId, ApprovalStake, Balance, BlockHeight, CompiledContractCache, EpochHeight, EpochId,
@@ -569,18 +568,6 @@ impl NightshadeRuntime {
                 RuntimeError::ValidatorError(e) => e.into(),
             })?;
         let elapsed = instant.elapsed();
-
-        for outcome in apply_result.outcomes.iter() {
-            match &outcome.outcome.metadata {
-                ExecutionMetadata::V1 => println!("Unexpected V1 execution metadata"),
-                ExecutionMetadata::V2(profile_data) => {
-                    let mut cost = profile_data.get_ext_cost(ExtCosts::touching_trie_node);
-                    assert!(cost % 16101955926 == 0, "Incorrect trie cost: {}", cost);
-                    cost /= 16101955926;
-                    println!("profile_data: {:?} {:?}", cost, outcome.outcome.gas_burnt);
-                },
-            }
-        }
 
         let total_gas_burnt =
             apply_result.outcomes.iter().map(|tx_result| tx_result.outcome.gas_burnt).sum();
