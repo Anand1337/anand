@@ -35,7 +35,7 @@ use near_primitives::sharding::ChunkHash;
 use near_primitives::state_part::PartId;
 use near_primitives::state_record::{state_record_to_account_id, StateRecord};
 use near_primitives::syncing::{get_num_state_parts, STATE_PART_MEMORY_LIMIT};
-use near_primitives::transaction::SignedTransaction;
+use near_primitives::transaction::{SignedTransaction, ExecutionMetadata};
 use near_primitives::types::validator_stake::{ValidatorStake, ValidatorStakeIter};
 use near_primitives::types::{
     AccountId, ApprovalStake, Balance, BlockHeight, CompiledContractCache, EpochHeight, EpochId,
@@ -568,6 +568,13 @@ impl NightshadeRuntime {
                 RuntimeError::ValidatorError(e) => e.into(),
             })?;
         let elapsed = instant.elapsed();
+
+        for outcome in apply_result.outcomes.iter() {
+            match &outcome.outcome.metadata {
+                ExecutionMetadata::V1 => println!("Unexpected V1 execution metadata"),
+                ExecutionMetadata::V2(profile_data) => println!("profile_data: {:?}", profile_data),
+            }
+        }
 
         let total_gas_burnt =
             apply_result.outcomes.iter().map(|tx_result| tx_result.outcome.gas_burnt).sum();
