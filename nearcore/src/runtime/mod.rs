@@ -16,6 +16,7 @@ use near_chain_configs::{
 use near_crypto::{PublicKey, Signature};
 use near_epoch_manager::EpochManager;
 use near_pool::types::PoolIterator;
+use near_primitives::config::ExtCosts;
 use near_primitives::account::{AccessKey, Account};
 use near_primitives::block::{Approval, ApprovalInner};
 use near_primitives::challenge::ChallengesResult;
@@ -572,7 +573,9 @@ impl NightshadeRuntime {
         for outcome in apply_result.outcomes.iter() {
             match &outcome.outcome.metadata {
                 ExecutionMetadata::V1 => println!("Unexpected V1 execution metadata"),
-                ExecutionMetadata::V2(profile_data) => println!("profile_data: {:?}", profile_data),
+                ExecutionMetadata::V2(profile_data) => {
+                    println!("profile_data: {:?}", profile_data.get_ext_cost(ExtCosts::touching_trie_node));
+                },
             }
         }
 
