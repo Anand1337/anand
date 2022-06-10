@@ -1,3 +1,20 @@
-total function calls: 671834
-current failures: 12.83%
-additional new failures: 3.36%
+shard: 0
+total blocks: 4700
+total function calls: 3766
+current failures: 9.03%
+additional new failures: 0.03%
+shard: 1
+total blocks: 1800
+total function calls: 14432
+current failures: 12.27%
+additional new failures: 2.25%
+shard: 2
+total blocks: 6300
+total function calls: 1955
+current failures: 1.84%
+additional new failures: 0.31%
+shard: 3
+total blocks: 1800
+total function calls: 2768
+current failures: 2.31%
+additional new failures: 0.43%

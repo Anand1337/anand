@@ -1,9 +1,11 @@
+import sys
+
 ok, fail = 0, 0
 current_cost = 16101955926
 new_cost = 140000000000
 new_failures = 0
 total_blocks = 0
-with open("fn_data") as f:
+with open(sys.argv[1]) as f:
     for line in f:
         if not line.startswith("fn_fail") and not line.startswith("fn_ok"):
             if "blocks" in line:
