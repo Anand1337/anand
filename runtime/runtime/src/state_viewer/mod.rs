@@ -170,7 +170,9 @@ impl TrieViewer {
         logs: &mut Vec<String>,
         epoch_info_provider: &dyn EpochInfoProvider,
     ) -> Result<Vec<u8>, errors::CallFunctionError> {
-        panic!("IN");
+        if 2 + 2 == 4  {
+            panic!("IN");
+        }
         let now = Instant::now();
         let root = state_update.get_root();
         let mut account = get_account(&state_update, contract_id)?.ok_or_else(|| {
