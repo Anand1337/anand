@@ -50,6 +50,7 @@ pub(crate) fn execute_function_call(
     config: &RuntimeConfig,
     is_last_action: bool,
     view_config: Option<ViewConfig>,
+    receipt_id: &CryptoHash,
 ) -> VMResult {
     let account_id = runtime_ext.account_id();
     let code = match runtime_ext.get_code(account.code_hash()) {
@@ -129,7 +130,8 @@ pub(crate) fn execute_function_call(
         let mut cost2 = vm_outcome.profile.get_ext_cost(ExtCosts::read_cached_trie_node);
         assert!(cost2 % 2280000000 == 0, "Incorrect cached trie cost: {}", cost);
         cost2 /= 2280000000;
-        println!("fn_ok {:?} {:?} {:?} {:?}", cost, cost2, vm_outcome.burnt_gas, function_call.gas);
+        println!("fn_ok {:?} {:?} {:?} {:?} {} {}", cost, cost2, vm_outcome.burnt_gas, function_call.gas,
+                 runtime_ext.account_id(), receipt_id);
     } else {
         println!("fn_fail");
     }
@@ -180,6 +182,7 @@ pub(crate) fn action_function_call(
         config,
         is_last_action,
         None,
+        &receipt.receipt_id,
     )
     .outcome_error();
     let execution_succeeded = match err {
