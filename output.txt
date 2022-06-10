@@ -1,28 +1,28 @@
 shard: 0
-total blocks: 17400
-total function calls: 14856
-current failures: 8.35%
-additional new failures (300Tgas): 0.02%
+total blocks: 14100
+total function calls: 9605
+current failures: 9.16%
+additional new failures (300Tgas): 1.16%
 additional new failures (400Tgas): 0.0%
 additional new failures (500Tgas): 0.0%
 shard: 1
-total blocks: 6600
-total function calls: 48899
-current failures: 10.65%
-additional new failures (300Tgas): 2.44%
+total blocks: 2800
+total function calls: 20093
+current failures: 10.24%
+additional new failures (300Tgas): 2.29%
 additional new failures (400Tgas): 0.04%
 additional new failures (500Tgas): 0.0%
 shard: 2
-total blocks: 14400
-total function calls: 4341
-current failures: 2.07%
-additional new failures (300Tgas): 0.3%
+total blocks: 12200
+total function calls: 3747
+current failures: 1.81%
+additional new failures (300Tgas): 2.83%
 additional new failures (400Tgas): 0.0%
 additional new failures (500Tgas): 0.0%
 shard: 3
-total blocks: 6400
-total function calls: 9418
-current failures: 1.93%
-additional new failures (300Tgas): 0.28%
+total blocks: 3300
+total function calls: 5246
+current failures: 2.84%
+additional new failures (300Tgas): 5.66%
 additional new failures (400Tgas): 0.0%
 additional new failures (500Tgas): 0.0%
