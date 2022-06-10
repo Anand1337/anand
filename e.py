@@ -3,7 +3,8 @@ import sys
 ok, fail = 0, 0
 current_cost = 16101955926
 new_cost = 140000000000
-new_failures = 0
+tgas_100 = 100000000000000
+new_failures, new_failures_with_extra_100tgas, new_failures_with_extra_200tgas = 0, 0, 0
 total_blocks = 0
 with open(sys.argv[1]) as f:
     for line in f:
@@ -24,9 +25,15 @@ with open(sys.argv[1]) as f:
         extra = real_reads * (new_cost - current_cost)
         if extra > remaining_gas:
             new_failures += 1
+        if extra > remaining_gas + tgas_100:
+            new_failures_with_extra_100tgas += 1
+        if extra > remaining_gas + 2 * tgas_100:
+            new_failures_with_extra_200tgas += 1
 
 
 print("total blocks:", total_blocks)
 print("total function calls:", ok + fail)
 print("current failures:", str(round(fail / (ok + fail) * 100, 2)) + "%")
-print("additional new failures:", str(round(new_failures / (ok + fail) * 100, 2)) + "%")
+print("additional new failures (300Tgas):", str(round(new_failures / (ok + fail) * 100, 2)) + "%")
+print("additional new failures (400Tgas):", str(round(new_failures_with_extra_100tgas / (ok + fail) * 100, 2)) + "%")
+print("additional new failures (500Tgas):", str(round(new_failures_with_extra_200tgas / (ok + fail) * 100, 2)) + "%")
