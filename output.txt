@@ -1,3 +1,3 @@
-total function calls: 66399
-current failures: 11.74%
-additional new failures: 3.73%
+total function calls: 671834
+current failures: 12.83%
+additional new failures: 3.36%
