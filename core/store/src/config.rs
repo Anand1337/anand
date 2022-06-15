@@ -1,7 +1,4 @@
 use near_primitives::shard_layout::ShardUId;
-use near_primitives::version::DbVersion;
-
-const STORE_PATH: &str = "data";
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
