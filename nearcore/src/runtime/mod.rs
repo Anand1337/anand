@@ -28,6 +28,7 @@ use near_primitives::hash::{hash, CryptoHash};
 use near_primitives::receipt::Receipt;
 use near_primitives::runtime::config_store::RuntimeConfigStore;
 use near_primitives::runtime::migration_data::{MigrationData, MigrationFlags};
+use near_primitives::sandbox_state_patch::SandboxStatePatch;
 use near_primitives::shard_layout::{
     account_id_to_shard_id, account_id_to_shard_uid, ShardLayout, ShardUId,
 };
@@ -51,7 +52,7 @@ use near_store::split_state::get_delayed_receipts;
 use near_store::{
     get_genesis_hash, get_genesis_state_roots, set_genesis_hash, set_genesis_state_roots,
     ApplyStatePartResult, DBCol, PartialStorage, ShardTries, Store, StoreCompiledContractCache,
-    StoreUpdate, Trie, WrappedTrieChanges,
+    StoreUpdate, Trie, TrieCacheFactory, WrappedTrieChanges,
 };
 use near_vm_runner::precompile_contract;
 use node_runtime::adapter::ViewRuntimeAdapter;
@@ -144,22 +145,17 @@ pub struct NightshadeRuntime {
 }
 
 impl NightshadeRuntime {
-    pub fn with_config(
-        home_dir: &Path,
-        store: Store,
-        config: &NearConfig,
-        trie_viewer_state_size_limit: Option<u64>,
-        max_gas_burnt_view: Option<Gas>,
-    ) -> Self {
+    pub fn from_config(home_dir: &Path, store: Store, config: &NearConfig) -> Self {
         Self::new(
             home_dir,
             store,
             &config.genesis,
             TrackedConfig::from_config(&config.client_config),
-            trie_viewer_state_size_limit,
-            max_gas_burnt_view,
+            config.client_config.trie_viewer_state_size_limit,
+            config.client_config.max_gas_burnt_view,
             None,
             config.config.gc.gc_num_epochs_to_keep(),
+            config.config.store.trie_cache_capacities.clone(),
         )
     }
 
@@ -172,6 +168,7 @@ impl NightshadeRuntime {
         max_gas_burnt_view: Option<Gas>,
         runtime_config_store: Option<RuntimeConfigStore>,
         gc_num_epochs_to_keep: u64,
+        trie_cache_capacities: Vec<(ShardUId, usize)>,
     ) -> Self {
         let runtime_config_store = match runtime_config_store {
             Some(store) => store,
@@ -190,11 +187,12 @@ impl NightshadeRuntime {
         );
         let state_roots =
             Self::initialize_genesis_state_if_needed(store.clone(), home_dir, genesis);
-        let tries = ShardTries::new(
-            store.clone(),
+        let trie_cache_factory = TrieCacheFactory::new(
+            trie_cache_capacities.into_iter().collect(),
             genesis_config.shard_layout.version(),
             genesis.config.num_block_producer_seats_per_shard.len() as NumShards,
         );
+        let tries = ShardTries::new(store.clone(), trie_cache_factory);
         let epoch_manager = Arc::new(RwLock::new(
             EpochManager::new_from_genesis_config(store.clone(), &genesis_config)
                 .expect("Failed to start Epoch Manager"),
@@ -221,7 +219,6 @@ impl NightshadeRuntime {
         genesis: &Genesis,
         tracked_config: TrackedConfig,
         runtime_config_store: RuntimeConfigStore,
-        gc_num_epochs_to_keep: Option<u64>,
     ) -> Self {
         Self::new(
             home_dir,
@@ -231,7 +228,8 @@ impl NightshadeRuntime {
             None,
             None,
             Some(runtime_config_store),
-            gc_num_epochs_to_keep.unwrap_or(DEFAULT_GC_NUM_EPOCHS_TO_KEEP),
+            DEFAULT_GC_NUM_EPOCHS_TO_KEEP,
+            Default::default(),
         )
     }
 
@@ -242,7 +240,6 @@ impl NightshadeRuntime {
             genesis,
             TrackedConfig::new_empty(),
             RuntimeConfigStore::test(),
-            None,
         )
     }
 
@@ -305,7 +302,12 @@ impl NightshadeRuntime {
             }
         });
         assert!(has_protocol_account, "Genesis spec doesn't have protocol treasury account");
-        let tries = ShardTries::new(store, genesis.config.shard_layout.version(), num_shards);
+        let trie_cache_factory = TrieCacheFactory::new(
+            Default::default(),
+            genesis.config.shard_layout.version(),
+            num_shards,
+        );
+        let tries = ShardTries::new(store, trie_cache_factory);
         let runtime = Runtime::new();
         let runtime_config_store =
             NightshadeRuntime::create_runtime_config_store(&genesis.config.chain_id);
@@ -439,7 +441,7 @@ impl NightshadeRuntime {
         random_seed: CryptoHash,
         is_new_chunk: bool,
         is_first_block_with_chunk_of_version: bool,
-        states_to_patch: Option<Vec<StateRecord>>,
+        state_patch: Option<SandboxStatePatch>,
     ) -> Result<ApplyTransactionResult, Error> {
         let _span = tracing::debug_span!(target: "runtime", "process_state_update").entered();
         let epoch_id = self.get_epoch_id_from_prev_block(prev_block_hash)?;
@@ -560,17 +562,17 @@ impl NightshadeRuntime {
                 receipts,
                 transactions,
                 &self.epoch_manager,
-                states_to_patch,
+                state_patch,
             )
             .map_err(|e| match e {
-                RuntimeError::InvalidTxError(_) => Error::from(Error::InvalidTransactions),
+                RuntimeError::InvalidTxError(_) => Error::InvalidTransactions,
                 // TODO(#2152): process gracefully
                 RuntimeError::BalanceMismatchError(e) => panic!("{}", e),
                 // TODO(#2152): process gracefully
                 RuntimeError::UnexpectedIntegerOverflow => {
                     panic!("RuntimeError::UnexpectedIntegerOverflow")
                 }
-                RuntimeError::StorageError(e) => Error::from(Error::StorageError(e)),
+                RuntimeError::StorageError(e) => Error::StorageError(e),
                 // TODO(#2152): process gracefully
                 RuntimeError::ReceiptValidationError(e) => panic!("{}", e),
                 RuntimeError::ValidatorError(e) => e.into(),
@@ -744,7 +746,7 @@ impl RuntimeAdapter for NightshadeRuntime {
         .unwrap();
 
         if !public_key.is_vrf_valid(&prev_random_value.as_ref(), vrf_value, vrf_proof) {
-            return Err(Error::InvalidRandomnessBeaconOutput.into());
+            return Err(Error::InvalidRandomnessBeaconOutput);
         }
         Ok(())
     }
@@ -781,7 +783,7 @@ impl RuntimeAdapter for NightshadeRuntime {
                     debug!(target: "runtime", "Tx {:?} validation failed: {:?}", transaction, err);
                     Ok(Some(err))
                 }
-                Err(RuntimeError::StorageError(err)) => Err(Error::from(Error::StorageError(err))),
+                Err(RuntimeError::StorageError(err)) => Err(Error::StorageError(err)),
                 Err(err) => unreachable!("Unexpected RuntimeError error {:?}", err),
             }
         } else {
@@ -798,7 +800,7 @@ impl RuntimeAdapter for NightshadeRuntime {
                     debug!(target: "runtime", "Tx {:?} validation failed: {:?}", transaction, err);
                     Ok(Some(err))
                 }
-                Err(RuntimeError::StorageError(err)) => Err(Error::from(Error::StorageError(err))),
+                Err(RuntimeError::StorageError(err)) => Err(Error::StorageError(err)),
                 Err(err) => unreachable!("Unexpected RuntimeError error {:?}", err),
             }
         }
@@ -854,7 +856,7 @@ impl RuntimeAdapter for NightshadeRuntime {
                                 state_update.rollback();
                             }
                             Err(RuntimeError::StorageError(err)) => {
-                                return Err(Error::from(Error::StorageError(err)))
+                                return Err(Error::StorageError(err))
                             }
                             Err(err) => unreachable!("Unexpected RuntimeError error {:?}", err),
                         }
@@ -945,7 +947,7 @@ impl RuntimeAdapter for NightshadeRuntime {
             }
             Ok(signature.verify(chunk_hash.as_ref(), chunk_producer.public_key()))
         } else {
-            Err(Error::NotAValidator.into())
+            Err(Error::NotAValidator)
         }
     }
 
@@ -975,7 +977,7 @@ impl RuntimeAdapter for NightshadeRuntime {
         for (validator, may_be_signature) in info.iter().zip(approvals.iter()) {
             if let Some(signature) = may_be_signature {
                 if !signature.verify(message_to_sign.as_ref(), &validator.public_key) {
-                    return Err(Error::InvalidApprovals.into());
+                    return Err(Error::InvalidApprovals);
                 }
             }
         }
@@ -984,7 +986,7 @@ impl RuntimeAdapter for NightshadeRuntime {
             .map(|stake| (stake.stake_this_epoch, stake.stake_next_epoch, false))
             .collect::<Vec<_>>();
         if !Doomslug::can_approved_block_be_produced(doomslug_threshold_mode, approvals, &stakes) {
-            Err(Error::NotEnoughApprovals.into())
+            Err(Error::NotEnoughApprovals)
         } else {
             Ok(())
         }
@@ -1073,7 +1075,7 @@ impl RuntimeAdapter for NightshadeRuntime {
                 let block_info = epoch_manager.get_block_info(last_known_block_hash)?;
                 Ok((validator, block_info.slashed().contains_key(account_id)))
             }
-            Ok(None) => Err(Error::NotAValidator.into()),
+            Ok(None) => Err(Error::NotAValidator),
             Err(e) => Err(e.into()),
         }
     }
@@ -1090,7 +1092,7 @@ impl RuntimeAdapter for NightshadeRuntime {
                 let block_info = epoch_manager.get_block_info(last_known_block_hash)?;
                 Ok((fisherman, block_info.slashed().contains_key(account_id)))
             }
-            Ok(None) => Err(Error::NotAValidator.into()),
+            Ok(None) => Err(Error::NotAValidator),
             Err(e) => Err(e.into()),
         }
     }
@@ -1239,12 +1241,12 @@ impl RuntimeAdapter for NightshadeRuntime {
             let epoch_first_block_info = epoch_manager.get_block_info(&epoch_first_block)?;
             // maintain pointers to avoid cloning.
             let mut last_block_in_prev_epoch = *epoch_first_block_info.prev_hash();
-            let mut epoch_start_height = *epoch_first_block_info.height();
+            let mut epoch_start_height = epoch_first_block_info.height();
             for _ in 0..self.gc_num_epochs_to_keep - 1 {
                 let epoch_first_block =
                     *epoch_manager.get_block_info(&last_block_in_prev_epoch)?.epoch_first_block();
                 let epoch_first_block_info = epoch_manager.get_block_info(&epoch_first_block)?;
-                epoch_start_height = *epoch_first_block_info.height();
+                epoch_start_height = epoch_first_block_info.height();
                 last_block_in_prev_epoch = *epoch_first_block_info.prev_hash();
             }
             Ok(epoch_start_height)
@@ -1304,7 +1306,7 @@ impl RuntimeAdapter for NightshadeRuntime {
         Error,
     > {
         let epoch_manager = self.epoch_manager.read();
-        let last_block_info = epoch_manager.get_block_info(prev_epoch_last_block_hash)?.clone();
+        let last_block_info = epoch_manager.get_block_info(prev_epoch_last_block_hash)?;
         let prev_epoch_id = last_block_info.epoch_id().clone();
         Ok((
             epoch_manager.get_block_info(last_block_info.epoch_first_block())?,
@@ -1401,7 +1403,7 @@ impl RuntimeAdapter for NightshadeRuntime {
         generate_storage_proof: bool,
         is_new_chunk: bool,
         is_first_block_with_chunk_of_version: bool,
-        states_to_patch: Option<Vec<StateRecord>>,
+        states_to_patch: Option<SandboxStatePatch>,
     ) -> Result<ApplyTransactionResult, Error> {
         let trie = self.get_trie_for_shard(shard_id, prev_block_hash)?;
 
@@ -2001,10 +2003,8 @@ mod test {
     use near_primitives::views::{
         AccountView, CurrentEpochValidatorInfo, NextEpochValidatorInfo, ValidatorKickoutView,
     };
-    use near_store::create_store;
 
     use crate::config::{GenesisExt, TESTING_INIT_BALANCE, TESTING_INIT_STAKE};
-    use crate::get_store_path;
 
     use super::*;
 
@@ -2083,13 +2083,11 @@ mod test {
 
     impl TestEnv {
         pub fn new(
-            prefix: &str,
             validators: Vec<Vec<AccountId>>,
             epoch_length: BlockHeightDelta,
             has_reward: bool,
         ) -> Self {
             Self::new_with_tracking(
-                prefix,
                 validators,
                 epoch_length,
                 TrackedConfig::new_empty(),
@@ -2098,14 +2096,12 @@ mod test {
         }
 
         pub fn new_with_minimum_stake_divisor(
-            prefix: &str,
             validators: Vec<Vec<AccountId>>,
             epoch_length: BlockHeightDelta,
             has_reward: bool,
             stake_divisor: u64,
         ) -> Self {
             Self::new_with_tracking_and_minimum_stake_divisor(
-                prefix,
                 validators,
                 epoch_length,
                 TrackedConfig::new_empty(),
@@ -2115,14 +2111,12 @@ mod test {
         }
 
         pub fn new_with_tracking(
-            prefix: &str,
             validators: Vec<Vec<AccountId>>,
             epoch_length: BlockHeightDelta,
             tracked_config: TrackedConfig,
             has_reward: bool,
         ) -> Self {
             Self::new_with_tracking_and_minimum_stake_divisor(
-                prefix,
                 validators,
                 epoch_length,
                 tracked_config,
@@ -2132,15 +2126,14 @@ mod test {
         }
 
         fn new_with_tracking_and_minimum_stake_divisor(
-            prefix: &str,
             validators: Vec<Vec<AccountId>>,
             epoch_length: BlockHeightDelta,
             tracked_config: TrackedConfig,
             has_reward: bool,
             minimum_stake_divisor: Option<u64>,
         ) -> Self {
-            let dir = tempfile::Builder::new().prefix(prefix).tempdir().unwrap();
-            let store = create_store(&get_store_path(dir.path()));
+            let (dir, opener) = Store::test_opener();
+            let store = opener.open();
             let all_validators = validators.iter().fold(BTreeSet::new(), |acc, x| {
                 acc.union(&x.iter().cloned().collect()).cloned().collect()
             });
@@ -2171,6 +2164,7 @@ mod test {
                 None,
                 Some(RuntimeConfigStore::free()),
                 DEFAULT_GC_NUM_EPOCHS_TO_KEEP,
+                Default::default(),
             );
             let (_store, state_roots) = runtime.genesis_state();
             let genesis_hash = hash(&vec![0]);
@@ -2339,7 +2333,7 @@ mod test {
         let validators = (0..num_nodes)
             .map(|i| AccountId::try_from(format!("test{}", i + 1)).unwrap())
             .collect::<Vec<_>>();
-        let mut env = TestEnv::new("test_validator_rotation", vec![validators.clone()], 2, false);
+        let mut env = TestEnv::new(vec![validators.clone()], 2, false);
         let block_producers: Vec<_> = validators
             .iter()
             .map(|id| InMemoryValidatorSigner::from_seed(id.clone(), KeyType::ED25519, id.as_ref()))
@@ -2445,8 +2439,7 @@ mod test {
         let validators = (0..num_nodes)
             .map(|i| AccountId::try_from(format!("test{}", i + 1)).unwrap())
             .collect::<Vec<_>>();
-        let mut env =
-            TestEnv::new("test_validator_stake_change", vec![validators.clone()], 2, false);
+        let mut env = TestEnv::new(vec![validators.clone()], 2, false);
         let block_producers: Vec<_> = validators
             .iter()
             .map(|id| InMemoryValidatorSigner::from_seed(id.clone(), KeyType::ED25519, id.as_ref()))
@@ -2487,12 +2480,7 @@ mod test {
         let validators = (0..num_nodes)
             .map(|i| AccountId::try_from(format!("test{}", i + 1)).unwrap())
             .collect::<Vec<_>>();
-        let mut env = TestEnv::new(
-            "test_validator_stake_change_multiple_times",
-            vec![validators.clone()],
-            4,
-            false,
-        );
+        let mut env = TestEnv::new(vec![validators.clone()], 4, false);
         let block_producers: Vec<_> = validators
             .iter()
             .map(|id| InMemoryValidatorSigner::from_seed(id.clone(), KeyType::ED25519, id.as_ref()))
@@ -2596,12 +2584,7 @@ mod test {
         let validators = (0..num_nodes)
             .map(|i| AccountId::try_from(format!("test{}", i + 1)).unwrap())
             .collect::<Vec<_>>();
-        let mut env = TestEnv::new(
-            "test_validator_stake_change_multiple_times",
-            vec![validators.clone()],
-            5,
-            false,
-        );
+        let mut env = TestEnv::new(vec![validators.clone()], 5, false);
         let block_producers: Vec<_> = validators
             .iter()
             .map(|id| InMemoryValidatorSigner::from_seed(id.clone(), KeyType::ED25519, id.as_ref()))
@@ -2640,8 +2623,7 @@ mod test {
         let validators = (0..2)
             .map(|i| AccountId::try_from(format!("test{}", i + 1)).unwrap())
             .collect::<Vec<_>>();
-        let env =
-            TestEnv::new("verify_validator_signature_failure", vec![validators.clone()], 2, true);
+        let env = TestEnv::new(vec![validators.clone()], 2, true);
         let data = [0; 32];
         let signer = InMemorySigner::from_seed(
             validators[0].clone(),
@@ -2673,7 +2655,7 @@ mod test {
         let validators = (0..num_nodes)
             .map(|i| AccountId::try_from(format!("test{}", i + 1)).unwrap())
             .collect::<Vec<_>>();
-        let mut env = TestEnv::new("test_state_sync", vec![validators.clone()], 2, false);
+        let mut env = TestEnv::new(vec![validators.clone()], 2, false);
         let block_producers: Vec<_> = validators
             .iter()
             .map(|id| InMemoryValidatorSigner::from_seed(id.clone(), KeyType::ED25519, id.as_ref()))
@@ -2693,7 +2675,7 @@ mod test {
             .unwrap();
         let root_node =
             env.runtime.get_state_root_node(0, &block_hash, &env.state_roots[0]).unwrap();
-        let mut new_env = TestEnv::new("test_state_sync", vec![validators], 2, false);
+        let mut new_env = TestEnv::new(vec![validators], 2, false);
         for i in 1..=2 {
             let prev_hash = hash(&[new_env.head.height as u8]);
             let cur_hash = hash(&[(new_env.head.height + 1) as u8]);
@@ -2770,8 +2752,7 @@ mod test {
         let validators = (0..num_nodes)
             .map(|i| AccountId::try_from(format!("test{}", i + 1)).unwrap())
             .collect::<Vec<_>>();
-        let mut env =
-            TestEnv::new("test_validator_get_validator_info", vec![validators.clone()], 2, false);
+        let mut env = TestEnv::new(vec![validators.clone()], 2, false);
         let block_producers: Vec<_> = validators
             .iter()
             .map(|id| InMemoryValidatorSigner::from_seed(id.clone(), KeyType::ED25519, id.as_ref()))
@@ -2899,8 +2880,7 @@ mod test {
                 public_key: block_producers[1].public_key(),
                 stake: TESTING_INIT_STAKE,
                 shards: vec![0],
-            }
-            .into()]
+            }]
         );
         assert!(response.current_proposals.is_empty());
         assert_eq!(
@@ -2920,7 +2900,6 @@ mod test {
             .map(|i| AccountId::try_from(format!("test{}", i + 1)).unwrap())
             .collect::<Vec<_>>();
         let mut env = TestEnv::new_with_tracking(
-            "test_validator_get_validator_info",
             vec![validators.clone(), vec![validators[0].clone()]],
             2,
             TrackedConfig::Accounts(vec![validators[1].clone()]),
@@ -2994,12 +2973,8 @@ mod test {
 
     #[test]
     fn test_challenges() {
-        let mut env = TestEnv::new(
-            "test_challenges",
-            vec![vec!["test1".parse().unwrap(), "test2".parse().unwrap()]],
-            2,
-            true,
-        );
+        let mut env =
+            TestEnv::new(vec![vec!["test1".parse().unwrap(), "test2".parse().unwrap()]], 2, true);
         env.step(
             vec![vec![]],
             vec![true],
@@ -3043,7 +3018,7 @@ mod test {
         let validators = (0..num_nodes)
             .map(|i| AccountId::try_from(format!("test{}", i + 1)).unwrap())
             .collect::<Vec<_>>();
-        let mut env = TestEnv::new("test_challenges", vec![validators.clone()], 3, false);
+        let mut env = TestEnv::new(vec![validators.clone()], 3, false);
         let block_producers: Vec<_> = validators
             .iter()
             .map(|id| InMemoryValidatorSigner::from_seed(id.clone(), KeyType::ED25519, id.as_ref()))
@@ -3133,7 +3108,7 @@ mod test {
         let validators = (0..num_nodes)
             .map(|i| AccountId::try_from(format!("test{}", i + 1)).unwrap())
             .collect::<Vec<_>>();
-        let mut env = TestEnv::new("test_challenges", vec![validators.clone()], 5, false);
+        let mut env = TestEnv::new(vec![validators.clone()], 5, false);
         let signers: Vec<_> = validators
             .iter()
             .map(|id| InMemorySigner::from_seed(id.clone(), KeyType::ED25519, id.as_ref()))
@@ -3184,7 +3159,7 @@ mod test {
         let validators = (0..num_nodes)
             .map(|i| AccountId::try_from(format!("test{}", i + 1)).unwrap())
             .collect::<Vec<_>>();
-        let mut env = TestEnv::new("test_challenges", vec![validators], 5, false);
+        let mut env = TestEnv::new(vec![validators], 5, false);
         env.step(
             vec![vec![]],
             vec![true],
@@ -3227,7 +3202,6 @@ mod test {
             .collect::<Vec<_>>();
         let mut env = if !cfg!(feature = "protocol_feature_chunk_only_producers") {
             TestEnv::new_with_minimum_stake_divisor(
-                "test_fishermen_stake",
                 vec![validators.clone()],
                 4,
                 false,
@@ -3236,7 +3210,7 @@ mod test {
                 20000,
             )
         } else {
-            TestEnv::new("test_fishermen_stake", vec![validators.clone()], 4, false)
+            TestEnv::new(vec![validators.clone()], 4, false)
         };
         let block_producers: Vec<_> = validators
             .iter()
@@ -3304,7 +3278,6 @@ mod test {
             .collect::<Vec<_>>();
         let mut env = if !cfg!(feature = "protocol_feature_chunk_only_producers") {
             TestEnv::new_with_minimum_stake_divisor(
-                "test_fishermen_unstake",
                 vec![validators.clone()],
                 2,
                 false,
@@ -3313,7 +3286,7 @@ mod test {
                 20000,
             )
         } else {
-            TestEnv::new("test_fishermen_unstake", vec![validators.clone()], 2, false)
+            TestEnv::new(vec![validators.clone()], 2, false)
         };
         let block_producers: Vec<_> = validators
             .iter()
@@ -3370,8 +3343,7 @@ mod test {
         let epoch_length = 40;
         let validators =
             (0..num_nodes).map(|i| format!("test{}", i + 1).parse().unwrap()).collect::<Vec<_>>();
-        let mut env =
-            TestEnv::new("test_validator_reward", vec![validators.clone()], epoch_length, true);
+        let mut env = TestEnv::new(vec![validators.clone()], epoch_length, true);
         let block_producers: Vec<_> = validators
             .iter()
             .map(|id| InMemoryValidatorSigner::from_seed(id.clone(), KeyType::ED25519, id.as_ref()))
@@ -3403,8 +3375,7 @@ mod test {
         let validators = (0..num_nodes)
             .map(|i| AccountId::try_from(format!("test{}", i + 1)).unwrap())
             .collect::<Vec<_>>();
-        let mut env =
-            TestEnv::new("test_validator_delete_account", vec![validators.clone()], 4, false);
+        let mut env = TestEnv::new(vec![validators.clone()], 4, false);
         let block_producers: Vec<_> = validators
             .iter()
             .map(|id| InMemoryValidatorSigner::from_seed(id.clone(), KeyType::ED25519, id.as_ref()))
@@ -3453,7 +3424,7 @@ mod test {
         let validators = (0..num_nodes)
             .map(|i| AccountId::try_from(format!("test{}", i + 1)).unwrap())
             .collect::<Vec<_>>();
-        let mut env = TestEnv::new("test_proposal_deduped", vec![validators.clone()], 4, false);
+        let mut env = TestEnv::new(vec![validators.clone()], 4, false);
         let block_producers: Vec<_> = validators
             .iter()
             .map(|id| InMemoryValidatorSigner::from_seed(id.clone(), KeyType::ED25519, id.as_ref()))
@@ -3478,7 +3449,7 @@ mod test {
         let validators = (0..num_nodes)
             .map(|i| AccountId::try_from(format!("test{}", i + 1)).unwrap())
             .collect::<Vec<_>>();
-        let mut env = TestEnv::new("test_proposal_deduped", vec![validators.clone()], 4, false);
+        let mut env = TestEnv::new(vec![validators.clone()], 4, false);
         let block_producers: Vec<_> = validators
             .iter()
             .map(|id| InMemoryValidatorSigner::from_seed(id.clone(), KeyType::ED25519, id.as_ref()))
