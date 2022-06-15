@@ -28,9 +28,14 @@ impl RuntimeTestbed {
     /// Copies dump from another directory and loads the state from it.
     pub fn from_state_dump(dump_dir: &Path) -> Self {
         let workdir = tempfile::Builder::new().prefix("runtime_testbed").tempdir().unwrap();
+<<<<<<< HEAD
         let store_path = get_store_path(workdir.path());
         let StateDump { store, roots } = StateDump::from_dir(dump_dir, &store_path);
         let tries = ShardTries::new(store.clone(), 0, 1);
+=======
+        let StateDump { store, roots } = StateDump::from_dir(dump_dir, workdir.path());
+        let tries = ShardTries::test(store, 1);
+>>>>>>> fc16eb25b (feat: trie cache factory to allow variable cache sizes (#7022))
 
         assert!(roots.len() <= 1, "Parameter estimation works with one shard only.");
         assert!(!roots.is_empty(), "No state roots found.");
