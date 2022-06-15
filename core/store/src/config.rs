@@ -45,12 +45,13 @@ pub struct StoreConfig {
     pub trie_cache_capacities: Vec<(ShardUId, usize)>,
 }
 
-impl StoreConfig {
-    fn const_default() -> Self {
+impl Default for StoreConfig {
+    fn default() -> Self {
         Self {
             read_only: false,
             enable_statistics: false,
             enable_statistics_export: true,
+
             // We used to use value of 512 but we were hitting that limit often
             // and store had to constantly close and reopen the same set of
             // files.  Running state viewer on a dense set of 500 blocks did
@@ -75,13 +76,15 @@ impl StoreConfig {
             trie_cache_capacities: vec![(ShardUId { version: 1, shard_id: 3 }, 2_000_000)],
         }
     }
+}
 
+impl StoreConfig {
     pub fn read_only() -> StoreConfig {
-        StoreConfig::const_default().with_read_only(true)
+        StoreConfig::default().with_read_only(true)
     }
 
     pub fn read_write() -> StoreConfig {
-        Self::const_default()
+        Self::default()
     }
 
     pub fn with_read_only(mut self, read_only: bool) -> Self {
