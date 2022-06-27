@@ -72,7 +72,6 @@ async fn build_streamer_message(
     let chunks = fetch_block_chunks(&client, &block).await?;
 
     let protocol_config_view = fetch_protocol_config(&client, block.header.hash).await?;
-    info!(target: "indexer", protocol_version=protocol_config_view.protocol_version, "build_streamer_message");
     let num_shards = protocol_config_view.num_block_producer_seats_per_shard.len()
         as near_primitives::types::NumShards;
 
