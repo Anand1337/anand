@@ -376,17 +376,19 @@ pub fn apply_chain_range(
         tgas_burned: AtomicU64::new(0),
     };
     let process_height = |height| {
-        apply_block_from_range(
-            height,
-            shard_id,
-            store.clone(),
-            genesis,
-            runtime_adapter.clone(),
-            &progress_reporter,
-            verbose_output,
-            &csv_file_mutex,
-            only_contracts,
-        );
+        for shid in [0,1,2,3] {
+            apply_block_from_range(
+                height,
+                shard_id,
+                store.clone(),
+                genesis,
+                runtime_adapter.clone(),
+                &progress_reporter,
+                verbose_output,
+                &csv_file_mutex,
+                only_contracts,
+            );
+        }
     };
 
     if sequential {
