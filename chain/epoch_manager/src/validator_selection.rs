@@ -72,7 +72,8 @@ pub fn proposals_to_epoch_info(
             );
             (chunk_producer_proposals, chunk_producers, cp_stake_treshold)
         },
-        { panic!("Enable protocol_feature_chunk_only_producers");
+        {
+            panic!("Enable protocol_feature_chunk_only_producers");
             (block_producer_proposals, block_producers.clone(), bp_stake_threshold) }
     );
 

@@ -145,3 +145,5 @@ sandbox = [
   "node-runtime/sandbox",
   "near-jsonrpc/sandbox",
 ]
+
+shardnet = ["protocol_feature_chunk_only_producers"]

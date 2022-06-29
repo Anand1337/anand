@@ -833,7 +833,7 @@ pub mod epoch_info {
                         ChunkOnlyProducers,
                         protocol_version
                     ) {
-                        panic!("Enable protocol_feature_chunk_only_producers")
+                        panic!("Enable protocol_feature_chunk_only_producers");
                         // This is same seed that used for determining block producer
                         Self::block_produce_seed(height, &v3.rng_seed)
                     } else {
