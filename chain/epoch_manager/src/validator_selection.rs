@@ -72,9 +72,7 @@ pub fn proposals_to_epoch_info(
             );
             (chunk_producer_proposals, chunk_producers, cp_stake_treshold)
         },
-        {
-            panic!("Enable protocol_feature_chunk_only_producers");
-            (block_producer_proposals, block_producers.clone(), bp_stake_threshold) }
+        { (block_producer_proposals, block_producers.clone(), bp_stake_threshold) }
     );
 
     // since block producer proposals could become chunk producers, their actual stake threshold
@@ -158,7 +156,6 @@ pub fn proposals_to_epoch_info(
             chunk_producers_settlement
         },
         {
-            panic!("Enable protocol_feature_chunk_only_producers");
             if chunk_producers.is_empty() {
                 // All validators tried to unstake?
                 return Err(EpochError::NotEnoughValidators { num_validators: 0u64, num_shards });
@@ -403,7 +400,7 @@ mod tests {
             PROTOCOL_VERSION,
             PROTOCOL_VERSION,
         )
-            .unwrap();
+        .unwrap();
 
         // increment height
         assert_eq!(epoch_info.epoch_height(), prev_epoch_height + 1);
@@ -421,10 +418,6 @@ mod tests {
         // (in this case shard 0 has 2000, while shard 1 has 1300).
         #[cfg(feature = "protocol_feature_chunk_only_producers")]
         assert_eq!(epoch_info.chunk_producers_settlement(), &[vec![0], vec![1, 2]]);
-        #[cfg(not(feature = "protocol_feature_chunk_only_producers"))]
-        {
-            panic!("Enable protocol_feature_chunk_only_producers");
-        }
     }
 
     #[test]

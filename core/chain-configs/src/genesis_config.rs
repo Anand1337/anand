@@ -66,20 +66,8 @@ fn default_minimum_validators_per_shard() -> u64 {
     1
 }
 
-#[cfg(not(feature = "protocol_feature_chunk_only_producers"))]
-fn default_minimum_validators_per_shard() -> u64 {
-    panic!("Enable protocol_feature_chunk_only_producers");
-    1
-}
-
 #[cfg(feature = "protocol_feature_chunk_only_producers")]
 fn default_num_chunk_only_producer_seats() -> u64 {
-    300
-}
-
-#[cfg(not(feature = "protocol_feature_chunk_only_producers"))]
-fn default_num_chunk_only_producer_seats() -> u64 {
-    panic!("Enable protocol_feature_chunk_only_producers");
     300
 }
 
@@ -197,10 +185,6 @@ pub struct GenesisConfig {
 
 impl From<&GenesisConfig> for EpochConfig {
     fn from(config: &GenesisConfig) -> Self {
-        #[cfg(not(feature = "protocol_feature_chunk_only_producers"))]
-            {
-                panic!("Enable protocol_feature_chunk_only_producers")
-            }
         EpochConfig {
             epoch_length: config.epoch_length,
             num_block_producer_seats: config.num_block_producer_seats,
