@@ -379,7 +379,7 @@ pub fn apply_chain_range(
         for shid in [0,1,2,3] {
             apply_block_from_range(
                 height,
-                shard_id,
+                shid,
                 store.clone(),
                 genesis,
                 runtime_adapter.clone(),
