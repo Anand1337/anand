@@ -810,6 +810,7 @@ pub mod epoch_info {
         }
 
         pub fn sample_chunk_producer(&self, height: BlockHeight, shard_id: ShardId) -> ValidatorId {
+
             match &self {
                 Self::V1(v1) => {
                     let cp_settlement = &v1.chunk_producers_settlement;
@@ -832,6 +833,7 @@ pub mod epoch_info {
                         ChunkOnlyProducers,
                         protocol_version
                     ) {
+                        panic!("Enable protocol_feature_chunk_only_producers")
                         // This is same seed that used for determining block producer
                         Self::block_produce_seed(height, &v3.rng_seed)
                     } else {
