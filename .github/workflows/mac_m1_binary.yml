@@ -13,7 +13,7 @@ jobs:
     - uses: actions/checkout@master
     - uses: actions/setup-python@v4
       with:
-        python-version: '3.8'
+        python-version: '3.x'
     - uses: isbang/setup-awscli@v0.1.0
     - run: scripts/mac-release.sh
       env:
