@@ -45,6 +45,7 @@ fn main() {
         return ();
     }*/
 
+    let mut cnt = 0;
     for line in lines.unwrap() {
         let hash = CryptoHash::from_str(&line.unwrap()).unwrap();
         let execution_outcomes = store.get_ser::<Vec<ExecutionOutcomeWithIdAndProof>>(DBCol::TransactionResult, &hash.0).unwrap();
@@ -57,6 +58,10 @@ fn main() {
         let execution_outcome = &execution_outcomes[0];
         let header = store.get_ser::<near_primitives::block_header::BlockHeader>(DBCol::BlockHeader, &execution_outcome.block_hash.0).unwrap().unwrap();
         println!("{} {:?}", &hash, &get_height(&header));
+        cnt += 1;
+        if cnt % 10000 == 0 {
+            eprintln!("Progress: {}", cnt);
+        }
     }
 
     if 2 + 2 == 4 {
