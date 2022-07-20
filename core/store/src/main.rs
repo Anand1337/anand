@@ -31,7 +31,7 @@ fn main() {
         return ();
     }
 
-    let store = Store::opener(&Path::new("/home/edvard/.localnet-near"), &StoreConfig::default()).mode(Mode::ReadOnly).open();
+    let store = Store::opener(&Path::new("/home/ubuntu/.near"), &StoreConfig::default()).mode(Mode::ReadOnly).open();
 
     /*for key_value in store.iter(DBCol::TransactionResult) {
         if key_value.is_err() {
@@ -55,9 +55,12 @@ fn main() {
         }
         let execution_outcomes = execution_outcomes.unwrap();
         assert!(execution_outcomes.len() == 1, ":(");
-        let execution_outcome = &execution_outcomes[0];
-        let header = store.get_ser::<near_primitives::block_header::BlockHeader>(DBCol::BlockHeader, &execution_outcome.block_hash.0).unwrap().unwrap();
-        println!("{} {:?}", &hash, &get_height(&header));
+        let mut heights = String::new();
+        for execution_outcome in &execution_outcomes {
+            let header = store.get_ser::<near_primitives::block_header::BlockHeader>(DBCol::BlockHeader, &execution_outcome.block_hash.0).unwrap().unwrap();
+            heights = format!("{} ", &get_height(&header));
+        }
+        println!("{} {}", &hash, heights);
         cnt += 1;
         if cnt % 10000 == 0 {
             eprintln!("Progress: {}", cnt);
