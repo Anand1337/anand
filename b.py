@@ -21,15 +21,16 @@ new_failures, new_failures_with_extra_100tgas, new_failures_with_extra_200tgas =
 total_blocks = 0
 with open(sys.argv[1]) as f:
     for line in f:
-        if not line.startswith("fn_fail") and not line.startswith("fn_ok"):
+        if not "fn_fail" in line and not "fn_ok" in line:
             if "blocks" in line:
                 total_blocks = int(line.split(' ')[1])
             continue
 
         tokens = line.rstrip().split(' ')
         if tokens[0] == "fn_fail":
-            fail += 1
+            #fail += 1
             continue
+        #tokens = tokens[1:]
         ok += 1
 
         real_reads = int(tokens[1])
