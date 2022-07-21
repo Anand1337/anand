@@ -2893,8 +2893,14 @@ impl<'a> ChainStoreUpdate<'a> {
     }
 
     pub fn commit(mut self) -> Result<(), Error> {
+        let _span = tracing::debug_span!(
+            target: "chain_store_update",
+            "commit")
+        .entered();
         let store_update = self.finalize()?;
+        tracing::debug!(target: "chain_store_update", "finalize done");
         store_update.commit()?;
+        tracing::debug!(target: "chain_store_update", "store update commit done");
         let ChainStoreCacheUpdate {
             blocks,
             headers,

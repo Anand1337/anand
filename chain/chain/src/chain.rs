@@ -2032,6 +2032,11 @@ impl Chain {
         self.pending_state_patch = None;
 
         if let Some(tip) = &new_head {
+            let _span = tracing::debug_span!(
+            target: "chain",
+            "update new head",
+            height = block.header().height())
+            .entered();
             // TODO: move this logic of tracking validators metrics to EpochManager
             if let Ok(producers) = self
                 .runtime_adapter
@@ -4387,6 +4392,10 @@ impl<'a> ChainUpdate<'a> {
 
     /// Commit changes to the chain into the database.
     pub fn commit(self) -> Result<(), Error> {
+        let _span = tracing::debug_span!(
+            target: "chain_update",
+            "commit")
+        .entered();
         self.chain_store_update.commit()
     }
 
@@ -4679,6 +4688,11 @@ impl<'a> ChainUpdate<'a> {
         preprocess_block_info: BlockPreprocessInfo,
         apply_chunks_results: Vec<Result<ApplyChunkResult, Error>>,
     ) -> Result<Option<Tip>, Error> {
+        let _span = tracing::debug_span!(
+            target: "chain_update",
+            "postprocess_block",
+            height = block.header().height())
+        .entered();
         let prev_hash = block.header().prev_hash();
         let prev_block = self.chain_store_update.get_block(prev_hash)?;
         self.apply_chunk_postprocessing(block, &prev_block, apply_chunks_results)?;
