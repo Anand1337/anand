@@ -82,7 +82,7 @@ impl Default for StoreConfig {
             // almost 200k file opens (having less than 7K unique files opened,
             // some files were opened 400+ times).  Using 10k limit for
             // max_open_files led to performance improvement of ~11%.
-            max_open_files: 10_000,
+            max_open_files: 1_000,
 
             // We used to have the same cache size for all columns, 32 MiB.
             // When some RocksDB inefficiencies were found [`DBCol::State`]

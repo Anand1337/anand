@@ -26,19 +26,23 @@ fn main() {
     }
     let lines: Vec<String> = lines.unwrap().map(|l| l.expect("Could not parse line")).collect();
 
+    let start = std::time::Instant::now();
     let store = Store::opener(&Path::new("/home/edvard/.near"), &StoreConfig::default()).mode(Mode::ReadOnly).open();
+    println!("opened store in: {}", start.elapsed().as_micros());
 	let mut dist = vec![];
     for line in &lines {
         let hash = CryptoHash::from_str(&line).unwrap();
+        // println!("IN");
         let start = std::time::Instant::now();
         let _ = store.get_ser::<PartialMerkleTree>(DBCol::BlockMerkleTree, &hash.0).unwrap().unwrap();
         let duration = start.elapsed().as_micros();
+        // println!("OUT: {}", duration);
         dist.push(duration);
     }
 
     dist.sort();
-    for p in [50, 90, 95, 99, 100] {
+    for p in [0, 1, 5, 10, 50, 90, 95, 99, 100] {
         let i = std::cmp::min(dist.len() * p / 100, dist.len() - 1);
-        println!("{} {}", i, dist[i]);
+        println!("{} {}", p, dist[i]);
     }
 }

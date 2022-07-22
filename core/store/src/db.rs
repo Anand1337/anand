@@ -632,6 +632,7 @@ fn rocksdb_block_based_options(
     cache_size: bytesize::ByteSize,
 ) -> BlockBasedOptions {
     let mut block_opts = BlockBasedOptions::default();
+    block_opts.set_checksum('\0');
     block_opts.set_block_size(block_size.as_u64().try_into().unwrap());
     // We create block_cache for each of 47 columns, so the total cache size is 32 * 47 = 1504mb
     block_opts
