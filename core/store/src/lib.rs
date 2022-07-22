@@ -302,7 +302,7 @@ impl StoreUpdate {
         key: &[u8],
         value: &T,
     ) -> io::Result<()> {
-        let _span = tracing::debug_span!("set_ser", column = column).entered();
+        let _span = tracing::debug_span!("set_ser", column = column.variant_name()).entered();
         assert!(!(column.is_rc() || column.is_insert_only()), "can't set_ser: {column:?}");
         let data = value.try_to_vec()?;
         self.set(column, key, &data);
