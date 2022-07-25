@@ -194,7 +194,7 @@ impl TrieCachingStorage {
         }
     }
 
-    pub(crate) fn get_shard_uid_and_hash_from_key(
+    pub fn get_shard_uid_and_hash_from_key(
         key: &[u8],
     ) -> Result<(ShardUId, CryptoHash), std::io::Error> {
         if key.len() != 40 {

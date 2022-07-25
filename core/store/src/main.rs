@@ -36,9 +36,9 @@ fn main() {
             continue;
         }
         let (key, value) = key_value.unwrap();
-        let hash = CryptoHash::try_from_slice(&key[8..]).unwrap();
+        let (shard_id, hash) = near_store::TrieCachingStorage::get_shard_uid_and_hash_from_key(&key).unwrap();
         cnt += 1;
-        println!("{}", hash);
+        println!("{} {}", shard_id.shard_id, hash);
     }
     println!("{}", cnt);
 }
