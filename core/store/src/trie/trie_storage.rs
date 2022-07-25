@@ -205,7 +205,7 @@ impl TrieCachingStorage {
         Ok((id, hash))
     }
 
-    pub(crate) fn get_key_from_shard_uid_and_hash(
+    pub fn get_key_from_shard_uid_and_hash(
         shard_uid: ShardUId,
         hash: &CryptoHash,
     ) -> [u8; 40] {
