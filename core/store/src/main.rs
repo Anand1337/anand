@@ -46,7 +46,7 @@ fn main() {
     }
 
     dist.sort();
-    for p in [0, 1, 5, 10, 50, 90, 95, 99, 100] {
+    for p in [0, 1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99, 100] {
         let i = std::cmp::min(dist.len() * p / 100, dist.len() - 1);
         println!("{} {}", p, dist[i]);
     }
