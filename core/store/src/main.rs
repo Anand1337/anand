@@ -38,7 +38,7 @@ fn main() {
         let (key, value) = key_value.unwrap();
         let (shard_id, hash) = near_store::TrieCachingStorage::get_shard_uid_and_hash_from_key(&key).unwrap();
         cnt += 1;
-        println!("{} {}", shard_id.shard_id, hash);
+        println!("{} {} {}", shard_id.version, shard_id.shard_id, hash);
     }
     println!("{}", cnt);
 }
