@@ -32,10 +32,16 @@ impl Trie {
     ) -> Result<Vec<TrieItem>, StorageError> {
         assert!(self.storage.as_caching_storage().is_some());
 
-        let path_begin =
-            self.find_path_for_part_boundary(state_root, part_id.idx, part_id.total)?;
-        let path_end =
-            self.find_path_for_part_boundary(state_root, part_id.idx + 1, part_id.total)?;
+        let path_begin = self.find_path_for_part_boundary(
+            state_root,
+            part_id.get_part_id(),
+            part_id.get_num_parts(),
+        )?;
+        let path_end = self.find_path_for_part_boundary(
+            state_root,
+            part_id.get_part_id() + 1,
+            part_id.get_num_parts(),
+        )?;
         self.iter(state_root)?.get_trie_items(&path_begin, &path_end)
     }
 }

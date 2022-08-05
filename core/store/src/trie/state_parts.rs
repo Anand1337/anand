@@ -51,14 +51,21 @@ impl Trie {
         root_hash: &CryptoHash,
         part_id: PartId,
     ) -> Result<(), StorageError> {
-        let path_begin = self.find_path_for_part_boundary(root_hash, part_id.idx, part_id.total)?;
-        let path_end =
-            self.find_path_for_part_boundary(root_hash, part_id.idx + 1, part_id.total)?;
+        let path_begin = self.find_path_for_part_boundary(
+            root_hash,
+            part_id.get_part_id(),
+            part_id.get_num_parts(),
+        )?;
+        let path_end = self.find_path_for_part_boundary(
+            root_hash,
+            part_id.get_part_id() + 1,
+            part_id.get_num_parts(),
+        )?;
         let mut iterator = self.iter(root_hash)?;
         iterator.visit_nodes_interval(&path_begin, &path_end)?;
 
         // Extra nodes for compatibility with the previous version of computing state parts
-        if part_id.idx + 1 != part_id.total {
+        if part_id.get_part_id() + 1 != part_id.get_num_parts() {
             let mut iterator = self.iter(root_hash)?;
             let path_end_encoded = NibbleSlice::encode_nibbles(&path_end, false);
             iterator.seek_nibble_slice(NibbleSlice::from_encoded(&path_end_encoded[..]).0)?;
@@ -207,10 +214,16 @@ impl Trie {
             });
         }
         let trie = Trie::from_recorded_storage(PartialStorage { nodes: PartialState(part) });
-        let path_begin =
-            trie.find_path_for_part_boundary(state_root, part_id.idx, part_id.total)?;
-        let path_end =
-            trie.find_path_for_part_boundary(state_root, part_id.idx + 1, part_id.total)?;
+        let path_begin = trie.find_path_for_part_boundary(
+            state_root,
+            part_id.get_part_id(),
+            part_id.get_num_parts(),
+        )?;
+        let path_end = trie.find_path_for_part_boundary(
+            state_root,
+            part_id.get_part_id() + 1,
+            part_id.get_num_parts(),
+        )?;
         let mut iterator = trie.iter(state_root)?;
         let trie_traversal_items = iterator.visit_nodes_interval(&path_begin, &path_end)?;
         let mut map = HashMap::new();
@@ -445,9 +458,11 @@ mod tests {
             assert!(self.storage.as_caching_storage().is_some());
             let root_node = self.retrieve_node(state_root)?;
             let total_size = root_node.memory_usage;
-            let size_start = (total_size + part_id.total - 1) / part_id.total * part_id.idx;
+            let size_start = (total_size + part_id.get_num_parts() - 1) / part_id.get_num_parts()
+                * part_id.get_part_id();
             let size_end = std::cmp::min(
-                (total_size + part_id.total - 1) / part_id.total * (part_id.idx + 1),
+                (total_size + part_id.get_num_parts() - 1) / part_id.get_num_parts()
+                    * (part_id.get_part_id() + 1),
                 total_size,
             );
 

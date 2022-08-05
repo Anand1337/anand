@@ -1,12 +1,21 @@
-// to specify a part we always specify both part_id and num_parts together
+/// to specify a part we always specify both part_id and num_parts together
 #[derive(Copy, Clone)]
 pub struct PartId {
-    pub idx: u64,
-    pub total: u64,
+    part_id: u64,
+    num_parts: u64,
 }
+
 impl PartId {
-    pub fn new(part_id: u64, num_parts: u64) -> PartId {
+    pub fn new(part_id: u64, num_parts: u64) -> Self {
         assert!(part_id < num_parts);
-        PartId { idx: part_id, total: num_parts }
+        Self { part_id, num_parts }
+    }
+
+    pub fn get_part_id(&self) -> u64 {
+        self.part_id
+    }
+
+    pub fn get_num_parts(&self) -> u64 {
+        self.num_parts
     }
 }

@@ -1007,7 +1007,7 @@ impl RuntimeAdapter for KeyValueRuntime {
         state_root: &StateRoot,
         part_id: PartId,
     ) -> Result<Vec<u8>, Error> {
-        if part_id.idx != 0 {
+        if part_id.get_part_id() != 0 {
             return Ok(vec![]);
         }
         let state = self.state.read().unwrap().get(state_root).unwrap().clone();
@@ -1033,7 +1033,7 @@ impl RuntimeAdapter for KeyValueRuntime {
         data: &[u8],
         _epoch_id: &EpochId,
     ) -> Result<(), Error> {
-        if part_id.idx != 0 {
+        if part_id.get_part_id() != 0 {
             return Ok(());
         }
         let state = KVState::try_from_slice(data).unwrap();

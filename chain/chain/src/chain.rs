@@ -2901,7 +2901,7 @@ impl Chain {
 
         // Saving the part data.
         let mut store_update = self.store.store().store_update();
-        let key = StatePartKey(sync_hash, shard_id, part_id.idx).try_to_vec()?;
+        let key = StatePartKey(sync_hash, shard_id, part_id.get_part_id()).try_to_vec()?;
         store_update.set(DBCol::StateParts, &key, data);
         store_update.commit()?;
         Ok(())
