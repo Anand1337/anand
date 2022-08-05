@@ -2,7 +2,7 @@ use crate::apply_chain_range::apply_chain_range;
 use crate::state_dump::state_dump;
 use crate::state_dump::state_dump_redis;
 use crate::tx_dump::dump_tx_from_block;
-use crate::{apply_chunk, epoch_info};
+use crate::{apply_chunk, epoch_info, tx_dump};
 use ansi_term::Color::Red;
 use near_chain::chain::collect_receipts_from_response;
 use near_chain::migrations::check_if_block_is_first_with_chunk_of_version;
@@ -794,4 +794,20 @@ pub(crate) fn apply_receipt(
     let runtime = NightshadeRuntime::from_config(home_dir, store.clone(), &near_config);
     apply_chunk::apply_receipt(near_config.genesis.config.genesis_height, &runtime, store, hash)
         .map(|_| ())
+}
+
+pub(crate) fn dump_tx_info(
+    home_dir: &Path,
+    near_config: NearConfig,
+    store: Store,
+    _block_hash: CryptoHash,
+) -> anyhow::Result<()> {
+    let runtime = NightshadeRuntime::from_config(home_dir, store.clone(), &near_config);
+    let chain_store = ChainStore::new(
+        store,
+        near_config.genesis.config.genesis_height,
+        !near_config.client_config.archive,
+    );
+    tx_dump::dump_tx_info(&runtime, &chain_store,
+                          chain_store.get_block_hash_by_height(near_config.genesis.config.genesis_height).unwrap())
 }
