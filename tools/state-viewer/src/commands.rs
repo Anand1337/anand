@@ -808,5 +808,6 @@ pub(crate) fn dump_tx_info(
         near_config.genesis.config.genesis_height,
         !near_config.client_config.archive,
     );
-    tx_dump::dump_tx_info(&runtime, &chain_store, block_hash)
+    tx_dump::dump_tx_info(&runtime, &chain_store, block_hash)?;
+    Ok(())
 }

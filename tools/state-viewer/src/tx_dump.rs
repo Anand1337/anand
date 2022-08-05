@@ -4,7 +4,7 @@ use near_primitives::account::id::AccountId;
 use near_primitives::block::Block;
 use near_primitives::transaction::{SignedTransaction, ExecutionOutcomeWithIdAndProof};
 use near_primitives::hash::CryptoHash;
-use near_primitives::types::ShardId;
+use near_primitives::types::{ShardId, Gas};
 
 /// Returns a list of transactions found in the block.
 pub fn dump_tx_from_block(
@@ -41,15 +41,25 @@ fn should_include_signed_transaction(
     }
 }
 
+pub struct ShardTxInfo {
+    gas_used: Gas,
+}
+
+pub struct BlockTxInfo {
+    shard_infos: Vec<ShardTxInfo>,
+}
+
 pub fn dump_tx_info(
     _runtime_adapter: &dyn RuntimeAdapter,
     chain_store: &ChainStore,
     mut block_hash: CryptoHash,
-) -> anyhow::Result<()> {
-    for _ in 0..100 {
+) -> anyhow::Result<Vec<BlockTxInfo>> {
+    let mut result = vec![];
+    loop {
         let block = chain_store.get_block(&block_hash)?;
         let shard_cnt = block.chunks().len();
-        let outcomes = get_tx_outcomes_by_block_hash(chain_store, &block_hash, shard_cnt);
+        let outcomes = get_tx_outcomes_by_block_hash(chain_store, &block_hash, shard_cnt).unwrap();
+        result.push(get_block_tx_info(&outcomes));
         tracing::info!("Outcomes: {:?}", outcomes);
         if let Ok(next_hash) = chain_store.get_next_block_hash(&block_hash) {
             block_hash = next_hash;
@@ -57,7 +67,24 @@ pub fn dump_tx_info(
             break;
         }
     }
-    Ok(())
+    Ok(result)
+}
+
+fn get_block_tx_info(outcomes: &Vec<Vec<Vec<ExecutionOutcomeWithIdAndProof>>>) -> BlockTxInfo {
+    BlockTxInfo{
+        shard_infos: outcomes.iter().map(|o| get_shard_tx_info(o)).collect(),
+    }
+}
+
+fn get_shard_tx_info(outcomes: &Vec<Vec<ExecutionOutcomeWithIdAndProof>>) ->ShardTxInfo {
+    ShardTxInfo {
+        gas_used: outcomes.iter().map(|to| {
+            to
+                .iter()
+                .map(|o| o.outcome_with_id.outcome.gas_burnt)
+                .sum::<Gas>()
+        }).sum::<Gas>()
+    }
 }
 
 fn get_tx_outcomes_by_block_hash(
