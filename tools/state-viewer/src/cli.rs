@@ -454,10 +454,12 @@ impl ApplyReceiptCmd {
 pub struct DumpTxInfoCmd {
     #[clap(long)]
     block_hash: CryptoHash,
+    #[clap(long, parse(from_os_str))]
+    file: PathBuf,
 }
 
 impl DumpTxInfoCmd {
     pub fn run(self, home_dir: &Path, near_config: NearConfig, store: Store) {
-        dump_tx_info(home_dir, near_config, store, self.block_hash).unwrap();
+        dump_tx_info(home_dir, near_config, store, self.block_hash, self.file).unwrap();
     }
 }

@@ -5,6 +5,8 @@ use near_primitives::block::Block;
 use near_primitives::transaction::{SignedTransaction, ExecutionOutcomeWithIdAndProof};
 use near_primitives::hash::CryptoHash;
 use near_primitives::types::{ShardId, Gas};
+use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
 
 /// Returns a list of transactions found in the block.
 pub fn dump_tx_from_block(
@@ -41,10 +43,12 @@ fn should_include_signed_transaction(
     }
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ShardTxInfo {
     gas_used: Gas,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BlockTxInfo {
     shard_infos: Vec<ShardTxInfo>,
 }
@@ -53,6 +57,7 @@ pub fn dump_tx_info(
     _runtime_adapter: &dyn RuntimeAdapter,
     chain_store: &ChainStore,
     mut block_hash: CryptoHash,
+    info_path: &PathBuf,
 ) -> anyhow::Result<Vec<BlockTxInfo>> {
     let mut result = vec![];
     loop {
@@ -60,13 +65,16 @@ pub fn dump_tx_info(
         let shard_cnt = block.chunks().len();
         let outcomes = get_tx_outcomes_by_block_hash(chain_store, &block_hash, shard_cnt).unwrap();
         result.push(get_block_tx_info(&outcomes));
-        tracing::info!("Outcomes: {:?}", outcomes);
         if let Ok(next_hash) = chain_store.get_next_block_hash(&block_hash) {
             block_hash = next_hash;
         } else {
             break;
         }
     }
+    std::fs::write(
+        info_path,
+        serde_json::to_vec_pretty(&result).expect("Error serializing tx infos."),
+    ).expect("Failed to create/write to tx infos file");
     Ok(result)
 }
 
