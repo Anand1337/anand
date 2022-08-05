@@ -812,6 +812,6 @@ pub(crate) fn dump_tx_info(
     );
 
     tracing::info!("Genesis block hash: {:?}", chain_store.get_block_hash_by_height(near_config.genesis.config.genesis_height));
-    tx_dump::dump_tx_info(&runtime, &chain_store, block_hash, &info_path)?;
+    tx_dump::dump_tx_info_light(&runtime, &chain_store, block_hash, &info_path)?;
     Ok(())
 }

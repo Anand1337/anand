@@ -53,7 +53,36 @@ pub struct BlockTxInfo {
     shard_infos: Vec<ShardTxInfo>,
 }
 
-pub fn dump_tx_info(
+pub fn dump_tx_info_light(
+    _runtime_adapter: &dyn RuntimeAdapter,
+    chain_store: &ChainStore,
+    mut block_hash: CryptoHash,
+    info_path: &PathBuf,
+) -> anyhow::Result<Vec<BlockTxInfo>> {
+    let mut result = vec![];
+    loop {
+        let block = chain_store.get_block(&block_hash)?;
+        result.push(
+            BlockTxInfo{
+                shard_infos: block.chunks().iter().map(|chunk| ShardTxInfo{
+                    gas_used: chunk.gas_used()
+                }).collect(),
+            }
+        );
+        if let Ok(next_hash) = chain_store.get_next_block_hash(&block_hash) {
+            block_hash = next_hash;
+        } else {
+            break;
+        }
+    }
+    std::fs::write(
+        info_path,
+        serde_json::to_vec_pretty(&result).expect("Error serializing tx infos."),
+    ).expect("Failed to create/write to tx infos file");
+    Ok(result)
+}
+
+pub fn _dump_tx_info(
     _runtime_adapter: &dyn RuntimeAdapter,
     chain_store: &ChainStore,
     mut block_hash: CryptoHash,
@@ -78,13 +107,13 @@ pub fn dump_tx_info(
     Ok(result)
 }
 
-fn get_block_tx_info(outcomes: &Vec<Vec<Vec<ExecutionOutcomeWithIdAndProof>>>) -> BlockTxInfo {
+fn _get_block_tx_info(outcomes: &Vec<Vec<Vec<ExecutionOutcomeWithIdAndProof>>>) -> BlockTxInfo {
     BlockTxInfo{
         shard_infos: outcomes.iter().map(|o| get_shard_tx_info(o)).collect(),
     }
 }
 
-fn get_shard_tx_info(outcomes: &Vec<Vec<ExecutionOutcomeWithIdAndProof>>) ->ShardTxInfo {
+fn _get_shard_tx_info(outcomes: &Vec<Vec<ExecutionOutcomeWithIdAndProof>>) ->ShardTxInfo {
     ShardTxInfo {
         gas_used: outcomes.iter().map(|to| {
             to
@@ -95,7 +124,7 @@ fn get_shard_tx_info(outcomes: &Vec<Vec<ExecutionOutcomeWithIdAndProof>>) ->Shar
     }
 }
 
-fn get_tx_outcomes_by_block_hash(
+fn _get_tx_outcomes_by_block_hash(
     chain_store: &ChainStore,
     block_hash: &CryptoHash,
     shard_cnt: usize,
