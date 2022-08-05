@@ -800,7 +800,7 @@ pub(crate) fn dump_tx_info(
     home_dir: &Path,
     near_config: NearConfig,
     store: Store,
-    _block_hash: CryptoHash,
+    block_hash: CryptoHash,
 ) -> anyhow::Result<()> {
     let runtime = NightshadeRuntime::from_config(home_dir, store.clone(), &near_config);
     let chain_store = ChainStore::new(
@@ -808,6 +808,5 @@ pub(crate) fn dump_tx_info(
         near_config.genesis.config.genesis_height,
         !near_config.client_config.archive,
     );
-    tx_dump::dump_tx_info(&runtime, &chain_store,
-                          chain_store.get_block_hash_by_height(near_config.genesis.config.genesis_height).unwrap())
+    tx_dump::dump_tx_info(&runtime, &chain_store, block_hash)
 }
