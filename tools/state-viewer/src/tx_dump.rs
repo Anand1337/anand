@@ -7,6 +7,8 @@ use near_primitives::hash::CryptoHash;
 use near_primitives::types::{ShardId, Gas};
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use serde::ser::{SerializeSeq, Serializer};
+use std::fs::File;
 
 /// Returns a list of transactions found in the block.
 pub fn dump_tx_from_block(
@@ -58,28 +60,27 @@ pub fn dump_tx_info_light(
     chain_store: &ChainStore,
     mut block_hash: CryptoHash,
     info_path: &PathBuf,
-) -> anyhow::Result<Vec<BlockTxInfo>> {
-    let mut result = vec![];
+) -> anyhow::Result<()> {
+    let info_file = File::create(&info_path).unwrap();
+    let mut ser = serde_json::Serializer::new(info_file);
+    let mut seq = ser.serialize_seq(None).unwrap();
     loop {
         let block = chain_store.get_block(&block_hash)?;
-        result.push(
-            BlockTxInfo{
+        seq.serialize_element(
+            &BlockTxInfo{
                 shard_infos: block.chunks().iter().map(|chunk| ShardTxInfo{
                     gas_used: chunk.gas_used()
                 }).collect(),
             }
-        );
+        ).unwrap();
         if let Ok(next_hash) = chain_store.get_next_block_hash(&block_hash) {
             block_hash = next_hash;
         } else {
             break;
         }
     }
-    std::fs::write(
-        info_path,
-        serde_json::to_vec_pretty(&result).expect("Error serializing tx infos."),
-    ).expect("Failed to create/write to tx infos file");
-    Ok(result)
+    seq.end().unwrap();
+    Ok(())
 }
 
 pub fn _dump_tx_info(
@@ -107,13 +108,13 @@ pub fn _dump_tx_info(
     Ok(result)
 }
 
-fn _get_block_tx_info(outcomes: &Vec<Vec<Vec<ExecutionOutcomeWithIdAndProof>>>) -> BlockTxInfo {
+fn get_block_tx_info(outcomes: &Vec<Vec<Vec<ExecutionOutcomeWithIdAndProof>>>) -> BlockTxInfo {
     BlockTxInfo{
         shard_infos: outcomes.iter().map(|o| get_shard_tx_info(o)).collect(),
     }
 }
 
-fn _get_shard_tx_info(outcomes: &Vec<Vec<ExecutionOutcomeWithIdAndProof>>) ->ShardTxInfo {
+fn get_shard_tx_info(outcomes: &Vec<Vec<ExecutionOutcomeWithIdAndProof>>) ->ShardTxInfo {
     ShardTxInfo {
         gas_used: outcomes.iter().map(|to| {
             to
@@ -124,7 +125,7 @@ fn _get_shard_tx_info(outcomes: &Vec<Vec<ExecutionOutcomeWithIdAndProof>>) ->Sha
     }
 }
 
-fn _get_tx_outcomes_by_block_hash(
+fn get_tx_outcomes_by_block_hash(
     chain_store: &ChainStore,
     block_hash: &CryptoHash,
     shard_cnt: usize,
