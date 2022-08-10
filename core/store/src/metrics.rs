@@ -14,24 +14,46 @@ pub(crate) static DATABASE_OP_LATENCY_HIST: Lazy<HistogramVec> = Lazy::new(|| {
 });
 
 pub static CHUNK_CACHE_HITS: Lazy<IntCounterVec> = Lazy::new(|| {
-    try_create_int_counter_vec("near_chunk_cache_hits", "Chunk cache hits", &["shard_id"]).unwrap()
+    try_create_int_counter_vec(
+        "near_chunk_cache_hits",
+        "Chunk cache hits",
+        &["shard_id", "is_view"],
+    )
+    .unwrap()
 });
 
 pub static CHUNK_CACHE_MISSES: Lazy<IntCounterVec> = Lazy::new(|| {
-    try_create_int_counter_vec("near_chunk_cache_misses", "Chunk cache misses", &["shard_id"])
-        .unwrap()
+    try_create_int_counter_vec(
+        "near_chunk_cache_misses",
+        "Chunk cache misses",
+        &["shard_id", "is_view"],
+    )
+    .unwrap()
 });
 
 pub static SHARD_CACHE_HITS: Lazy<IntCounterVec> = Lazy::new(|| {
-    try_create_int_counter_vec("near_shard_cache_hits", "Shard cache hits", &["shard_id"]).unwrap()
+    try_create_int_counter_vec(
+        "near_shard_cache_hits",
+        "Shard cache hits",
+        &["shard_id", "is_view"],
+    )
+    .unwrap()
 });
 
 pub static SHARD_CACHE_MISSES: Lazy<IntCounterVec> = Lazy::new(|| {
-    try_create_int_counter_vec("near_shard_cache_misses", "Shard cache misses", &["shard_id"])
-        .unwrap()
+    try_create_int_counter_vec(
+        "near_shard_cache_misses",
+        "Shard cache misses",
+        &["shard_id", "is_view"],
+    )
+    .unwrap()
 });
 
 pub static SHARD_CACHE_TOO_LARGE: Lazy<IntCounterVec> = Lazy::new(|| {
-    try_create_int_counter_vec("near_shard_cache_too_large", "Shard cache too large", &["shard_id"])
-        .unwrap()
+    try_create_int_counter_vec(
+        "near_shard_cache_too_large",
+        "Shard cache too large",
+        &["shard_id", "is_view"],
+    )
+    .unwrap()
 });
