@@ -53,7 +53,7 @@ impl TrieCache {
             }
         }
         let stage = "9_updated_cache";
-        trace!(target: "store", "stage = {}, {:?}", stage, hashes);
+        trace!(target: "runtime", "stage = {}, {:?}", stage, hashes);
     }
 
     #[cfg(test)]
