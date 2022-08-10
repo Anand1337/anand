@@ -102,7 +102,7 @@ impl ShardTries {
                 .clone()
         };
         let storage =
-            Box::new(TrieCachingStorage::new(self.0.store.clone(), cache, shard_uid, false));
+            Box::new(TrieCachingStorage::new(self.0.store.clone(), cache, shard_uid, is_view));
         Trie::new(storage)
     }
 
