@@ -42,7 +42,7 @@ impl TrieCache {
             if let Some(value_rc) = opt_value_rc {
                 if let (Some(value), _rc) = decode_value_with_rc(&value_rc) {
                     if value.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
-                        inserted_hashes.push(hash.clone());
+                        hashes.push(hash.clone());
                         guard.put(hash, value.into());
                     }
                 } else {
@@ -251,7 +251,9 @@ impl TrieStorage for TrieCachingStorage {
             metrics::CHUNK_CACHE_SIZE
                 .with_label_values(&labels)
                 .set(self.chunk_cache.borrow().len() as i64);
-            metrics::SHARD_CACHE_SIZE.with_label_values(&labels).set(self.shard_cache.len() as i64);
+            metrics::SHARD_CACHE_SIZE
+                .with_label_values(&labels)
+                .set(self.shard_cache.0.lock().expect(POISONED_LOCK_ERR).len() as i64);
         }
 
         // Try to get value from chunk cache containing nodes with cheaper access. We can do it for any `TrieCacheMode`,

@@ -1,6 +1,6 @@
 use near_metrics::{
     try_create_histogram_vec, try_create_int_counter_vec, try_create_int_gauge_vec, HistogramVec,
-    IntCounterVec, IntGauge, IntGaugeVec,
+    IntCounterVec, IntGaugeVec,
 };
 use once_cell::sync::Lazy;
 
