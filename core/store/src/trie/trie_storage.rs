@@ -42,11 +42,7 @@ impl TrieCache {
                     if value.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
                         guard.put(hash, value.into());
                     }
-                } else {
-                    guard.pop(&hash);
                 }
-            } else {
-                guard.pop(&hash);
             }
         }
     }
