@@ -464,7 +464,7 @@ impl TrieChanges {
     pub fn debug(&self, stage: &str) {
         let hashes: Vec<_> =
             self.insertions.iter().map(|change| change.trie_node_or_value_hash).collect();
-        trace!(target: "runtime", "stage = {}, {:?}", stage, hashes);
+        tracing::debug!(target: "runtime", "stage = {}, {:?}", stage, hashes);
     }
 }
 

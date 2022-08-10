@@ -53,7 +53,7 @@ impl TrieCache {
             }
         }
         let stage = "9_updated_cache";
-        trace!(target: "runtime", "stage = {}, {:?}", stage, hashes);
+        tracing::debug!(target: "runtime", "stage = {}, {:?}", stage, hashes);
     }
 
     #[cfg(test)]
