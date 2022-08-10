@@ -6,7 +6,7 @@ use near_primitives::hash::CryptoHash;
 
 use crate::db::refcount::decode_value_with_rc;
 use crate::trie::POISONED_LOCK_ERR;
-use crate::{DBCol, StorageError, Store};
+use crate::{metrics, DBCol, StorageError, Store};
 use lru::LruCache;
 use near_primitives::shard_layout::ShardUId;
 use near_primitives::types::{TrieCacheMode, TrieNodesCount};
@@ -231,21 +231,26 @@ impl TrieCachingStorage {
 
 impl TrieStorage for TrieCachingStorage {
     fn retrieve_raw_bytes(&self, hash: &CryptoHash) -> Result<Arc<[u8]>, StorageError> {
+        let shard_id = self.shard_uid.shard_id;
         // Try to get value from chunk cache containing nodes with cheaper access. We can do it for any `TrieCacheMode`,
         // because we charge for reading nodes only when `CachingChunk` mode is enabled anyway.
         if let Some(val) = self.chunk_cache.borrow_mut().get(hash) {
+            metrics::CHUNK_CACHE_HITS.with_label_values(&[&format!("{}", shard_id)]).inc();
             self.inc_mem_read_nodes();
             return Ok(val.clone());
         }
+        metrics::CHUNK_CACHE_MISSES.with_label_values(&[&format!("{}", shard_id)]).inc();
 
         // Try to get value from shard cache containing most recently touched nodes.
         let mut guard = self.shard_cache.0.lock().expect(POISONED_LOCK_ERR);
         let val = match guard.get(hash) {
             Some(val) => {
+                metrics::SHARD_CACHE_HITS.with_label_values(&[&format!("{}", shard_id)]).inc();
                 near_o11y::io_trace!(count: "shard_cache_hit");
                 val.clone()
             }
             None => {
+                metrics::SHARD_CACHE_MISSES.with_label_values(&[&format!("{}", shard_id)]).inc();
                 near_o11y::io_trace!(count: "shard_cache_miss");
                 // If value is not present in cache, get it from the storage.
                 let key = Self::get_key_from_shard_uid_and_hash(self.shard_uid, hash);
@@ -265,6 +270,9 @@ impl TrieStorage for TrieCachingStorage {
                 if val.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
                     guard.put(*hash, val.clone());
                 } else {
+                    metrics::SHARD_CACHE_TOO_LARGE
+                        .with_label_values(&[&format!("{}", shard_id)])
+                        .inc();
                     near_o11y::io_trace!(count: "shard_cache_too_large");
                 }
 
