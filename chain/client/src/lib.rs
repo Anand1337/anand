@@ -18,7 +18,7 @@ mod client;
 mod client_actor;
 pub mod debug;
 mod info;
-mod metrics;
+pub mod metrics;
 mod rocksdb_metrics;
 pub mod sync;
 pub mod test_utils;
