@@ -101,8 +101,9 @@ impl ShardTries {
                 .or_insert_with(|| self.0.trie_cache_factory.create_cache(&shard_uid))
                 .clone()
         };
-        let store = Box::new(TrieCachingStorage::new(self.0.store.clone(), cache, shard_uid));
-        Trie::new(store)
+        let storage =
+            Box::new(TrieCachingStorage::new(self.0.store.clone(), cache, shard_uid, false));
+        Trie::new(storage)
     }
 
     pub fn get_trie_for_shard(&self, shard_uid: ShardUId) -> Trie {
