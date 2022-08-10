@@ -1,5 +1,6 @@
 use near_metrics::{
-    try_create_histogram_vec, try_create_int_counter_vec, HistogramVec, IntCounterVec,
+    try_create_histogram_vec, try_create_int_counter_vec, try_create_int_gauge_vec, HistogramVec,
+    IntCounterVec, IntGaugeVec,
 };
 use once_cell::sync::Lazy;
 
@@ -56,4 +57,14 @@ pub static SHARD_CACHE_TOO_LARGE: Lazy<IntCounterVec> = Lazy::new(|| {
         &["shard_id", "is_view"],
     )
     .unwrap()
+});
+
+pub static SHARD_CACHE_SIZE: Lazy<IntGaugeVec> = Lazy::new(|| {
+    try_create_int_gauge_vec("near_shard_cache_size", "Shard cache size", &["shard_id", "is_view"])
+        .unwrap()
+});
+
+pub static CHUNK_CACHE_SIZE: Lazy<IntGaugeVec> = Lazy::new(|| {
+    try_create_int_gauge_vec("near_chunk_cache_size", "Chunk cache size", &["shard_id", "is_view"])
+        .unwrap()
 });
