@@ -12,6 +12,7 @@ use near_primitives::shard_layout::ShardUId;
 use near_primitives::types::{TrieCacheMode, TrieNodesCount};
 use std::cell::{Cell, RefCell};
 use std::io::ErrorKind;
+use tracing::log::trace;
 
 /// Wrapper over LruCache which doesn't hold too large elements.
 #[derive(Clone)]
@@ -36,10 +37,12 @@ impl TrieCache {
 
     pub fn update_cache(&self, ops: Vec<(CryptoHash, Option<&Vec<u8>>)>) {
         let mut guard = self.0.lock().expect(POISONED_LOCK_ERR);
+        let mut hashes: Vec<CryptoHash> = vec![];
         for (hash, opt_value_rc) in ops {
             if let Some(value_rc) = opt_value_rc {
                 if let (Some(value), _rc) = decode_value_with_rc(&value_rc) {
                     if value.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
+                        inserted_hashes.push(hash.clone());
                         guard.put(hash, value.into());
                     }
                 } else {
@@ -49,6 +52,8 @@ impl TrieCache {
                 guard.pop(&hash);
             }
         }
+        let stage = "9_updated_cache";
+        trace!(target: "store", "stage = {}, {:?}", stage, hashes);
     }
 
     #[cfg(test)]
@@ -241,6 +246,14 @@ impl TrieStorage for TrieCachingStorage {
         let shard_id_str = format!("{}", self.shard_uid.shard_id);
         let is_view_str = format!("{}", self.is_view as u8);
         let labels: [&str; 2] = [&shard_id_str, &is_view_str];
+
+        {
+            metrics::CHUNK_CACHE_SIZE
+                .with_label_values(&labels)
+                .set(self.chunk_cache.borrow().len() as i64);
+            metrics::SHARD_CACHE_SIZE.with_label_values(&labels).set(self.shard_cache.len() as i64);
+        }
+
         // Try to get value from chunk cache containing nodes with cheaper access. We can do it for any `TrieCacheMode`,
         // because we charge for reading nodes only when `CachingChunk` mode is enabled anyway.
         if let Some(val) = self.chunk_cache.borrow_mut().get(hash) {
