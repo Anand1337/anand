@@ -1355,7 +1355,6 @@ impl Runtime {
         }
 
         let (trie_changes, state_changes) = state_update.finalize()?;
-        trie_changes.debug("1_finalized_apply");
 
         // Dedup proposals from the same account.
         // The order is deterministically changed.

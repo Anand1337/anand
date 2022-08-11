@@ -12,7 +12,6 @@ use near_primitives::shard_layout::ShardUId;
 use near_primitives::types::{TrieCacheMode, TrieNodesCount};
 use std::cell::{Cell, RefCell};
 use std::io::ErrorKind;
-use tracing::log::trace;
 
 /// Wrapper over LruCache which doesn't hold too large elements.
 #[derive(Clone)]
@@ -37,12 +36,10 @@ impl TrieCache {
 
     pub fn update_cache(&self, ops: Vec<(CryptoHash, Option<&Vec<u8>>)>) {
         let mut guard = self.0.lock().expect(POISONED_LOCK_ERR);
-        let mut hashes: Vec<CryptoHash> = vec![];
         for (hash, opt_value_rc) in ops {
             if let Some(value_rc) = opt_value_rc {
                 if let (Some(value), _rc) = decode_value_with_rc(&value_rc) {
                     if value.len() < TRIE_LIMIT_CACHED_VALUE_SIZE {
-                        hashes.push(hash.clone());
                         guard.put(hash, value.into());
                     }
                 } else {
@@ -52,8 +49,6 @@ impl TrieCache {
                 guard.pop(&hash);
             }
         }
-        let stage = "9_updated_cache";
-        tracing::debug!(target: "runtime", "stage = {}, len = {}, {:?}", stage, hashes.len(), hashes);
     }
 
     #[cfg(test)]
