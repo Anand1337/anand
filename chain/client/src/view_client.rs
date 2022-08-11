@@ -511,6 +511,7 @@ impl Handler<Query> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: Query, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "Query").entered();
         self.handle_query(msg)
     }
 }
@@ -521,6 +522,7 @@ impl Handler<GetBlock> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetBlock, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetBlock").entered();
         let block = match msg.0 {
             BlockReference::Finality(finality) => {
                 let block_hash = self.get_block_hash_by_finality(&finality)?;
@@ -555,6 +557,7 @@ impl Handler<GetBlockHash> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetBlockHash, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetBlockHash").entered();
         match msg.0 {
             BlockReference::Finality(finality) => self.get_block_hash_by_finality(&finality),
             BlockReference::BlockId(BlockId::Height(height)) => {
@@ -579,6 +582,7 @@ impl Handler<GetBlockWithMerkleTree> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetBlockWithMerkleTree, ctx: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetBlockWithMerkleTree").entered();
         let block_view = self.handle(GetBlock(msg.0), ctx)?;
         self.chain
             .store()
@@ -593,6 +597,7 @@ impl Handler<GetChunk> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetChunk, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetChunk").entered();
         let get_chunk_from_block = |block: Block,
                                     shard_id: ShardId,
                                     chain: &Chain|
@@ -646,6 +651,7 @@ impl Handler<TxStatus> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: TxStatus, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "TxStatus").entered();
         self.get_tx_status(msg.tx_hash, msg.signer_account_id, msg.fetch_receipt)
     }
 }
@@ -655,6 +661,7 @@ impl Handler<GetValidatorInfo> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetValidatorInfo, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetValidatorInfo").entered();
         let epoch_identifier = match msg.epoch_reference {
             EpochReference::EpochId(id) => {
                 // By `EpochId` we can get only cached epochs.
@@ -699,6 +706,7 @@ impl Handler<GetValidatorOrdered> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetValidatorOrdered, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetValidatorOrdered").entered();
         Ok(self.maybe_block_id_to_block_header(msg.block_id).and_then(|header| {
             get_epoch_block_producers_view(
                 header.epoch_id(),
@@ -714,6 +722,7 @@ impl Handler<GetStateChangesInBlock> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetStateChangesInBlock, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetStateChangesInBlock").entered();
         Ok(self
             .chain
             .store()
@@ -730,6 +739,7 @@ impl Handler<GetStateChanges> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetStateChanges, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetStateChanges").entered();
         Ok(self
             .chain
             .store()
@@ -750,6 +760,7 @@ impl Handler<GetStateChangesWithCauseInBlock> for ViewClientActor {
         msg: GetStateChangesWithCauseInBlock,
         _: &mut Self::Context,
     ) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetStateChangesWithCauseInBlock").entered();
         Ok(self
             .chain
             .store()
@@ -771,6 +782,7 @@ impl Handler<GetStateChangesWithCauseInBlockForTrackedShards> for ViewClientActo
         msg: GetStateChangesWithCauseInBlockForTrackedShards,
         _: &mut Self::Context,
     ) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetStateChangesWithCauseInBlockForTrackedShards").entered();
         let state_changes_with_cause_in_block =
             self.chain.store().get_state_changes_with_cause_in_block(&msg.block_hash)?;
 
@@ -810,6 +822,7 @@ impl Handler<GetNextLightClientBlock> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetNextLightClientBlock, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetNextLightClientBlock").entered();
         let last_block_header = self.chain.get_block_header(&msg.last_block_hash)?;
         let last_epoch_id = last_block_header.epoch_id().clone();
         let last_next_epoch_id = last_block_header.next_epoch_id().clone();
@@ -849,6 +862,7 @@ impl Handler<GetExecutionOutcome> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetExecutionOutcome, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetExecutionOutcome").entered();
         let (id, account_id) = match msg.id {
             TransactionOrReceiptId::Transaction { transaction_hash, sender_id } => {
                 (transaction_hash, sender_id)
@@ -932,6 +946,7 @@ impl Handler<GetExecutionOutcomesForBlock> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetExecutionOutcomesForBlock, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetExecutionOutcomesForBlock").entered();
         Ok(self
             .chain
             .get_block_execution_outcomes(&msg.block_hash)
@@ -947,6 +962,7 @@ impl Handler<GetReceipt> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetReceipt, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetReceipt").entered();
         Ok(self
             .chain
             .store()
@@ -960,6 +976,7 @@ impl Handler<GetBlockProof> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetBlockProof, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetBlockProof").entered();
         self.chain.check_block_final_and_canonical(&msg.block_hash)?;
         self.chain.check_block_final_and_canonical(&msg.head_block_hash)?;
         let block_header_lite = self.chain.get_block_header(&msg.block_hash)?.into();
@@ -973,6 +990,7 @@ impl Handler<GetProtocolConfig> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetProtocolConfig, _: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetProtocolConfig").entered();
         let block_header = match msg.0 {
             BlockReference::Finality(finality) => {
                 let block_hash = self.get_block_hash_by_finality(&finality)?;
@@ -1005,6 +1023,7 @@ impl Handler<NetworkViewClientMessages> for ViewClientActor {
 
     #[perf_with_debug]
     fn handle(&mut self, msg: NetworkViewClientMessages, _ctx: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "NetworkViewClientMessages").entered();
         match msg {
             #[cfg(feature = "test_features")]
             NetworkViewClientMessages::Adversarial(adversarial_msg) => {
@@ -1307,6 +1326,7 @@ impl Handler<GetGasPrice> for ViewClientActor {
 
     #[perf]
     fn handle(&mut self, msg: GetGasPrice, _ctx: &mut Self::Context) -> Self::Result {
+        let _span = tracing::debug_span!(target: "client", "handle", actor = "ViewClientActor", handler = "GetGasPrice").entered();
         let header = self.maybe_block_id_to_block_header(msg.block_id);
         Ok(GasPriceView { gas_price: header?.gas_price() })
     }
