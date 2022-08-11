@@ -43,7 +43,11 @@ impl TrieCache {
                         hashes.push(hash.clone());
                         guard.put(hash, value.into());
                     }
+                } else {
+                    guard.pop(&hash);
                 }
+            } else {
+                guard.pop(&hash);
             }
         }
         let stage = "9_updated_cache";
