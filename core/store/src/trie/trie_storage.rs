@@ -13,9 +13,40 @@ use near_primitives::types::{TrieCacheMode, TrieNodesCount};
 use std::cell::{Cell, RefCell};
 use std::io::ErrorKind;
 
+#[derive(Clone)]
+pub struct SyncTrieCache {
+    cache: LruCache<CryptoHash, Arc<[u8]>>,
+}
+
+impl SyncTrieCache {
+    pub fn new(cap: usize) -> Self {
+        cache: LruCache::new(cap)
+    }
+
+    pub fn get(&mut self, key: &CryptoHash) -> Option<Arc<[u8]>> {
+        self.cache.get(key).cloned()
+    }
+
+    pub fn clear(&mut self) {
+        self.cache.clear();
+    }
+
+    pub fn put(&mut self, key: CryptoHash, value: Arc<[u8]>) {
+        self.cache.put(key, value);
+    }
+
+    pub fn pop(&mut self, key: &CryptoHash) {
+        self.cache.pop(key);
+    }
+
+    pub fn len(&self) -> usize {
+        self.cache.len()
+    }
+}
+
 /// Wrapper over LruCache which doesn't hold too large elements.
 #[derive(Clone)]
-pub struct TrieCache(Arc<Mutex<LruCache<CryptoHash, Arc<[u8]>>>>);
+pub struct TrieCache(Arc<Mutex<SyncTrieCache>>);
 
 impl TrieCache {
     pub fn new() -> Self {
@@ -23,11 +54,11 @@ impl TrieCache {
     }
 
     pub fn with_capacity(cap: usize) -> Self {
-        Self(Arc::new(Mutex::new(LruCache::new(cap))))
+        Self(Arc::new(Mutex::new(SyncTrieCache::new(cap))))
     }
 
     pub fn get(&self, key: &CryptoHash) -> Option<Arc<[u8]>> {
-        self.0.lock().expect(POISONED_LOCK_ERR).get(key).cloned()
+        self.0.lock().expect(POISONED_LOCK_ERR).get(key)
     }
 
     pub fn clear(&self) {
@@ -156,7 +187,7 @@ const TRIE_DEFAULT_SHARD_CACHE_SIZE: usize = 1;
 
 /// Values above this size (in bytes) are never cached.
 /// Note that most of Trie inner nodes are smaller than this - e.g. branches use around 32 * 16 = 512 bytes.
-pub(crate) const TRIE_LIMIT_CACHED_VALUE_SIZE: usize = 100;
+pub(crate) const TRIE_LIMIT_CACHED_VALUE_SIZE: usize = 1000;
 
 pub struct TrieCachingStorage {
     pub(crate) store: Store,
