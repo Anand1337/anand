@@ -1975,11 +1975,22 @@ impl Client {
         let mut accounts = HashMap::new();
 
         for epoch_id in [&tip.epoch_id, &tip.next_epoch_id] {
-            accounts.extend(self.runtime_adapter.get_epoch_chunk_producers(epoch_id)?.iter().map(|it| { ((epoch_id.clone(), it.account_id().clone()), it.public_key().clone())}));
-            accounts.extend(self.runtime_adapter.get_epoch_block_producers_ordered(epoch_id, &tip.last_block_hash)?.iter().map(|(it,_)| { ((epoch_id.clone(), it.account_id().clone()), it.public_key().clone())}));
+            accounts.extend(
+                self.runtime_adapter.get_epoch_chunk_producers(epoch_id)?.iter().map(|it| {
+                    ((epoch_id.clone(), it.account_id().clone()), it.public_key().clone())
+                }),
+            );
+            accounts.extend(
+                self.runtime_adapter
+                    .get_epoch_block_producers_ordered(epoch_id, &tip.last_block_hash)?
+                    .iter()
+                    .map(|(it, _)| {
+                        ((epoch_id.clone(), it.account_id().clone()), it.public_key().clone())
+                    }),
+            );
         }
 
-        /* 
+        /*
         let info = self
             .runtime_adapter
             .get_validator_info(ValidatorInfoIdentifier::BlockHash(tip.last_block_hash))?;
