@@ -2025,6 +2025,10 @@ impl Chain {
             height = block.header().height())
         .entered();
 
+        {
+            let mut chain_update = self.chain_update();
+            let chain_store_update = chain_update.chain_store_update;
+        }
         let prev_head = self.store.head()?;
         let mut chain_update = self.chain_update();
         let provenance = block_preprocess_info.provenance.clone();
@@ -4661,6 +4665,12 @@ impl<'a> ChainUpdate<'a> {
                 *new_extra.state_root_mut() = apply_result.new_root;
 
                 self.chain_store_update.save_chunk_extra(&block_hash, &shard_uid, new_extra);
+                // Hack: apply deletions right now
+                {
+                    let mut temporary_store_update = self.chain_store_update.store().store_update();
+                    apply_result.trie_changes.deletions_into(&mut temporary_store_update);
+                    temporary_store_update.update_cache();
+                }
                 self.chain_store_update.save_trie_changes(apply_result.trie_changes);
 
                 if let Some(apply_results_or_state_changes) = apply_split_result_or_state_changes {
