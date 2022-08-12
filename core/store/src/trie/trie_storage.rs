@@ -20,7 +20,7 @@ pub struct SyncTrieCache {
 
 impl SyncTrieCache {
     pub fn new(cap: usize) -> Self {
-        cache: LruCache::new(cap)
+        Self { cache: LruCache::new(cap) }
     }
 
     pub fn get(&mut self, key: &CryptoHash) -> Option<Arc<[u8]>> {
