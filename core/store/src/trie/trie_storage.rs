@@ -35,7 +35,7 @@ impl SyncTrieCache {
 
     pub fn put(&mut self, key: CryptoHash, value: Arc<[u8]>) {
         // Assume that value.len() is less than cap_lengths
-        while self.sum_lengths + value.len() > self.cap_lengths {
+        while self.sum_lengths + value.len() as u64 > self.cap_lengths {
             let (_, evicted_value) =
                 self.cache.pop_lru().expect("Cannot fail because cap_lengths is > 0");
             self.sum_lengths -= evicted_value.len() as u64;
