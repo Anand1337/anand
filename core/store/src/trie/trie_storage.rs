@@ -21,7 +21,7 @@ pub struct SyncTrieCache {
 
 impl SyncTrieCache {
     pub fn new(cap: usize) -> Self {
-        Self { cache: LruCache::new(cap), sum_lengths: 0, cap_lengths: 3_000_000_000 }
+        Self { cache: LruCache::new(cap), sum_lengths: 0, cap_lengths: 4_500_000_000 }
     }
 
     pub fn get(&mut self, key: &CryptoHash) -> Option<Arc<[u8]>> {
