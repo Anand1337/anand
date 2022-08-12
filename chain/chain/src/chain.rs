@@ -4631,6 +4631,12 @@ impl<'a> ChainUpdate<'a> {
                         apply_result.total_balance_burnt,
                     ),
                 );
+                // Hack: apply deletions right now
+                {
+                    let mut temporary_store_update = self.chain_store_update.store().store_update();
+                    apply_result.trie_changes.deletions_into(&mut temporary_store_update);
+                    temporary_store_update.update_cache()?;
+                }
                 self.chain_store_update.save_trie_changes(apply_result.trie_changes);
                 self.chain_store_update.save_outgoing_receipt(
                     &block_hash,
