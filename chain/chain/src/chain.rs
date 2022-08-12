@@ -2025,10 +2025,10 @@ impl Chain {
             height = block.header().height())
         .entered();
 
-        {
-            let mut chain_update = self.chain_update();
-            let chain_store_update = chain_update.chain_store_update;
-        }
+        // {
+        //     let mut chain_update = self.chain_update();
+        //     let chain_store_update = chain_update.chain_store_update;
+        // }
         let prev_head = self.store.head()?;
         let mut chain_update = self.chain_update();
         let provenance = block_preprocess_info.provenance.clone();

@@ -387,7 +387,7 @@ impl StoreUpdate {
             "Transaction overwrites itself: {:?}",
             self
         );
-        self.update_cache();
+        self.update_cache()?;
         let _span = tracing::trace_span!(target: "store", "commit").entered();
         for op in &self.transaction.ops {
             match op {

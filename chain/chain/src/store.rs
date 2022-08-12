@@ -2581,8 +2581,8 @@ impl<'a> ChainStoreUpdate<'a> {
 
     fn finalize(&mut self) -> Result<StoreUpdate, Error> {
         let mut store_update = self.store().store_update();
-        let old_final_head = self.chain_store.final_head();
-        let new_final_head = self.final_head.clone();
+        // let old_final_head = self.chain_store.final_head();
+        // let new_final_head = self.final_head.clone();
 
         Self::write_col_misc(&mut store_update, HEAD_KEY, &mut self.head)?;
         Self::write_col_misc(&mut store_update, TAIL_KEY, &mut self.tail)?;
