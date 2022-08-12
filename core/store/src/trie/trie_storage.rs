@@ -13,7 +13,6 @@ use near_primitives::types::{TrieCacheMode, TrieNodesCount};
 use std::cell::{Cell, RefCell};
 use std::io::ErrorKind;
 
-#[derive(Clone)]
 pub struct SyncTrieCache {
     cache: LruCache<CryptoHash, Arc<[u8]>>,
 }
