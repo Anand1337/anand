@@ -1119,6 +1119,9 @@ impl EpochManager {
         &self,
         epoch_identifier: ValidatorInfoIdentifier,
     ) -> Result<EpochValidatorInfo, EpochError> {
+        let _span = tracing::debug_span!(
+            target: "client",
+            "get_validator_info").entered();
         let epoch_id = match epoch_identifier {
             ValidatorInfoIdentifier::EpochId(ref id) => id.clone(),
             ValidatorInfoIdentifier::BlockHash(ref b) => self.get_epoch_id(b)?,

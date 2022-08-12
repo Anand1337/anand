@@ -1143,7 +1143,7 @@ impl ClientActor {
     fn try_process_unfinished_blocks(&mut self) {
         let _span = tracing::debug_span!(
                        target: "client",
-                       "process_unfinished_blocks");
+                       "process_unfinished_blocks").entered();
 
         let (accepted_blocks, _errors) =
             self.client.postprocess_ready_blocks(self.get_apply_chunks_done_callback(), true);

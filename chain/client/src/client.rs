@@ -1968,6 +1968,9 @@ impl Client {
     /// evaluation cost of this call is negligible to block processing time, so there is no
     /// need to cache it.
     fn get_tier1_accounts(&mut self, tip: &Tip) -> Result<Arc<AccountKeys>, Error> {
+        let _span = tracing::debug_span!(
+            target: "client",
+            "get_tier1_account").entered();
         let info = self
             .runtime_adapter
             .get_validator_info(ValidatorInfoIdentifier::BlockHash(tip.last_block_hash))?;
