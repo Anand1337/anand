@@ -119,6 +119,9 @@ pub struct NetworkConfig {
     pub features: Features,
     // If true - connect only to the bootnodes.
     pub connect_only_to_boot_nodes: bool,
+
+    // Whether to send nonces that are based on timestamps
+    pub send_timestamp_nonces: bool,
 }
 
 impl NetworkConfig {
@@ -211,6 +214,7 @@ impl NetworkConfig {
             features,
             inbound_disabled: cfg.experimental.inbound_disabled,
             connect_only_to_boot_nodes: cfg.experimental.connect_only_to_boot_nodes,
+            send_timestamp_nonces: true,
         };
         Ok(this)
     }
@@ -267,6 +271,7 @@ impl NetworkConfig {
             archive: false,
             accounts_data_broadcast_rate_limit: demux::RateLimit { qps: 100., burst: 1000000 },
             features: Features { enable_tier1: true },
+            send_timestamp_nonces: true,
         }
     }
 

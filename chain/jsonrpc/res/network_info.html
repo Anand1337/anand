@@ -246,6 +246,7 @@
                                 .append($('<td>').append(validator.join(",")))
                                 .append($('<td>').append(peer.peer_id.substr(9, 5) + "..."))
                                 .append($('<td>').append(convertTime(peer.last_time_received_message_millis)).addClass(last_ping_class))
+                                .append($('<td>').append(peer.nonce))
                                 .append($('<td>').append(JSON.stringify(peer.height)).addClass(peer_class))
                                 .append($('<td>').append(JSON.stringify(peer.tracked_shards)))
                                 .append($('<td>').append(JSON.stringify(peer.archival)))
@@ -337,6 +338,7 @@ Unreachable: <span class="js-unreachable-chunk-producers"></span>
                 <th>Validator?</th>
                 <th>Account ID</th>
                 <th>Last ping</th>
+                <th>Nonce</th>
                 <th>Height</th>
                 <th>Tracked Shards</th>
                 <th>Archival</th>

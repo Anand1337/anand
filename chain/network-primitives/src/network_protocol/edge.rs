@@ -34,6 +34,16 @@ impl PartialEdgeInfo {
         let signature = secret_key.sign(data.as_ref());
         Self { nonce, signature }
     }
+
+    // Creates a PartialEdge with a nonce that depends on the timestamp.
+    pub fn new_with_timestamp_nonce(
+        clock: &time::Clock,
+        peer0: &PeerId,
+        peer1: &PeerId,
+        secret_key: &SecretKey,
+    ) -> Self {
+        PartialEdgeInfo::new(peer0, peer1, Edge::active_nonce_from_utc(clock.now_utc()), secret_key)
+    }
 }
 
 pub enum InvalidNonceError {
@@ -157,6 +167,19 @@ impl Edge {
         Edge(Arc::new(edge))
     }
 
+    pub fn overwrite_old_tombstone_edge(&self, clock: &time::Clock, my_peer_id: PeerId, sk: &SecretKey) -> Edge {
+        assert_eq!(self.edge_type(), EdgeState::Removed);
+        let mut edge = self.0.as_ref().clone();
+        edge.nonce = Edge::active_nonce_from_utc(clock.now_utc()) + 1;
+        edge.removal_info = None;
+        let me = edge.key.0 == my_peer_id;
+        let hash = edge.hash();
+        let signature = sk.sign(hash.as_ref());
+        edge.removal_info = Some((me, signature));
+        Edge(Arc::new(edge))
+    }
+    
+
     fn hash(&self) -> CryptoHash {
         Edge::build_hash(&self.key().0, &self.key().1, self.nonce())
     }
@@ -229,6 +252,17 @@ impl Edge {
             Some(&self.key().0)
         } else {
             None
+        }
+    }
+
+    // Creates the nonce based on the current timestamp.
+    // Edge nonces must be odd.
+    pub fn active_nonce_from_utc(utc_time: time::Utc) -> u64 {
+        let ts = utc_time.unix_timestamp();
+        if ts % 2 == 0 {
+            (ts + 1) as u64
+        } else {
+            (ts) as u64
         }
     }
 

@@ -137,6 +137,13 @@ pub(crate) static ROUTING_TABLE_RECALCULATION_HISTOGRAM: Lazy<Histogram> = Lazy:
     )
     .unwrap()
 });
+
+pub(crate) static EDGE_NONCE_REFRESHED: Lazy<IntCounter> = Lazy::new(|| {
+    try_create_int_counter("near_edge_nonce_refreshed", "Number of times that nonce was refreshed").unwrap()
+});
+pub(crate) static EDGE_TOMBSTONE_REMOVED: Lazy<IntCounter> = Lazy::new(|| {
+    try_create_int_counter("near_edge_tombstone_removed", "Number of times that tombstone was removed").unwrap()
+});
 pub(crate) static EDGE_UPDATES: Lazy<IntCounter> =
     Lazy::new(|| try_create_int_counter("near_edge_updates", "Unique edge updates").unwrap());
 pub(crate) static EDGE_NONCE: Lazy<IntCounterVec> = Lazy::new(|| {
@@ -148,6 +155,13 @@ pub(crate) static EDGE_ACTIVE: Lazy<IntGauge> = Lazy::new(|| {
 pub(crate) static EDGE_TOTAL: Lazy<IntGauge> = Lazy::new(|| {
     try_create_int_gauge("near_edge_total", "Total edges between peers (including removed ones).")
         .unwrap()
+});
+pub static EDGE_NONCE_PEER_UNREGISTERED: Lazy<IntCounter> = Lazy::new(|| {
+    try_create_int_counter(
+        "near_edge_nonce_peer_unregistered",
+        "Number of times a peer was removed as it didn't respond to nonce request.",
+    )
+    .unwrap()
 });
 pub(crate) static PEER_UNRELIABLE: Lazy<IntGauge> = Lazy::new(|| {
     try_create_int_gauge(

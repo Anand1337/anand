@@ -262,6 +262,7 @@ impl From<&ConnectedPeerInfo> for PeerInfoView {
                 .elapsed()
                 .whole_milliseconds() as u64,
             is_outbound_peer: connected_peer_info.peer_type == PeerType::Outbound,
+            nonce: full_peer_info.partial_edge_info.nonce,
         }
     }
 }

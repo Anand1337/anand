@@ -15,7 +15,7 @@ use crate::routing;
 use crate::routing::edge_validator_actor::EdgeValidatorHelper;
 use crate::routing::routing_table_view::RoutingTableView;
 use crate::sink::Sink;
-use crate::stats::metrics;
+use crate::stats::metrics::{self, EDGE_NONCE_REFRESHED, EDGE_NONCE_PEER_UNREGISTERED, EDGE_TOMBSTONE_REMOVED};
 use crate::store;
 use crate::types::{
     ChainInfo, ConnectedPeerInfo, FullPeerInfo, GetNetworkInfo, NetworkClientMessages, NetworkInfo,
@@ -64,7 +64,7 @@ use tracing::{debug, error, info, trace, warn, Instrument};
 const REQUEST_PEERS_INTERVAL: time::Duration = time::Duration::milliseconds(60_000);
 /// How much time to wait (in milliseconds) after we send update nonce request before disconnecting.
 /// This number should be large to handle pair of nodes with high latency.
-const WAIT_ON_TRY_UPDATE_NONCE: time::Duration = time::Duration::milliseconds(6_000);
+const WAIT_ON_TRY_UPDATE_NONCE: time::Duration = time::Duration::milliseconds(60_000);
 /// If we see an edge between us and other peer, but this peer is not a current connection, wait this
 /// timeout and in case it didn't become a connected peer, broadcast edge removal update.
 const WAIT_PEER_BEFORE_REMOVE: time::Duration = time::Duration::milliseconds(6_000);
@@ -104,6 +104,8 @@ const PRUNE_UNREACHABLE_PEERS_AFTER: time::Duration = time::Duration::hours(1);
 
 // Remove the edges that were created more that this duration ago.
 const PRUNE_EDGES_AFTER: time::Duration = time::Duration::minutes(30);
+const REFRESH_EDGES_AFTER: time::Duration = time::Duration::minutes(10);
+
 // Don't accept nonces (edges) that are more than this delta from current time.
 // This value should be smaller than PRUNE_EDGES_AFTER (otherwise, the might accept the edge and garbage collect it seconds later).
 const EDGE_NONCE_MAX_TIME_DELTA: time::Duration = time::Duration::minutes(20);
@@ -571,11 +573,28 @@ impl PeerManagerActor {
                     if !self.routing_table_view.is_local_edge_newer(other_peer, edge.nonce()) {
                         continue;
                     }
+                    if self.config.send_timestamp_nonces {
+                        if edge.edge_type() == EdgeState::Removed
+                            && Edge::nonce_to_utc(edge.nonce()).is_err()
+                        {
+                            EDGE_TOMBSTONE_REMOVED.inc();
+                            let new_edge =
+                                edge.overwrite_old_tombstone_edge(&self.clock, self.my_peer_id.clone(), &self.config.node_key);
+                            self.state.connected_peers.broadcast_message(Arc::new(
+                                PeerMessage::SyncRoutingTable(RoutingTableUpdate::from_edges(
+                                    vec![new_edge],
+                                )),
+                            ));
+                        }
+                        continue;
+                    }
                     // Check whether we belong to this edge.
                     if self.state.connected_peers.read().contains_key(other_peer) {
                         // This is an active connection.
                         if edge.edge_type() == EdgeState::Removed {
-                            self.maybe_remove_connected_peer(ctx, edge, other_peer);
+                            self.refresh_nonce_and_maybe_remove_connected_peer(
+                                ctx, edge, other_peer,
+                            );
                         }
                     } else if edge.edge_type() == EdgeState::Active {
                         // We are not connected to this peer, but routing table contains
@@ -959,17 +978,29 @@ impl PeerManagerActor {
         );
     }
 
-    // If we receive an edge indicating that we should no longer be connected to a peer.
+    // This function will be called periodically (to refresh nonces) and
+    // if we receive an edge indicating that we should no longer be connected to a peer.
     // We will broadcast that edge to that peer, and if that peer doesn't reply within specific time,
     // that peer will be removed. However, the connected peer may gives us a new edge indicating
     // that we should in fact be connected to it.
-    fn maybe_remove_connected_peer(
+    fn refresh_nonce_and_maybe_remove_connected_peer(
         &mut self,
         ctx: &mut Context<Self>,
         edge: &Edge,
         other: &PeerId,
     ) {
-        let nonce = edge.next();
+        tracing::debug!(target: "network", id = ?other, nonce = edge.nonce(), "Refreshing nonce.");
+        let new_edge_request = if self.config.send_timestamp_nonces {
+            PartialEdgeInfo::new_with_timestamp_nonce(
+                &self.clock,
+                &self.my_peer_id,
+                other,
+                &self.config.node_key,
+            )
+        } else {
+            PartialEdgeInfo::new(&self.my_peer_id, other, edge.next(), &self.config.node_key)
+        };
+        let nonce = new_edge_request.nonce;
 
         if let Some(last_nonce) = self.local_peer_pending_update_nonce_request.get(other) {
             if *last_nonce >= nonce {
@@ -978,14 +1009,11 @@ impl PeerManagerActor {
             }
         }
 
+        EDGE_NONCE_REFRESHED.inc();
+
         self.state.connected_peers.send_message(
             other.clone(),
-            Arc::new(PeerMessage::RequestUpdateNonce(PartialEdgeInfo::new(
-                &self.my_peer_id,
-                other,
-                nonce,
-                &self.config.node_key,
-            ))),
+            Arc::new(PeerMessage::RequestUpdateNonce(new_edge_request)),
         );
 
         self.local_peer_pending_update_nonce_request.insert(other.clone(), nonce);
@@ -998,6 +1026,7 @@ impl PeerManagerActor {
                 if let Some(cur_nonce) = act.local_peer_pending_update_nonce_request.get(&other) {
                     if *cur_nonce == nonce {
                         if let Some(peer) = act.state.connected_peers.read().get(&other) {
+                            EDGE_NONCE_PEER_UNREGISTERED.inc();
                             // Send disconnect signal to this peer if we haven't edge update.
                             peer.unregister();
                         }
@@ -1161,6 +1190,21 @@ impl PeerManagerActor {
         metrics::PEER_UNRELIABLE.set(unreliable_peers.len() as i64);
         self.network_graph.write().set_unreliable_peers(unreliable_peers);
 
+        if self.config.send_timestamp_nonces {
+            // Periodically refresh nonces
+            for peer in self.state.connected_peers.read().keys() {
+                if let Some(local_edge) = self.routing_table_view.get_local_edge(peer) {
+                    if local_edge.is_edge_older_than(self.clock.now_utc() - REFRESH_EDGES_AFTER) {
+                        self.refresh_nonce_and_maybe_remove_connected_peer(
+                            ctx,
+                            &local_edge.clone(),
+                            peer,
+                        );
+                    }
+                }
+            }
+        }
+
         let new_interval = min(max_interval, interval * EXPONENTIAL_BACKOFF_RATIO);
 
         near_performance_metrics::actix::run_later(
@@ -1318,13 +1362,22 @@ impl PeerManagerActor {
     }
 
     fn propose_edge(&self, peer1: &PeerId, with_nonce: Option<u64>) -> PartialEdgeInfo {
-        // When we create a new edge we increase the latest nonce by 2 in case we miss a removal
-        // proposal from our partner.
-        let nonce = with_nonce.unwrap_or_else(|| {
-            self.routing_table_view.get_local_edge(peer1).map_or(1, |edge| edge.next())
-        });
+        if self.config.send_timestamp_nonces {
+            PartialEdgeInfo::new_with_timestamp_nonce(
+                &self.clock,
+                &self.my_peer_id,
+                peer1,
+                &self.config.node_key,
+            )
+        } else {
+            // When we create a new edge we increase the latest nonce by 2 in case we miss a removal
+            // proposal from our partner.
+            let nonce = with_nonce.unwrap_or_else(|| {
+                self.routing_table_view.get_local_edge(peer1).map_or(1, |edge| edge.next())
+            });
 
-        PartialEdgeInfo::new(&self.my_peer_id, peer1, nonce, &self.config.node_key)
+            PartialEdgeInfo::new(&self.my_peer_id, peer1, nonce, &self.config.node_key)
+        }
     }
 
     fn send_ping(&mut self, nonce: u64, target: PeerId) {
