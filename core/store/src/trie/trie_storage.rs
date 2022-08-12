@@ -38,17 +38,17 @@ impl SyncTrieCache {
         while self.sum_lengths + value.len() > self.cap_lengths {
             let (_, evicted_value) =
                 self.cache.pop_lru().expect("Cannot fail because cap_lengths is > 0");
-            self.sum_lengths -= evicted_value.len();
+            self.sum_lengths -= evicted_value.len() as u64;
         }
         // Insert value
-        self.sum_lengths += value.len();
+        self.sum_lengths += value.len() as u64;
         self.cache.put(key, value);
     }
 
     pub fn pop(&mut self, key: &CryptoHash) {
         match self.cache.pop(key) {
             Some(evicted_value) => {
-                self.sum_lengths -= evicted_value.len();
+                self.sum_lengths -= evicted_value.len() as u64;
             }
             None => {}
         }
