@@ -1121,7 +1121,8 @@ impl EpochManager {
     ) -> Result<EpochValidatorInfo, EpochError> {
         let _span = tracing::debug_span!(
             target: "client",
-            "get_validator_info").entered();
+            "get_validator_info")
+        .entered();
         let epoch_id = match epoch_identifier {
             ValidatorInfoIdentifier::EpochId(ref id) => id.clone(),
             ValidatorInfoIdentifier::BlockHash(ref b) => self.get_epoch_id(b)?,
@@ -1183,6 +1184,10 @@ impl EpochManager {
                 )
             }
             ValidatorInfoIdentifier::BlockHash(ref h) => {
+                let _span2 = tracing::debug_span!(
+                    target: "client",
+                    "collect_stats_block_hash")
+                .entered();
                 // If we are here, `h` is hash of the latest block of the
                 // current epoch.
                 let aggregator = self.get_epoch_info_aggregator_upto_last(h)?;
@@ -1229,6 +1234,10 @@ impl EpochManager {
             }
         };
 
+        let _span3 = tracing::debug_span!(
+            target: "client",
+            "next_epoch_info")
+        .entered();
         let next_epoch_info = self.get_epoch_info(&next_epoch_id)?;
         let mut next_validator_to_shard = (0..next_epoch_info.validators_len())
             .map(|_| HashSet::default())
@@ -1240,6 +1249,10 @@ impl EpochManager {
                 next_validator_to_shard[*validator_id as usize].insert(shard_id as u64);
             }
         }
+        let _span3 = tracing::debug_span!(
+            target: "client",
+            "next_validators")
+        .entered();
         let next_validators = next_epoch_info
             .validators_iter()
             .enumerate()
@@ -1253,6 +1266,10 @@ impl EpochManager {
                 NextEpochValidatorInfo { account_id, public_key, stake, shards }
             })
             .collect();
+        let _span4 = tracing::debug_span!(
+                target: "client",
+                "prev_epoch_kickout")
+        .entered();
         let prev_epoch_kickout = next_epoch_info
             .validator_kickout()
             .clone()

@@ -1970,7 +1970,8 @@ impl Client {
     fn get_tier1_accounts(&mut self, tip: &Tip) -> Result<Arc<AccountKeys>, Error> {
         let _span = tracing::debug_span!(
             target: "client",
-            "get_tier1_account").entered();
+            "get_tier1_account")
+        .entered();
         let info = self
             .runtime_adapter
             .get_validator_info(ValidatorInfoIdentifier::BlockHash(tip.last_block_hash))?;
@@ -2008,7 +2009,8 @@ impl Client {
     fn send_network_chain_info(&mut self) -> Result<(), Error> {
         let _span = tracing::debug_span!(
             target: "client",
-            "send_network_chain_info").entered();
+            "send_network_chain_info")
+        .entered();
         let tip = self.chain.head()?;
         // convert config tracked shards
         // runtime will track all shards if config tracked shards is not empty
