@@ -4669,7 +4669,7 @@ impl<'a> ChainUpdate<'a> {
                 {
                     let mut temporary_store_update = self.chain_store_update.store().store_update();
                     apply_result.trie_changes.deletions_into(&mut temporary_store_update);
-                    temporary_store_update.update_cache();
+                    temporary_store_update.update_cache()?;
                 }
                 self.chain_store_update.save_trie_changes(apply_result.trie_changes);
 

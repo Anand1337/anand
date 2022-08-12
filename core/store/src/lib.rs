@@ -356,7 +356,7 @@ impl StoreUpdate {
         self.transaction.merge(other.transaction)
     }
 
-    pub fn update_cache(&self) {
+    pub fn update_cache(&self) -> io::Result<()> {
         if let Some(tries) = &self.shard_tries {
             // Note: avoid comparing wide pointers here to work-around
             // https://github.com/rust-lang/rust/issues/69757
@@ -364,6 +364,7 @@ impl StoreUpdate {
             assert_eq!(addr(&tries.get_store().storage), addr(&self.storage),);
             tries.update_cache(&self.transaction)?;
         }
+        Ok(())
     }
 
     pub fn commit(self) -> io::Result<()> {
