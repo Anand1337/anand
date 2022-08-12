@@ -12,9 +12,60 @@ use near_primitives::shard_layout::ShardUId;
 use near_primitives::types::{TrieCacheMode, TrieNodesCount};
 use std::cell::{Cell, RefCell};
 use std::io::ErrorKind;
+
+pub struct SyncTrieCache {
+    cache: LruCache<CryptoHash, Arc<[u8]>>,
+    sum_lengths: u64,
+    cap_lengths: u64,
+}
+
+impl SyncTrieCache {
+    pub fn new(cap: usize) -> Self {
+        Self { cache: LruCache::new(cap), sum_lengths: 0, cap_lengths: 3_000_000_000 }
+    }
+
+    pub fn get(&mut self, key: &CryptoHash) -> Option<Arc<[u8]>> {
+        self.cache.get(key).cloned()
+    }
+
+    pub fn clear(&mut self) {
+        self.sum_lengths = 0;
+        self.cache.clear();
+    }
+
+    pub fn put(&mut self, key: CryptoHash, value: Arc<[u8]>) {
+        // Assume that value.len() is less than cap_lengths
+        while self.sum_lengths + value.len() as u64 > self.cap_lengths {
+            let (_, evicted_value) =
+                self.cache.pop_lru().expect("Cannot fail because cap_lengths is > 0");
+            self.sum_lengths -= evicted_value.len() as u64;
+        }
+        // Insert value
+        self.sum_lengths += value.len() as u64;
+        self.cache.put(key, value);
+    }
+
+    pub fn pop(&mut self, key: &CryptoHash) {
+        match self.cache.pop(key) {
+            Some(evicted_value) => {
+                self.sum_lengths -= evicted_value.len() as u64;
+            }
+            None => {}
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.cache.len()
+    }
+
+    pub fn new_size(&self) -> u64 {
+        self.sum_lengths
+    }
+}
+
 /// Wrapper over LruCache which doesn't hold too large elements.
 #[derive(Clone)]
-pub struct TrieCache(Arc<Mutex<LruCache<CryptoHash, Arc<[u8]>>>>);
+pub struct TrieCache(Arc<Mutex<SyncTrieCache>>);
 
 impl TrieCache {
     pub fn new() -> Self {
@@ -22,11 +73,11 @@ impl TrieCache {
     }
 
     pub fn with_capacity(cap: usize) -> Self {
-        Self(Arc::new(Mutex::new(LruCache::new(cap))))
+        Self(Arc::new(Mutex::new(SyncTrieCache::new(cap))))
     }
 
     pub fn get(&self, key: &CryptoHash) -> Option<Arc<[u8]>> {
-        self.0.lock().expect(POISONED_LOCK_ERR).get(key).cloned()
+        self.0.lock().expect(POISONED_LOCK_ERR).get(key)
     }
 
     pub fn clear(&self) {
@@ -155,7 +206,7 @@ const TRIE_DEFAULT_SHARD_CACHE_SIZE: usize = 1;
 
 /// Values above this size (in bytes) are never cached.
 /// Note that most of Trie inner nodes are smaller than this - e.g. branches use around 32 * 16 = 512 bytes.
-pub(crate) const TRIE_LIMIT_CACHED_VALUE_SIZE: usize = 100;
+pub(crate) const TRIE_LIMIT_CACHED_VALUE_SIZE: usize = 1000;
 
 pub struct TrieCachingStorage {
     pub(crate) store: Store,
@@ -248,6 +299,9 @@ impl TrieStorage for TrieCachingStorage {
             metrics::SHARD_CACHE_SIZE
                 .with_label_values(&labels)
                 .set(self.shard_cache.0.lock().expect(POISONED_LOCK_ERR).len() as i64);
+            metrics::SHARD_CACHE_NEW_SIZE
+                .with_label_values(&labels)
+                .set(self.shard_cache.0.lock().expect(POISONED_LOCK_ERR).new_size() as i64);
         }
 
         // Try to get value from chunk cache containing nodes with cheaper access. We can do it for any `TrieCacheMode`,
