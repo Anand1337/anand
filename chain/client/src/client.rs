@@ -1237,6 +1237,12 @@ impl Client {
                 error!(target:"client","Failed to update network chain info: {err}");
             }
         }
+        let _span = tracing::debug_span!(
+            target: "client",
+            "after_block_accepted",
+            block_hash = ?block.hash(),
+            height = block.header().height())
+        .entered();
 
         if let Some(validator_signer) = self.validator_signer.clone() {
             // Reconcile the txpool against the new block *after* we have broadcast it too our peers.
