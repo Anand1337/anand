@@ -2005,7 +2005,7 @@ impl Client {
     fn send_network_chain_info(&mut self) -> Result<(), Error> {
         let _span = tracing::debug_span!(
             target: "client",
-            "send_network_chain_info");
+            "send_network_chain_info").entered();
         let tip = self.chain.head()?;
         // convert config tracked shards
         // runtime will track all shards if config tracked shards is not empty
