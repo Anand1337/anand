@@ -4,7 +4,6 @@ use std::io::{Cursor, Read};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use byteorder::{LittleEndian, ReadBytesExt};
-use tracing::log::trace;
 
 use near_primitives::challenge::PartialState;
 use near_primitives::contract::ContractCode;
@@ -460,12 +459,6 @@ pub struct TrieChanges {
 impl TrieChanges {
     pub fn empty(old_root: StateRoot) -> Self {
         TrieChanges { old_root, new_root: old_root, insertions: vec![], deletions: vec![] }
-    }
-
-    pub fn debug(&self, stage: &str) {
-        let hashes: Vec<_> =
-            self.insertions.iter().map(|change| change.trie_node_or_value_hash).collect();
-        tracing::debug!(target: "runtime", "stage = {}, len = {}, {:?}", stage, hashes.len(), hashes);
     }
 }
 

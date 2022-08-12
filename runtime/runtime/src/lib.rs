@@ -1352,7 +1352,6 @@ impl Runtime {
         state_update.commit(StateChangeCause::UpdatedDelayedReceipts);
         self.apply_state_patch(&mut state_update, state_patch);
         let (trie_changes, state_changes) = state_update.finalize()?;
-        trie_changes.debug("1_finalized_apply");
 
         // Dedup proposals from the same account.
         // The order is deterministically changed.
