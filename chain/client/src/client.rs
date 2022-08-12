@@ -2003,6 +2003,9 @@ impl Client {
     /// In theory we should already have the tip at the call-site, eg from
     /// check_And_update_doomslug_tip, but that would require a bigger refactor.
     fn send_network_chain_info(&mut self) -> Result<(), Error> {
+        let _span = tracing::debug_span!(
+            target: "client",
+            "send_network_chain_info");
         let tip = self.chain.head()?;
         // convert config tracked shards
         // runtime will track all shards if config tracked shards is not empty
