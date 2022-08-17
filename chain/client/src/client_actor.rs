@@ -250,6 +250,8 @@ impl Actor for ClientActor {
 
         // Start catchup job.
         self.catchup(ctx);
+
+        self.client.send_network_chain_info().unwrap();
     }
 }
 
@@ -1643,7 +1645,7 @@ impl ClientActor {
                 {
                     unwrap_or_run_later!(self.client.block_sync.run(
                         &mut self.client.sync_status,
-                        &mut self.client.chain,
+                        &self.client.chain,
                         highest_height,
                         &self.network_info.highest_height_peers
                     ))
@@ -1773,6 +1775,7 @@ impl ClientActor {
             None
         };
 
+        let header_head = unwrap_or_return!(self.client.chain.header_head());
         let validator_epoch_stats = if is_syncing {
             // EpochManager::get_validator_info method (which is what runtime
             // adapter calls) is expensive when node is syncing so we’re simply
@@ -1784,7 +1787,7 @@ impl ClientActor {
             // check.
             Default::default()
         } else {
-            let epoch_identifier = ValidatorInfoIdentifier::BlockHash(head.last_block_hash);
+            let epoch_identifier = ValidatorInfoIdentifier::BlockHash(header_head.last_block_hash);
             self.client
                 .runtime_adapter
                 .get_validator_info(epoch_identifier)
