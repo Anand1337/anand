@@ -289,7 +289,7 @@ impl StoreUpdate {
     }
 
     pub fn update_cache(&self) -> io::Result<()> {
-        if let Some(tries) = &self.shard_tries {
+        if let Some(tries) = &self.tries {
             // Note: avoid comparing wide pointers here to work-around
             // https://github.com/rust-lang/rust/issues/69757
             let addr = |arc| Arc::as_ptr(arc) as *const u8;
