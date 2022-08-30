@@ -243,6 +243,8 @@ impl HeaderSync {
             _ => false,
         };
 
+        debug!(target: "sync", old_expected_height, prev_height, prev_highest_height, header_head_height = header_head.height, stalling, force_sync, "header_sync_due");
+
         if force_sync || all_headers_received || stalling {
             self.prev_header_sync = (
                 now + self.initial_timeout,
@@ -269,7 +271,7 @@ impl HeaderSync {
                                 if now > *stalling_ts + self.stall_ban_timeout
                                     && *highest_height == peer.chain_info.height
                                 {
-                                    warn!(target: "sync", "Sync: ban a fraudulent peer: {}, claimed height: {}",
+                                    warn!(target: "sync", stalling_ts = ?stalling_ts, peer_info = ?peer.peer_info, "Sync: ban a fraudulent peer: {}, claimed height: {}",
                                         peer.peer_info, peer.chain_info.height);
                                     self.network_adapter.do_send(
                                         PeerManagerMessageRequest::NetworkRequests(
@@ -302,6 +304,7 @@ impl HeaderSync {
             if header_head.height >= old_expected_height.saturating_sub(remaining_expected_height) {
                 let new_expected_height =
                     self.compute_expected_height(header_head.height, self.progress_timeout);
+                debug!(target: "sync", remaining_expected_height, ?ns_time_till_timeout, new_expected_height, "header_sync_due-2");
                 self.prev_header_sync = (
                     now + self.progress_timeout,
                     new_expected_height,
