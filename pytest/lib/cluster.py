@@ -24,7 +24,6 @@ import base58
 import network
 from configured_logger import logger
 from key import Key
-from proxy import NodesProxy
 
 os.environ["ADVERSARY_CONSENT"] = "1"
 
@@ -142,9 +141,6 @@ class BlockId(typing.NamedTuple):
 class BaseNode(object):
 
     def __init__(self):
-        self._start_proxy = None
-        self._proxy_local_stopped = None
-        self.proxy = None
         self.store_tests = 0
         self.is_check_store = True
 
@@ -419,10 +415,6 @@ class LocalNode(BaseNode):
     def rpc_addr(self):
         return ("127.0.0.1", self.rpc_port)
 
-    def start_proxy_if_needed(self):
-        if self._start_proxy is not None:
-            self._proxy_local_stopped = self._start_proxy()
-
     def output_logs(self):
         stdout = pathlib.Path(self.node_dir) / 'stdout'
         stderr = pathlib.Path(self.node_dir) / 'stderr'
@@ -435,12 +427,7 @@ class LocalNode(BaseNode):
             logger.info(f'=== stdout: available at {stdout}')
             logger.info(f'=== stderr: available at {stderr}')
 
-    def start(self, *, boot_node: BootNode = None, skip_starting_proxy=False):
-        if self._proxy_local_stopped is not None:
-            while self._proxy_local_stopped.value != 2:
-                logger.info(f'Waiting for previous proxy instance to close')
-                time.sleep(1)
-
+    def start(self, *, boot_node: BootNode = None):
         env = os.environ.copy()
         env["RUST_BACKTRACE"] = "1"
         env["RUST_LOG"] = "actix_web=warn,mio=warn,tokio_util=warn,actix_server=warn,actix_http=warn," + env.get(
@@ -459,10 +446,6 @@ class LocalNode(BaseNode):
                                              stderr=stderr,
                                              env=env)
         self._pid = self._process.pid
-
-        if not skip_starting_proxy:
-            self.start_proxy_if_needed()
-
         try:
             self.wait_for_rpc(10)
         except:
@@ -471,8 +454,6 @@ class LocalNode(BaseNode):
 
     def kill(self, *, gentle=False):
         """Kills the process.  If `gentle` sends SIGINT before killing."""
-        if self._proxy_local_stopped is not None:
-            self._proxy_local_stopped.value = 1
         if self._process and gentle:
             self._process.send_signal(signal.SIGINT)
             try:
@@ -658,8 +639,6 @@ def spin_up_node(config,
                  *,
                  boot_node: BootNode = None,
                  blacklist=[],
-                 proxy=None,
-                 skip_starting_proxy=False,
                  single_node=False):
     is_local = config['local']
 
@@ -691,10 +670,7 @@ def spin_up_node(config,
             remote_nodes.append(node)
         logger.info(f"node {ordinal} machine created")
 
-    if proxy is not None:
-        proxy.proxify_node(node)
-
-    node.start(boot_node=boot_node, skip_starting_proxy=skip_starting_proxy)
+    node.start(boot_node=boot_node)
     time.sleep(3)
     logger.info(f"node {ordinal} started")
     return node
@@ -792,8 +768,7 @@ def start_cluster(num_nodes,
                   num_shards,
                   config,
                   genesis_config_changes,
-                  client_config_changes,
-                  message_handler=None):
+                  client_config_changes):
     if not config:
         config = load_config()
 
@@ -810,8 +785,6 @@ def start_cluster(num_nodes,
                                             num_shards, config,
                                             genesis_config_changes,
                                             client_config_changes)
-
-    proxy = NodesProxy(message_handler) if message_handler is not None else None
     ret = []
 
     def spin_up_node_and_push(i, boot_node: BootNode):
@@ -821,8 +794,6 @@ def start_cluster(num_nodes,
                             node_dirs[i],
                             i,
                             boot_node=boot_node,
-                            proxy=proxy,
-                            skip_starting_proxy=True,
                             single_node=single_node)
         ret.append((i, node))
         return node
@@ -840,9 +811,6 @@ def start_cluster(num_nodes,
         handle.join()
 
     nodes = [node for _, node in sorted(ret)]
-    for node in nodes:
-        node.start_proxy_if_needed()
-
     return nodes
 
 
