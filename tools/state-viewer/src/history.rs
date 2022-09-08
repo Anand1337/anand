@@ -207,9 +207,4 @@ pub fn history(
             process_height(height)
         });
     }
-
-    println!(
-        "No differences found after applying chunks in the range {}..={} for shard_id {}",
-        start_height, end_height, shard_id
-    );
 }
