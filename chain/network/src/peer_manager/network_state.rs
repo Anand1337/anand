@@ -1,4 +1,5 @@
 use crate::accounts_data;
+use crate::network_protocol::Encoding;
 use crate::concurrency::demux;
 use crate::config;
 use crate::peer::peer_actor::{PeerActor, StreamConfig};
@@ -117,7 +118,7 @@ impl NetworkState {
         stream: TcpStream,
         stream_cfg: StreamConfig,
     ) {
-        if let Err(err) = PeerActor::spawn(clock.clone(), stream, stream_cfg, None, self.clone()) {
+        if let Err(err) = PeerActor::spawn(clock.clone(), stream, stream_cfg, Some(Encoding::Proto), self.clone()) {
             tracing::info!(target:"network", ?err, "PeerActor::spawn()");
         };
     }
