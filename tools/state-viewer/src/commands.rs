@@ -1,4 +1,5 @@
 use crate::apply_chain_range::apply_chain_range;
+use crate::history::history;
 use crate::state_dump::state_dump;
 use crate::state_dump::state_dump_redis;
 use crate::tx_dump::dump_tx_from_block;
@@ -160,6 +161,35 @@ pub(crate) fn apply_range(
 
     let runtime = NightshadeRuntime::from_config(home_dir, store.clone(), &near_config);
     apply_chain_range(
+        store,
+        &near_config.genesis,
+        start_index,
+        end_index,
+        shard_id,
+        runtime,
+        verbose_output,
+        csv_file.as_mut(),
+        only_contracts,
+        sequential,
+    );
+}
+
+pub(crate) fn history_cmd(
+    start_index: Option<BlockHeight>,
+    end_index: Option<BlockHeight>,
+    shard_id: ShardId,
+    verbose_output: bool,
+    csv_file: Option<PathBuf>,
+    home_dir: &Path,
+    near_config: NearConfig,
+    store: Store,
+    only_contracts: bool,
+    sequential: bool,
+) {
+    let mut csv_file = csv_file.map(|filename| std::fs::File::create(filename).unwrap());
+
+    let runtime = NightshadeRuntime::from_config(home_dir, store.clone(), &near_config);
+    history(
         store,
         &near_config.genesis,
         start_index,

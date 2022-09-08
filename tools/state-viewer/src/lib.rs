@@ -5,6 +5,7 @@ mod apply_chunk;
 pub mod cli;
 mod commands;
 mod epoch_info;
+mod history;
 mod rocksdb_stats;
 mod state_dump;
 mod tx_dump;

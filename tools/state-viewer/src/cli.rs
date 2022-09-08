@@ -32,6 +32,8 @@ pub enum StateViewerSubCommand {
     /// Apply blocks at a range of heights for a single shard.
     #[clap(alias = "apply_range")]
     ApplyRange(ApplyRangeCmd),
+    #[clap(alias = "history")]
+    History(HistoryCmd),
     /// Apply block at some height for shard.
     Apply(ApplyCmd),
     /// View head of the storage.
@@ -86,6 +88,7 @@ impl StateViewerSubCommand {
             StateViewerSubCommand::Chain(cmd) => cmd.run(home_dir, near_config, hot),
             StateViewerSubCommand::Replay(cmd) => cmd.run(home_dir, near_config, hot),
             StateViewerSubCommand::ApplyRange(cmd) => cmd.run(home_dir, near_config, hot),
+            StateViewerSubCommand::History(cmd) => cmd.run(home_dir, near_config, hot),
             StateViewerSubCommand::Apply(cmd) => cmd.run(home_dir, near_config, hot),
             StateViewerSubCommand::ViewChain(cmd) => cmd.run(near_config, hot),
             StateViewerSubCommand::CheckBlock => check_block_chunk_existence(near_config, hot),
@@ -252,6 +255,41 @@ pub struct ApplyRangeCmd {
 impl ApplyRangeCmd {
     pub fn run(self, home_dir: &Path, near_config: NearConfig, store: Store) {
         apply_range(
+            self.start_index,
+            self.end_index,
+            self.shard_id,
+            self.verbose_output,
+            self.csv_file,
+            home_dir,
+            near_config,
+            store,
+            self.only_contracts,
+            self.sequential,
+        );
+    }
+}
+
+#[derive(Parser)]
+pub struct HistoryCmd {
+    #[clap(long)]
+    start_index: Option<BlockHeight>,
+    #[clap(long)]
+    end_index: Option<BlockHeight>,
+    #[clap(long, default_value = "0")]
+    shard_id: ShardId,
+    #[clap(long)]
+    verbose_output: bool,
+    #[clap(long, parse(from_os_str))]
+    csv_file: Option<PathBuf>,
+    #[clap(long)]
+    only_contracts: bool,
+    #[clap(long)]
+    sequential: bool,
+}
+
+impl HistoryCmd {
+    pub fn run(self, home_dir: &Path, near_config: NearConfig, store: Store) {
+        history_cmd(
             self.start_index,
             self.end_index,
             self.shard_id,
