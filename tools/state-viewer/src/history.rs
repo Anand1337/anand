@@ -88,7 +88,7 @@ fn extract_history_from_block(
     };
     let block = chain_store.get_block(&block_hash).unwrap();
     for shard_id in 0..runtime_adapter.num_shards(block.header().epoch_id()).unwrap() {
-        println!("{} : {}", block.header().height(), shard_id);
+        // println!("{} : {}", block.header().height(), shard_id);
         if *block.header().prev_hash() == CryptoHash::default() {
             if verbose_output {
                 println!("Skipping the genesis block #{}.", height);
