@@ -31,8 +31,7 @@ struct ProgressReporter {
 impl ProgressReporter {
     pub fn inc_and_report_progress(&self) {
         let ProgressReporter { cnt, ts, all, skipped, empty_blocks, non_empty_blocks } = self;
-
-        const PRINT_PER: u64 = 1000;
+        const PRINT_PER: u64 = 10000; // Expect 300bps -> a message every 30 seconds.
         let prev = cnt.fetch_add(1, Ordering::Relaxed);
         if (prev + 1) % PRINT_PER == 0 {
             let prev_ts = ts.load(Ordering::Relaxed);
