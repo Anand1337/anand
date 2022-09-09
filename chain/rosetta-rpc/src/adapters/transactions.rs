@@ -20,6 +20,8 @@ pub(crate) struct ExecutionToReceipts {
     /// receipts map is needed to determine the initing account of the receipt
     /// and to determine if a receipt is a refund.
     receipts: HashMap<CryptoHash, AccountId>,
+    /// A mapping of NEAR transaction or receipt hash to tokens burnt for it
+    hash_to_tokens_burnt: HashMap<CryptoHash, u128>,
 }
 impl ExecutionToReceipts {
     /// Fetches execution outcomes for given block and constructs a mapping from
@@ -35,6 +37,7 @@ impl ExecutionToReceipts {
             .map_err(|e| crate::errors::ErrorKind::InternalError(e.to_string()))?;
         let mut transactions = HashMap::new();
         let mut receipts = HashMap::new();
+        let mut hash_to_tokens_burnt = HashMap::new();
         for (shard_id, contained) in block.header.chunk_mask.iter().enumerate() {
             if *contained {
                 let chunk = view_client_addr
@@ -48,16 +51,25 @@ impl ExecutionToReceipts {
                     .extend(chunk.receipts.into_iter().map(|t| (t.receipt_id, t.predecessor_id)))
             }
         }
-        let map = view_client_addr
+        let execution_outcomes = view_client_addr
             .send(near_client::GetExecutionOutcomesForBlock { block_hash })
             .await?
-            .map_err(crate::errors::ErrorKind::InternalInvariantError)?
+            .map_err(crate::errors::ErrorKind::InternalInvariantError)?;
+        hash_to_tokens_burnt.extend(
+            execution_outcomes
+                .clone()
+                .into_values()
+                .flat_map(|outcomes| outcomes)
+                .filter(|exec| !exec.outcome.receipt_ids.is_empty())
+                .map(|exec| (exec.id, exec.outcome.tokens_burnt)),
+        );
+        let map = execution_outcomes
             .into_values()
             .flat_map(|outcomes| outcomes)
             .filter(|exec| !exec.outcome.receipt_ids.is_empty())
             .map(|exec| (exec.id, exec.outcome.receipt_ids))
             .collect();
-        Ok(Self { map, transactions, receipts })
+        Ok(Self { map, transactions, receipts, hash_to_tokens_burnt })
     }
 
     /// Creates an empty mapping.  This is useful for tests.
@@ -67,6 +79,7 @@ impl ExecutionToReceipts {
             map: Default::default(),
             transactions: Default::default(),
             receipts: Default::default(),
+            hash_to_tokens_burnt: Default::default(),
         }
     }
 
@@ -173,6 +186,31 @@ fn get_predecessor_id_from_receipt_or_transaction(
     predecessor_id
 }
 
+fn get_tokens_burnt_from_tx_or_receipt_hash(
+    cause: &near_primitives::views::StateChangeCauseView,
+    hash_to_tokens_burnt: &HashMap<CryptoHash, u128>,
+) -> Option<u128> {
+    let tokens_burnt = match cause {
+        near_primitives::views::StateChangeCauseView::TransactionProcessing { tx_hash } => {
+            hash_to_tokens_burnt.get(tx_hash)?
+        }
+        near_primitives::views::StateChangeCauseView::ReceiptProcessing { receipt_hash } => {
+            hash_to_tokens_burnt.get(receipt_hash)?
+        }
+        near_primitives::views::StateChangeCauseView::PostponedReceipt { receipt_hash } => {
+            hash_to_tokens_burnt.get(receipt_hash)?
+        }
+        near_primitives::views::StateChangeCauseView::ActionReceiptProcessingStarted {
+            receipt_hash,
+        } => hash_to_tokens_burnt.get(receipt_hash)?,
+        near_primitives::views::StateChangeCauseView::ActionReceiptGasReward { receipt_hash } => {
+            hash_to_tokens_burnt.get(receipt_hash)?
+        }
+        _ => return None,
+    };
+    Some(*tokens_burnt)
+}
+
 type RosettaTransactionsMap = std::collections::HashMap<String, crate::models::Transaction>;
 
 pub(crate) struct RosettaTransactions<'a> {
@@ -228,6 +266,7 @@ pub(crate) fn convert_block_changes_to_transactions(
     for account_change in accounts_changes {
         let transactions_in_block = &transactions.exec_to_rx.transactions;
         let receipts_in_block = &transactions.exec_to_rx.receipts;
+        let hash_to_tokens_burnt = &transactions.exec_to_rx.hash_to_tokens_burnt;
         match account_change.value {
             near_primitives::views::StateChangeValueView::AccountUpdate { account_id, account } => {
                 // Calculate the total amount of deposit from transfer actions.
@@ -260,6 +299,10 @@ pub(crate) fn convert_block_changes_to_transactions(
                     &transactions_in_block,
                     &receipts_in_block,
                 );
+                let tokens_burnt = get_tokens_burnt_from_tx_or_receipt_hash(
+                    &account_change.cause,
+                    &hash_to_tokens_burnt,
+                );
                 let previous_account_state = accounts_previous_state.get(&account_id);
                 convert_account_update_to_operations(
                     runtime_config,
@@ -269,6 +312,7 @@ pub(crate) fn convert_block_changes_to_transactions(
                     &account,
                     deposit,
                     &predecessor_id,
+                    &tokens_burnt,
                 );
                 accounts_previous_state.insert(account_id, account);
             }
@@ -301,6 +345,7 @@ fn convert_account_update_to_operations(
     account: &near_primitives::views::AccountView,
     deposit: Option<near_primitives::types::Balance>,
     predecessor_id: &Option<crate::models::AccountIdentifier>,
+    tokens_burnt: &Option<u128>,
 ) {
     let previous_account_balances = previous_account_state
         .map(|account| crate::utils::RosettaAccountBalances::from_account(account, runtime_config))
@@ -325,8 +370,9 @@ fn convert_account_update_to_operations(
                 amount: Some(-crate::models::Amount::from_yoctonear(deposit)),
                 type_: crate::models::OperationType::Transfer,
                 status: Some(crate::models::OperationStatusKind::Success),
-                metadata: crate::models::OperationMetadata::from_predecessor(
+                metadata: crate::models::OperationMetadata::from_predecessor_and_tokens_burnt(
                     predecessor_id.clone(),
+                    tokens_burnt.clone(),
                 ),
             });
             operations.push(crate::models::Operation {
@@ -346,8 +392,9 @@ fn convert_account_update_to_operations(
                 )),
                 type_: crate::models::OperationType::Transfer,
                 status: Some(crate::models::OperationStatusKind::Success),
-                metadata: crate::models::OperationMetadata::from_predecessor(
+                metadata: crate::models::OperationMetadata::from_predecessor_and_tokens_burnt(
                     predecessor_id.clone(),
+                    tokens_burnt.clone(),
                 ),
             });
         } else {
@@ -367,8 +414,9 @@ fn convert_account_update_to_operations(
                 )),
                 type_: crate::models::OperationType::Transfer,
                 status: Some(crate::models::OperationStatusKind::Success),
-                metadata: crate::models::OperationMetadata::from_predecessor(
+                metadata: crate::models::OperationMetadata::from_predecessor_and_tokens_burnt(
                     predecessor_id.clone(),
+                    tokens_burnt.clone(),
                 ),
             });
         }
@@ -391,7 +439,10 @@ fn convert_account_update_to_operations(
             )),
             type_: crate::models::OperationType::Transfer,
             status: Some(crate::models::OperationStatusKind::Success),
-            metadata: crate::models::OperationMetadata::from_predecessor(predecessor_id.clone()),
+            metadata: crate::models::OperationMetadata::from_predecessor_and_tokens_burnt(
+                predecessor_id.clone(),
+                tokens_burnt.clone(),
+            ),
         });
     }
 
@@ -412,7 +463,10 @@ fn convert_account_update_to_operations(
             )),
             type_: crate::models::OperationType::Transfer,
             status: Some(crate::models::OperationStatusKind::Success),
-            metadata: crate::models::OperationMetadata::from_predecessor(predecessor_id.clone()),
+            metadata: crate::models::OperationMetadata::from_predecessor_and_tokens_burnt(
+                predecessor_id.clone(),
+                tokens_burnt.clone(),
+            ),
         });
     }
 }

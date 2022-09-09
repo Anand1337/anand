@@ -319,6 +319,7 @@ impl From<NearActions> for Vec<crate::models::Operation> {
                             account: sender_account_identifier.clone(),
                             amount: -transfer_amount.clone(),
                             predecessor_id: Some(sender_account_identifier.clone()),
+                            tokens_burnt: None,
                         }
                         .into_operation(sender_transfer_operation_id.clone()),
                     );
@@ -328,6 +329,7 @@ impl From<NearActions> for Vec<crate::models::Operation> {
                             account: receiver_account_identifier.clone(),
                             amount: transfer_amount,
                             predecessor_id: Some(sender_account_identifier.clone()),
+                            tokens_burnt: None,
                         }
                         .into_related_operation(
                             crate::models::OperationIdentifier::new(&operations),
@@ -381,6 +383,7 @@ impl From<NearActions> for Vec<crate::models::Operation> {
                                 account: sender_account_identifier.clone(),
                                 amount: -attached_amount.clone(),
                                 predecessor_id: Some(sender_account_identifier.clone()),
+                                tokens_burnt: None,
                             }
                             .into_operation(fund_transfer_operation_id.clone()),
                         );
