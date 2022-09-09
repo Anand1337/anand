@@ -4,7 +4,6 @@ pub(crate) struct TransferOperation {
     pub(crate) account: crate::models::AccountIdentifier,
     pub(crate) amount: crate::models::Amount,
     pub(crate) predecessor_id: Option<crate::models::AccountIdentifier>,
-    pub(crate) tokens_burnt: Option<u128>,
 }
 
 impl ValidatedOperation for TransferOperation {
@@ -19,10 +18,7 @@ impl ValidatedOperation for TransferOperation {
 
             account: self.account,
             amount: Some(self.amount),
-            metadata: crate::models::OperationMetadata::from_predecessor_and_tokens_burnt(
-                self.predecessor_id,
-                self.tokens_burnt,
-            ),
+            metadata: crate::models::OperationMetadata::from_predecessor(self.predecessor_id),
 
             related_operations: None,
             type_: Self::OPERATION_TYPE,
@@ -43,9 +39,7 @@ impl TryFrom<crate::models::Operation> for TransferOperation {
     fn try_from(operation: crate::models::Operation) -> Result<Self, Self::Error> {
         Self::validate_operation_type(operation.type_)?;
         let amount = operation.amount.ok_or_else(required_fields_error)?;
-        let predecessor_id =
-            operation.metadata.clone().and_then(|metadata| metadata.predecessor_id);
-        let tokens_burnt = operation.metadata.clone().and_then(|metadata| metadata.tokens_burnt);
-        Ok(Self { account: operation.account, amount, predecessor_id, tokens_burnt })
+        let predecessor_id = operation.metadata.and_then(|metadata| metadata.predecessor_id);
+        Ok(Self { account: operation.account, amount, predecessor_id })
     }
 }

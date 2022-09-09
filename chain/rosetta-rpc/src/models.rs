@@ -775,36 +775,16 @@ pub(crate) struct OperationMetadata {
     pub attached_gas: Option<crate::utils::SignedDiff<near_primitives::types::Gas>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub predecessor_id: Option<AccountIdentifier>,
-    pub tokens_burnt: Option<u128>,
 }
 
 impl OperationMetadata {
-    pub(crate) fn from_predecessor_and_tokens_burnt(
+    pub(crate) fn from_predecessor(
         predecessor_id: Option<AccountIdentifier>,
-        tokens_burnt: Option<u128>,
     ) -> Option<OperationMetadata> {
-        match (predecessor_id, tokens_burnt) {
-            (Some(predecessor_id), Some(tokens_burnt)) => {
-                return Some(crate::models::OperationMetadata {
-                    predecessor_id: Some(predecessor_id),
-                    tokens_burnt: Some(tokens_burnt),
-                    ..Default::default()
-                })
-            }
-            (Some(predecessor_id), None) => {
-                return Some(crate::models::OperationMetadata {
-                    predecessor_id: Some(predecessor_id),
-                    ..Default::default()
-                })
-            }
-            (None, Some(tokens_burnt)) => {
-                return Some(crate::models::OperationMetadata {
-                    tokens_burnt: Some(tokens_burnt),
-                    ..Default::default()
-                })
-            }
-            (None, None) => return None,
-        }
+        return predecessor_id.map(|predecessor_id| crate::models::OperationMetadata {
+            predecessor_id: Some(predecessor_id),
+            ..Default::default()
+        });
     }
 }
 
@@ -1059,6 +1039,18 @@ pub(crate) enum TransactionType {
 pub(crate) struct TransactionMetadata {
     #[serde(rename = "type")]
     pub(crate) type_: TransactionType,
+    pub(crate) tokens_burnt: Option<u128>,
+}
+impl TransactionMetadata {
+    pub(crate) fn from_tokens_burnt(
+        tokens_burnt: Option<u128>,
+        type_: TransactionType,
+    ) -> TransactionMetadata {
+        match tokens_burnt {
+            Some(tokens_burnt) => crate::models::TransactionMetadata { tokens_burnt: Some(tokens_burnt), type_ },
+            None => crate::models::TransactionMetadata { tokens_burnt: None, type_ },
+        }
+    }
 }
 
 /// The transaction_identifier uniquely identifies a transaction in a particular
