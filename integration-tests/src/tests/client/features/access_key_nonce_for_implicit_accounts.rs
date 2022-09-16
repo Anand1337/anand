@@ -507,6 +507,7 @@ fn test_processing_chunks_sanity() {
                 Provenance::NONE,
                 Arc::new(|_| {}),
             );
+            env.process_shards_manager_responses(1);
             if rng.gen_bool(0.5) {
                 env.clients[1].finish_block_in_processing(blocks[ind].hash());
             }
@@ -516,11 +517,13 @@ fn test_processing_chunks_sanity() {
                 if rng.gen_bool(0.7) {
                     env.process_partial_encoded_chunk_request(1, request);
                     num_requests += 1;
+                    env.process_shards_manager_responses(1);
                 } else {
                     env.network_adapters[1].do_send(request);
                 }
             }
         }
+        env.process_shards_manager_responses(1);
         env.clients[1].finish_blocks_in_processing();
     }
     // process the remaining chunk requests
@@ -653,7 +656,6 @@ impl ChunkForwardingOptimizationTestData {
                     .client(&account_id)
                     .process_partial_encoded_chunk(
                         PartialEncodedChunk::from(partial_encoded_chunk).into(),
-                        Arc::new(|_| {}),
                     )
                     .unwrap();
             }
@@ -674,11 +676,7 @@ impl ChunkForwardingOptimizationTestData {
                     ));
                 }
                 self.num_part_ords_forwarded += forward.parts.len();
-                match self
-                    .env
-                    .client(&account_id)
-                    .process_partial_encoded_chunk_forward(forward, Arc::new(|_| {}))
-                {
+                match self.env.client(&account_id).process_partial_encoded_chunk_forward(forward) {
                     Ok(_) => {}
                     Err(near_client::Error::Chunk(near_chunks::Error::UnknownChunk)) => {
                         self.num_forwards_with_missing_chunk_header += 1;
@@ -714,6 +712,7 @@ impl ChunkForwardingOptimizationTestData {
                 break;
             }
         }
+        self.env.process_all_shards_manager_responses();
     }
 }
 
