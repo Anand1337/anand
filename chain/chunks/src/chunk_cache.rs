@@ -6,7 +6,7 @@ use near_primitives::sharding::{
 };
 use near_primitives::types::{BlockHeight, BlockHeightDelta, ShardId};
 use std::collections::hash_map::Entry::Occupied;
-use tracing::{debug, warn};
+use tracing::warn;
 
 // This file implements EncodedChunksCache, which provides three main functionalities:
 // 1) It stores a map from a chunk hash to all the parts and receipts received so far for the chunk.
@@ -176,7 +176,6 @@ impl EncodedChunksCache {
     ) -> &mut EncodedChunksCacheEntry {
         let chunk_hash = chunk_header.chunk_hash();
         self.encoded_chunks.entry(chunk_hash).or_insert_with_key(|chunk_hash| {
-            debug!(target: "chunks", "Creating new entry for chunk {:?}", chunk_hash);
             self.height_map
                 .entry(chunk_header.height_created())
                 .or_default()
