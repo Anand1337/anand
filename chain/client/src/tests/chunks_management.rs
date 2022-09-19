@@ -6,7 +6,6 @@ use near_network::types::NetworkRequests;
 use near_network_primitives::types::PartialEncodedChunkRequestMsg;
 use near_o11y::testonly::init_integration_logger;
 use near_primitives::hash::CryptoHash;
-use near_primitives::sharding::ReedSolomonWrapper;
 
 #[test]
 fn test_request_chunk_restart() {
