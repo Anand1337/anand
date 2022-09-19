@@ -1480,12 +1480,6 @@ impl TestEnv {
         }
     }
 
-    pub fn process_all_shards_manager_responses(&mut self) {
-        for id in 0..self.clients.len() {
-            self.process_shards_manager_responses(id);
-        }
-    }
-
     pub fn process_shards_manager_responses_and_finish_processing_blocks(&mut self, idx: usize) {
         loop {
             self.process_shards_manager_responses(idx);
