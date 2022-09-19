@@ -353,10 +353,10 @@ fn test_request_chunks_for_orphan() {
             res.unwrap_err(),
             near_chain::Error::ChunksMissing(_) | near_chain::Error::Orphan
         );
-        let _ = env.clients[1].finish_blocks_in_processing();
+        env.process_shards_manager_responses_and_finish_processing_blocks(1);
         env.process_partial_encoded_chunks_requests(1);
     }
-    env.clients[1].finish_blocks_in_processing();
+    env.process_shards_manager_responses_and_finish_processing_blocks(1);
 
     // process blocks 3 to 15 without processing missing chunks
     // block 3 will be put into the blocks_with_missing_chunks pool
@@ -385,11 +385,11 @@ fn test_request_chunks_for_orphan() {
     ));
     // process all the partial encoded chunk requests for block 4 - 2 + NUM_ORPHAN_ANCESTORS_CHECK
     env.process_partial_encoded_chunks_requests(1);
-    env.clients[1].finish_blocks_in_processing();
+    env.process_shards_manager_responses_and_finish_processing_blocks(1);
 
     // process partial encoded chunk request for block 3, which will unlock block 4 - 2 + NUM_ORPHAN_ANCESTORS_CHECK
     env.process_partial_encoded_chunk_request(1, missing_chunk_request);
-    env.clients[1].finish_blocks_in_processing();
+    env.process_shards_manager_responses_and_finish_processing_blocks(1);
     assert_eq!(
         &env.clients[1].chain.head().unwrap().last_block_hash,
         blocks[2 + NUM_ORPHAN_ANCESTORS_CHECK as usize].hash()
@@ -405,7 +405,7 @@ fn test_request_chunks_for_orphan() {
         for _ in 0..4 {
             let request = env.network_adapters[1].pop().unwrap();
             env.process_partial_encoded_chunk_request(1, request);
-            env.clients[1].finish_blocks_in_processing();
+            env.process_shards_manager_responses_and_finish_processing_blocks(1);
         }
     }
     assert_eq!(&env.clients[1].chain.head().unwrap().last_block_hash, blocks[8].hash());
@@ -416,7 +416,7 @@ fn test_request_chunks_for_orphan() {
     for _ in 0..4 {
         let request = env.network_adapters[1].pop().unwrap();
         env.process_partial_encoded_chunk_request(1, request);
-        env.clients[1].finish_blocks_in_processing();
+        env.process_shards_manager_responses_and_finish_processing_blocks(1);
     }
     assert_eq!(&env.clients[1].chain.head().unwrap().last_block_hash, blocks[9].hash());
 
@@ -433,7 +433,7 @@ fn test_request_chunks_for_orphan() {
             let request = env.network_adapters[1].pop().unwrap();
             env.process_partial_encoded_chunk_request(1, request);
         }
-        env.clients[1].finish_blocks_in_processing();
+        env.process_shards_manager_responses_and_finish_processing_blocks(1);
         assert_eq!(&env.clients[1].chain.head().unwrap().last_block_hash, blocks[i].hash());
     }
 }
@@ -488,6 +488,12 @@ fn test_processing_chunks_sanity() {
     // produce 21 blocks
     for i in 1..=21 {
         let block = env.clients[0].produce_block(i).unwrap().unwrap();
+        let chunks = block
+            .chunks()
+            .iter()
+            .map(|chunk| format!("{:?}", chunk.chunk_hash()))
+            .collect::<Vec<_>>();
+        debug!(target: "chunks", "Block #{} has chunks {:?}", i, chunks.join(", "));
         blocks.push(block.clone());
         env.process_block(0, block, Provenance::PRODUCED);
     }
@@ -507,9 +513,8 @@ fn test_processing_chunks_sanity() {
                 Provenance::NONE,
                 Arc::new(|_| {}),
             );
-            env.process_shards_manager_responses(1);
             if rng.gen_bool(0.5) {
-                env.clients[1].finish_block_in_processing(blocks[ind].hash());
+                env.process_shards_manager_responses_and_finish_processing_blocks(1);
             }
             while let Some(request) = env.network_adapters[1].pop() {
                 // process the chunk request some times, otherwise keep it in the queue
@@ -517,23 +522,22 @@ fn test_processing_chunks_sanity() {
                 if rng.gen_bool(0.7) {
                     env.process_partial_encoded_chunk_request(1, request);
                     num_requests += 1;
-                    env.process_shards_manager_responses(1);
                 } else {
                     env.network_adapters[1].do_send(request);
                 }
             }
         }
-        env.process_shards_manager_responses(1);
-        env.clients[1].finish_blocks_in_processing();
+        env.process_shards_manager_responses_and_finish_processing_blocks(1);
     }
     // process the remaining chunk requests
     while let Some(request) = env.network_adapters[1].pop() {
         env.process_partial_encoded_chunk_request(1, request);
-        env.clients[1].finish_blocks_in_processing();
+        env.process_shards_manager_responses_and_finish_processing_blocks(1);
         num_requests += 1;
     }
 
     assert_eq!(env.clients[1].chain.head().unwrap().height, 21);
+
     // Check each chunk is only requested once.
     // There are 21 blocks in total, but the first block has no chunks,
     assert_eq!(num_requests, 4 * 20);
@@ -712,7 +716,6 @@ impl ChunkForwardingOptimizationTestData {
                 break;
             }
         }
-        self.env.process_all_shards_manager_responses();
     }
 }
 
@@ -758,6 +761,7 @@ fn test_chunk_forwarding_optimization() {
             // Process any chunk part requests that this client sent. Note that this would also
             // process other network messages (such as production of the next chunk) which is OK.
             test.process_network_messages();
+            test.env.process_shards_manager_responses(i);
             accepted_blocks.extend(test.env.clients[i].finish_blocks_in_processing());
             assert_eq!(
                 accepted_blocks.len(),
@@ -843,11 +847,11 @@ fn test_processing_blocks_async() {
         );
     }
 
-    env.clients[1].finish_blocks_in_processing();
+    env.process_shards_manager_responses_and_finish_processing_blocks(1);
 
     while let Some(request) = env.network_adapters[1].pop() {
         env.process_partial_encoded_chunk_request(1, request);
-        env.clients[1].finish_blocks_in_processing();
+        env.process_shards_manager_responses_and_finish_processing_blocks(1);
     }
 
     assert_eq!(env.clients[1].chain.head().unwrap().height, 20);

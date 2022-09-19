@@ -1470,25 +1470,29 @@ impl TestEnv {
         }
     }
 
-    pub fn process_shards_manager_responses(&mut self, id: usize) -> bool {
-        let mut processed = false;
+    pub fn process_shards_manager_responses(&mut self, id: usize) {
         while let Some(msg) = self.client_adapters[id].pop() {
             match msg {
                 ShardsManagerResponse::ChunkCompleted(chunk_header) => {
                     self.clients[id].on_chunk_completed(&chunk_header, Arc::new(|_| {}));
                 }
             }
-            processed = true;
         }
-        processed
     }
 
-    pub fn process_all_shards_manager_responses(&mut self) -> bool {
-        let mut processed = false;
+    pub fn process_all_shards_manager_responses(&mut self) {
         for id in 0..self.clients.len() {
-            processed |= self.process_shards_manager_responses(id);
+            self.process_shards_manager_responses(id);
         }
-        processed
+    }
+
+    pub fn process_shards_manager_responses_and_finish_processing_blocks(&mut self, idx: usize) {
+        loop {
+            self.process_shards_manager_responses(idx);
+            if self.clients[idx].finish_blocks_in_processing().is_empty() {
+                return;
+            }
+        }
     }
 
     pub fn send_money(&mut self, id: usize) -> NetworkClientResponses {

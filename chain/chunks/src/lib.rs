@@ -1966,6 +1966,7 @@ impl ShardsManager {
         self.encoded_chunks.mark_entry_complete(chunk_hash);
         self.encoded_chunks.remove_from_cache_if_outside_horizon(chunk_hash);
         self.requested_partial_encoded_chunks.remove(chunk_hash);
+        debug!(target: "chunks", "Completed chunk {:?}", chunk_hash);
         self.client_adapter.do_send(ShardsManagerResponse::ChunkCompleted(header));
     }
 
