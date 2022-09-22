@@ -1812,23 +1812,6 @@ impl ShardsManager {
         Ok(result)
     }
 
-    pub fn process_partial_encoded_chunk_response(
-        &mut self,
-        response: PartialEncodedChunkResponseMsg,
-        chain_head: Option<&Tip>,
-        chain_store: &mut ChainStore,
-    ) -> Result<ProcessPartialEncodedChunkResult, Error> {
-        let header = self.get_partial_encoded_chunk_header(&response.chunk_hash)?;
-        let partial_chunk = PartialEncodedChunk::new(header, response.parts, response.receipts);
-        // We already know the header signature is valid because we read it from the
-        // shard manager.
-        self.process_partial_encoded_chunk(
-            MaybeValidated::from_validated(partial_chunk),
-            chain_head,
-            chain_store,
-        )
-    }
-
     /// Checks if the chunk has all parts and receipts, if so and if the node cares about the shard,
     /// decodes and persists the full chunk
     /// `header`: header of the chunk. It must be known by `ShardsManager`, either
