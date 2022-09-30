@@ -443,6 +443,10 @@ impl Genesis {
         Self::new_validated(config, records, GenesisValidationMode::Full)
     }
 
+    pub fn new_unvalidated(config: GenesisConfig, records: GenesisRecords) -> Self {
+        Self { config, records, records_file: PathBuf::new() }
+    }
+
     pub fn new_with_path<P: AsRef<Path>>(config: GenesisConfig, records_file: P) -> Self {
         Self::new_with_path_validated(config, records_file, GenesisValidationMode::Full)
     }
