@@ -42,16 +42,19 @@ static ALLOC: near_rust_allocator_proxy::ProxyAllocator<tikv_jemallocator::Jemal
 static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 fn main() -> Result<(), RunError> {
+    println!("main !1");
     if env::var("RUST_BACKTRACE").is_err() {
         // Enable backtraces on panics by default.
         env::set_var("RUST_BACKTRACE", "1");
     }
 
+    println!("main !2");
     rayon::ThreadPoolBuilder::new()
         .stack_size(8 * 1024 * 1024)
         .build_global()
         .map_err(RunError::RayonInstall)?;
 
+    println!("main !3");
     #[cfg(feature = "memory_stats")]
     ALLOC.set_report_usage_interval(512 << 20).enable_stack_trace(true);
     // We use it to automatically search the for root certificates to perform HTTPS calls
@@ -59,5 +62,8 @@ fn main() -> Result<(), RunError> {
     openssl_probe::init_ssl_cert_env_vars();
     near_performance_metrics::process::schedule_printing_performance_stats(Duration::from_secs(60));
 
-    NeardCmd::parse_and_run()
+    println!("main !4");
+    let res = NeardCmd::parse_and_run();
+    println!("main !5");
+    res
 }

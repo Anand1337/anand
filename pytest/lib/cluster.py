@@ -661,13 +661,17 @@ def spin_up_node(config,
                  proxy=None,
                  skip_starting_proxy=False,
                  single_node=False):
+    print("spin_up_node !1")
     is_local = config['local']
 
+    print("spin_up_node !2")
     args = make_boot_nodes_arg(boot_node)
     logger.info("Starting node %s %s" %
                 (ordinal,
                  ('with ' + '='.join(args) if args else 'as BOOT NODE')))
+    print("spin_up_node !3")
     if is_local:
+        print("spin_up_node !4")
         blacklist = [
             "127.0.0.1:%s" % (24567 + 10 + bl_ordinal)
             for bl_ordinal in blacklist
@@ -675,7 +679,9 @@ def spin_up_node(config,
         node = LocalNode(24567 + 10 + ordinal, 3030 + 10 + ordinal,
                          near_root, node_dir, blacklist,
                          config.get('binary_name'), single_node)
+        print("spin_up_node !5")
     else:
+        print("spin_up_node !6")
         # TODO: Figure out how to know IP address beforehand for remote deployment.
         assert len(
             blacklist) == 0, "Blacklist is only supported in LOCAL deployment."
@@ -690,13 +696,20 @@ def spin_up_node(config,
         with remote_nodes_lock:
             remote_nodes.append(node)
         logger.info(f"node {ordinal} machine created")
+        print("spin_up_node !7")
 
+    print("spin_up_node !8")
     if proxy is not None:
+        print("spin_up_node !9")
         proxy.proxify_node(node)
 
+    print("spin_up_node !10")
     node.start(boot_node=boot_node, skip_starting_proxy=skip_starting_proxy)
+    print("spin_up_node !11")
     time.sleep(3)
+    print("spin_up_node !12")
     logger.info(f"node {ordinal} started")
+    print("spin_up_node !13")
     return node
 
 
@@ -794,9 +807,11 @@ def start_cluster(num_nodes,
                   genesis_config_changes,
                   client_config_changes,
                   message_handler=None):
+    print("start_cluster !1")
     if not config:
         config = load_config()
 
+    print("start_cluster !2")
     dot_near = pathlib.Path.home() / '.near'
     if (dot_near / 'test0').exists():
         near_root = config['near_root']
@@ -811,11 +826,15 @@ def start_cluster(num_nodes,
                                             genesis_config_changes,
                                             client_config_changes)
 
+    print("start_cluster !3")
     proxy = NodesProxy(message_handler) if message_handler is not None else None
     ret = []
 
+    print("start_cluster !4")
     def spin_up_node_and_push(i, boot_node: BootNode):
+        print("start_cluster !5")
         single_node = (num_nodes == 1) and (num_observers == 0)
+        print("start_cluster !6")
         node = spin_up_node(config,
                             near_root,
                             node_dirs[i],
@@ -824,6 +843,7 @@ def start_cluster(num_nodes,
                             proxy=proxy,
                             skip_starting_proxy=True,
                             single_node=single_node)
+        print("start_cluster !7")
         ret.append((i, node))
         return node
 
@@ -857,18 +877,38 @@ CONFIG_ENV_VAR = 'NEAR_PYTEST_CONFIG'
 
 
 def load_config():
+    print("load_config !1")
+    sys.stderr.write("load_config !1\n")
     config = DEFAULT_CONFIG
+    print("load_config !2", config)
+    sys.stderr.write("load_config !2 %s\n"%str(config))
 
     config_file = os.environ.get(CONFIG_ENV_VAR, '')
+    print("load_config !3", config_file)
+    sys.stderr.write("load_config !3 %s\n"%config_file)
     if config_file:
+        print("load_config !4", config_file)
+        sys.stderr.write("load_config !4 %s\n"%config_file)
         try:
             with open(config_file) as f:
+                print("load_config !5", config_file)
+                sys.stderr.write("load_config !5 %s\n"%config_file)
                 new_config = json.load(f)
+                print("load_config !6", new_config)
+                sys.stderr.write("load_config !6 %s\n"%str(new_config))
                 config.update(new_config)
+                print("load_config !7", config)
+                sys.stderr.write("load_config !7 %s\n"%str(config))
                 logger.info(f"Load config from {config_file}, config {config}")
         except FileNotFoundError:
+            print("load_config !8 FileNotFoundError")
+            sys.stderr.write("load_config !8 FileNotFoundError\n")
             logger.info(
                 f"Failed to load config file, use default config {config}")
     else:
+        print("load_config !9 %s"% config)
+        sys.stderr.write("load_config !9 %s\n"%config)
         logger.info(f"Use default config {config}")
+    print("load_config !10 ", config)
+    sys.stderr.write("load_config !10 %s\n"%config)
     return config

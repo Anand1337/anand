@@ -29,6 +29,7 @@ pub(super) struct NeardCmd {
 
 impl NeardCmd {
     pub(super) fn parse_and_run() -> Result<(), RunError> {
+        println!("parse_and_run !1");
         let neard_cmd = Self::parse();
 
         // Enable logging of the current thread.
@@ -38,6 +39,7 @@ impl NeardCmd {
         )
         .local();
 
+        println!("parse_and_run !2");
         info!(
             target: "neard",
             version = crate::NEARD_VERSION,
@@ -45,6 +47,7 @@ impl NeardCmd {
             latest_protocol = near_primitives::version::PROTOCOL_VERSION
         );
 
+        println!("parse_and_run !3");
         #[cfg(feature = "test_features")]
         {
             error!("THIS IS A NODE COMPILED WITH ADVERSARIAL BEHAVIORS. DO NOT USE IN PRODUCTION.");
@@ -58,6 +61,7 @@ impl NeardCmd {
             }
         }
 
+        println!("parse_and_run !4");
         let home_dir = neard_cmd.opts.home.clone();
         let genesis_validation = if neard_cmd.opts.unsafe_fast_startup {
             GenesisValidationMode::UnsafeFast
@@ -65,15 +69,26 @@ impl NeardCmd {
             GenesisValidationMode::Full
         };
 
+        println!("parse_and_run !5 {:#?}", home_dir);
         match neard_cmd.subcmd {
-            NeardSubCommand::Init(cmd) => cmd.run(&home_dir),
+            NeardSubCommand::Init(cmd) => {
+                println!("parse_and_run !6");
+                let res = cmd.run(&home_dir);
+                println!("parse_and_run !7");
+                res
+            },
             NeardSubCommand::Localnet(cmd) => cmd.run(&home_dir),
-            NeardSubCommand::Run(cmd) => cmd.run(
-                &home_dir,
-                genesis_validation,
-                neard_cmd.opts.verbose_target(),
-                &neard_cmd.opts.o11y,
-            ),
+            NeardSubCommand::Run(cmd) => {
+                println!("parse_and_run !8");
+                let res = cmd.run(
+                    &home_dir,
+                    genesis_validation,
+                    neard_cmd.opts.verbose_target(),
+                    &neard_cmd.opts.o11y,
+                );
+                println!("parse_and_run !9");
+                res
+            },
 
             NeardSubCommand::StateViewer(cmd) => {
                 let mode = if cmd.readwrite { Mode::ReadWrite } else { Mode::ReadOnly };

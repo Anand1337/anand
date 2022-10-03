@@ -21,6 +21,7 @@ def test_sanity_spin_up():
     This is just a sanity check that the neard binary isn’t borked too much.
     See <https://github.com/near/nearcore/issues/4993>.
     """
+    print("test_sanity_spin_up")
     nodes = cluster.start_cluster(
         2,
         0,
@@ -31,7 +32,9 @@ def test_sanity_spin_up():
                 'path': 'atad'
             }
         }})
+    print("test_sanity_spin_up !1")
     utils.wait_for_blocks(nodes[0], target=4)
+    print("test_sanity_spin_up !2")
     # Verify that second node created RocskDB in ‘atad’ directory rather than
     # ‘data’.
     assert not (pathlib.Path(nodes[1].node_dir) / 'data').exists()
