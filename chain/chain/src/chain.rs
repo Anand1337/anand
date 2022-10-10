@@ -3727,6 +3727,7 @@ impl Chain {
                             true,
                             is_first_block_with_chunk_of_version,
                             state_patch,
+                            cares_about_shard_this_epoch,
                         ) {
                             Ok(apply_result) => {
                                 let apply_split_result_or_state_changes =
@@ -3787,6 +3788,7 @@ impl Chain {
                             false,
                             false,
                             state_patch,
+                            cares_about_shard_this_epoch,
                         ) {
                             Ok(apply_result) => {
                                 let apply_split_result_or_state_changes =
@@ -5163,6 +5165,7 @@ impl<'a> ChainUpdate<'a> {
             true,
             is_first_block_with_chunk_of_version,
             Default::default(),
+            false,
         )?;
 
         let (outcome_root, outcome_proofs) =
@@ -5247,6 +5250,7 @@ impl<'a> ChainUpdate<'a> {
             false,
             false,
             Default::default(),
+            false,
         )?;
 
         self.chain_store_update.save_trie_changes(apply_result.trie_changes);
