@@ -151,8 +151,9 @@ fn compare_node_counts() {
 
     if cfg!(feature = "protocol_feature_flat_state") {
         // If flat state is enabled, no disk reads are made.
-        (0..4).for_each(|i| {
-            assert_eq!(tx_node_counts[i], TrieNodesCount { db_reads: 0, mem_reads: 0 })
+        assert_eq!(tx_node_counts[i], TrieNodesCount { db_reads: 0, mem_reads: 0 });
+        (1..4).for_each(|i| {
+            assert_eq!(tx_node_counts[i], TrieNodesCount { db_reads: 2, mem_reads: 0 })
         });
     } else {
         assert_eq!(tx_node_counts[0], TrieNodesCount { db_reads: 4, mem_reads: 0 });
