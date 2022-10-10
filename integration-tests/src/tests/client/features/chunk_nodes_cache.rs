@@ -150,8 +150,11 @@ fn compare_node_counts() {
         .collect();
 
     if cfg!(feature = "protocol_feature_flat_state") {
-        // If flat state is enabled, no disk reads are made.
+        // If flat storage is enabled, we shouldn't observe any trie node reads during transaction processing.
+        // For the first pair of write calls there are no contract values in storage, thus we see zero db reads.
         assert_eq!(tx_node_counts[0], TrieNodesCount { db_reads: 0, mem_reads: 0 });
+        // For all other write calls we read the value reference from flat storage and the value from state.
+        // The first read doesn't count, so we should observe only two DB reads each time.
         (1..4).for_each(|i| {
             assert_eq!(tx_node_counts[i], TrieNodesCount { db_reads: 2, mem_reads: 0 })
         });
