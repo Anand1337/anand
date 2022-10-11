@@ -1804,7 +1804,7 @@ mod test {
                 acc.union(&x.iter().cloned().collect()).cloned().collect()
             });
             let validators_len = all_validators.len() as ValidatorId;
-            let num_validator_seats_per_shard =
+            let num_validator_seats_per_shard: Vec<_> =
                 validators.iter().map(|x| x.len() as ValidatorId).collect();
             let num_shards = num_validator_seats_per_shard.len();
             let mut genesis = Genesis::test_sharded_new_version(
