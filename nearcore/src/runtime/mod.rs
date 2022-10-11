@@ -177,7 +177,7 @@ impl NightshadeRuntime {
     ) -> Self {
         Self::new(
             home_dir,
-            store,
+            store.clone(),
             genesis,
             tracked_config,
             None,
@@ -185,7 +185,7 @@ impl NightshadeRuntime {
             Some(runtime_config_store),
             DEFAULT_GC_NUM_EPOCHS_TO_KEEP,
             Default::default(),
-            FlatStateFactory::new(store.clone()),
+            FlatStateFactory::new(store),
         )
     }
 
