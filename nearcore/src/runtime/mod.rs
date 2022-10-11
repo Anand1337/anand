@@ -1652,6 +1652,7 @@ mod test {
 
     use super::*;
 
+    use near_primitives::shard_layout::ShardLayoutError;
     use near_primitives::trie_key::TrieKey;
     use primitive_types::U256;
 
@@ -1862,7 +1863,7 @@ mod test {
                 };
                 for shard_id in 0..num_shards {
                     runtime.create_flat_storage_state_for_shard(
-                        shard_id,
+                        shard_id as ShardId,
                         chain_head.height,
                         &mock_chain,
                     );
