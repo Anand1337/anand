@@ -1648,7 +1648,7 @@ mod test {
     use near_primitives::views::{
         AccountView, CurrentEpochValidatorInfo, NextEpochValidatorInfo, ValidatorKickoutView,
     };
-    use near_store::{NodeStorage, Temperature};
+    use near_store::{flat_state, NodeStorage, Temperature};
 
     use super::*;
 
@@ -1713,6 +1713,27 @@ mod test {
             result.trie_changes.state_changes_into(&mut store_update);
             store_update.commit().unwrap();
             (result.new_root, result.validator_proposals, result.outgoing_receipts)
+        }
+    }
+
+    struct MockChain {
+        height_to_hashes: HashMap<BlockHeight, CryptoHash>,
+        blocks: HashMap<CryptoHash, flat_state::BlockInfo>,
+    }
+
+    impl ChainAccessForFlatStorage for MockChain {
+        fn get_block_info(&self, block_hash: &CryptoHash) -> flat_state::BlockInfo {
+            self.blocks.get(block_hash).unwrap().clone()
+        }
+
+        fn get_block_hashes_at_height(&self, block_height: BlockHeight) -> HashSet<CryptoHash> {
+            HashSet::from([self.get_block_hash(block_height)])
+        }
+    }
+
+    impl MockChain {
+        fn get_block_hash(&self, height: BlockHeight) -> CryptoHash {
+            *self.height_to_hashes.get(&height).unwrap()
         }
     }
 
@@ -1783,10 +1804,13 @@ mod test {
                 acc.union(&x.iter().cloned().collect()).cloned().collect()
             });
             let validators_len = all_validators.len() as ValidatorId;
+            let num_validator_seats_per_shard =
+                validators.iter().map(|x| x.len() as ValidatorId).collect();
+            let num_shards = num_validator_seats_per_shard.len();
             let mut genesis = Genesis::test_sharded_new_version(
                 all_validators.into_iter().collect(),
                 validators_len,
-                validators.iter().map(|x| x.len() as ValidatorId).collect(),
+                num_validator_seats_per_shard,
             );
             // No fees mode.
             genesis.config.epoch_length = epoch_length;
@@ -1813,6 +1837,37 @@ mod test {
             );
             let (_store, state_roots) = runtime.genesis_state();
             let genesis_hash = hash(&[0]);
+            let chain_head = Tip {
+                last_block_hash: genesis_hash,
+                prev_block_hash: CryptoHash::default(),
+                height: 0,
+                epoch_id: EpochId::default(),
+                next_epoch_id: Default::default(),
+            };
+            #[cfg(feature = "protocol_feature_flat_state")]
+            {
+                let mock_chain = MockChain {
+                    height_to_hashes: HashMap::from([(
+                        chain_head.height,
+                        chain_head.last_block_hash,
+                    )]),
+                    blocks: HashMap::from([(
+                        chain_head.last_block_hash,
+                        flat_state::BlockInfo {
+                            hash: chain_head.last_block_hash,
+                            height: chain_head.height,
+                            prev_hash: chain_head.prev_block_hash,
+                        },
+                    )]),
+                };
+                for shard_id in 0..num_shards {
+                    runtime.create_flat_storage_state_for_shard(
+                        shard_id,
+                        chain_head.height,
+                        &mock_chain,
+                    );
+                }
+            }
             runtime
                 .add_validator_proposals(BlockHeaderInfo {
                     prev_hash: CryptoHash::default(),
@@ -1833,13 +1888,7 @@ mod test {
                 .unwrap();
             Self {
                 runtime,
-                head: Tip {
-                    last_block_hash: genesis_hash,
-                    prev_block_hash: CryptoHash::default(),
-                    height: 0,
-                    epoch_id: EpochId::default(),
-                    next_epoch_id: Default::default(),
-                },
+                head: chain_head,
                 state_roots,
                 last_receipts: HashMap::default(),
                 last_proposals: vec![],
