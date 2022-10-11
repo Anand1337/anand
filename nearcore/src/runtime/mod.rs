@@ -1711,11 +1711,13 @@ mod test {
                     Default::default(),
                 )
                 .unwrap();
+            println!("applied txns");
             let mut store_update = self.store.store_update();
             result.trie_changes.insertions_into(&mut store_update);
             result.trie_changes.state_changes_into(&mut store_update);
             match self.get_flat_storage_state_for_shard(shard_id) {
                 Some(flat_storage_state) => {
+                    println!("got fss");
                     let delta =
                         FlatStateDelta::from_state_changes(&result.trie_changes.state_changes());
                     let block_info = flat_state::BlockInfo {
@@ -1727,7 +1729,9 @@ mod test {
                         flat_storage_state.add_block(&block_hash, delta, block_info).unwrap();
                     store_update.merge(new_store_update);
                 }
-                None => {}
+                None => {
+                    println!("no fss");
+                }
             };
             store_update.commit().unwrap();
             (result.new_root, result.validator_proposals, result.outgoing_receipts)
