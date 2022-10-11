@@ -1652,7 +1652,6 @@ mod test {
 
     use super::*;
 
-    use near_primitives::shard_layout::ShardLayoutError;
     use near_primitives::trie_key::TrieKey;
     use primitive_types::U256;
 
