@@ -638,6 +638,29 @@ impl FlatStorageState {
         })))
     }
 
+    pub fn test(
+        store: Store,
+        shard_id: ShardId,
+        genesis_height: BlockHeight,
+        genesis_hash: CryptoHash,
+    ) -> Self {
+        let blocks = HashMap::from([(
+            genesis_hash,
+            BlockInfo {
+                hash: genesis_hash,
+                height: genesis_height,
+                prev_hash: CryptoHash::default(),
+            },
+        )]);
+        Self(Arc::new(RwLock::new(FlatStorageStateInner {
+            store,
+            shard_id,
+            flat_head: genesis_hash,
+            blocks,
+            deltas: HashMap::default(),
+        })))
+    }
+
     /// Get deltas between blocks `target_block_hash`(inclusive) to flat head(inclusive),
     /// in backwards chain order. Returns an error if there is no path between these two them.
     #[cfg(feature = "protocol_feature_flat_state")]

@@ -97,6 +97,7 @@ pub struct NightshadeRuntime {
 impl NightshadeRuntime {
     pub fn from_config(home_dir: &Path, store: Store, config: &NearConfig) -> Self {
         let trie_config = TrieConfig::from_config(&config.config.store);
+        let flat_state_factory = FlatStateFactory::new(store.clone());
 
         Self::new(
             home_dir,
@@ -108,6 +109,7 @@ impl NightshadeRuntime {
             None,
             config.config.gc.gc_num_epochs_to_keep(),
             trie_config,
+            flat_state_factory,
         )
     }
 
@@ -121,6 +123,7 @@ impl NightshadeRuntime {
         runtime_config_store: Option<RuntimeConfigStore>,
         gc_num_epochs_to_keep: u64,
         trie_config: TrieConfig,
+        flat_state_factory: FlatStateFactory,
     ) -> Self {
         let runtime_config_store = match runtime_config_store {
             Some(store) => store,
@@ -139,7 +142,6 @@ impl NightshadeRuntime {
         );
         let state_roots =
             Self::initialize_genesis_state_if_needed(store.clone(), home_dir, genesis);
-        let flat_state_factory = FlatStateFactory::new(store.clone());
         let tries = ShardTries::new(
             store.clone(),
             trie_config,
@@ -183,6 +185,7 @@ impl NightshadeRuntime {
             Some(runtime_config_store),
             DEFAULT_GC_NUM_EPOCHS_TO_KEEP,
             Default::default(),
+            FlatStateFactory::new(store.clone()),
         )
     }
 
@@ -1824,6 +1827,14 @@ mod test {
             }
             let genesis_total_supply = genesis.config.total_supply;
             let genesis_protocol_version = genesis.config.protocol_version;
+            let flat_state_factory = FlatStateFactory::new(store.clone());
+            let genesis_hash = hash(&[0]);
+            for shard_id in 0..num_shards {
+                let flat_storage_state =
+                    FlatStorageState::test(store.clone(), shard_id as ShardId, 0, genesis_hash);
+                flat_state_factory
+                    .add_flat_storage_state_for_shard(shard_id as ShardId, flat_storage_state);
+            }
             let runtime = NightshadeRuntime::new(
                 dir.path(),
                 store,
@@ -1834,9 +1845,9 @@ mod test {
                 Some(RuntimeConfigStore::free()),
                 DEFAULT_GC_NUM_EPOCHS_TO_KEEP,
                 Default::default(),
+                flat_state_factory,
             );
             let (_store, state_roots) = runtime.genesis_state();
-            let genesis_hash = hash(&[0]);
             let chain_head = Tip {
                 last_block_hash: genesis_hash,
                 prev_block_hash: CryptoHash::default(),
@@ -1844,30 +1855,30 @@ mod test {
                 epoch_id: EpochId::default(),
                 next_epoch_id: Default::default(),
             };
-            #[cfg(feature = "protocol_feature_flat_state")]
-            {
-                let mock_chain = MockChain {
-                    height_to_hashes: HashMap::from([(
-                        chain_head.height,
-                        chain_head.last_block_hash,
-                    )]),
-                    blocks: HashMap::from([(
-                        chain_head.last_block_hash,
-                        flat_state::BlockInfo {
-                            hash: chain_head.last_block_hash,
-                            height: chain_head.height,
-                            prev_hash: chain_head.prev_block_hash,
-                        },
-                    )]),
-                };
-                for shard_id in 0..num_shards {
-                    runtime.create_flat_storage_state_for_shard(
-                        shard_id as ShardId,
-                        chain_head.height,
-                        &mock_chain,
-                    );
-                }
-            }
+            // #[cfg(feature = "protocol_feature_flat_state")]
+            // {
+            //     let mock_chain = MockChain {
+            //         height_to_hashes: HashMap::from([(
+            //             chain_head.height,
+            //             chain_head.last_block_hash,
+            //         )]),
+            //         blocks: HashMap::from([(
+            //             chain_head.last_block_hash,
+            //             flat_state::BlockInfo {
+            //                 hash: chain_head.last_block_hash,
+            //                 height: chain_head.height,
+            //                 prev_hash: chain_head.prev_block_hash,
+            //             },
+            //         )]),
+            //     };
+            //     for shard_id in 0..num_shards {
+            //         runtime.create_flat_storage_state_for_shard(
+            //             shard_id as ShardId,
+            //             chain_head.height,
+            //             &mock_chain,
+            //         );
+            //     }
+            // }
             runtime
                 .add_validator_proposals(BlockHeaderInfo {
                     prev_hash: CryptoHash::default(),
