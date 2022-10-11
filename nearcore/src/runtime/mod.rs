@@ -1651,7 +1651,7 @@ mod test {
     use near_primitives::views::{
         AccountView, CurrentEpochValidatorInfo, NextEpochValidatorInfo, ValidatorKickoutView,
     };
-    use near_store::{flat_state, NodeStorage, Temperature};
+    use near_store::{flat_state, FlatStateDelta, NodeStorage, Temperature};
 
     use super::*;
 
@@ -1714,6 +1714,21 @@ mod test {
             let mut store_update = self.store.store_update();
             result.trie_changes.insertions_into(&mut store_update);
             result.trie_changes.state_changes_into(&mut store_update);
+            match self.get_flat_storage_state_for_shard(shard_id) {
+                Some(flat_storage_state) => {
+                    let delta =
+                        FlatStateDelta::from_state_changes(&result.trie_changes.state_changes());
+                    let block_info = flat_state::BlockInfo {
+                        hash: block_hash.clone(),
+                        height,
+                        prev_hash: prev_block_hash.clone(),
+                    };
+                    let new_store_update =
+                        flat_storage_state.add_block(&block_hash, delta, block_info).unwrap();
+                    store_update.merge(new_store_update);
+                }
+                None => {}
+            };
             store_update.commit().unwrap();
             (result.new_root, result.validator_proposals, result.outgoing_receipts)
         }
@@ -1855,30 +1870,6 @@ mod test {
                 epoch_id: EpochId::default(),
                 next_epoch_id: Default::default(),
             };
-            // #[cfg(feature = "protocol_feature_flat_state")]
-            // {
-            //     let mock_chain = MockChain {
-            //         height_to_hashes: HashMap::from([(
-            //             chain_head.height,
-            //             chain_head.last_block_hash,
-            //         )]),
-            //         blocks: HashMap::from([(
-            //             chain_head.last_block_hash,
-            //             flat_state::BlockInfo {
-            //                 hash: chain_head.last_block_hash,
-            //                 height: chain_head.height,
-            //                 prev_hash: chain_head.prev_block_hash,
-            //             },
-            //         )]),
-            //     };
-            //     for shard_id in 0..num_shards {
-            //         runtime.create_flat_storage_state_for_shard(
-            //             shard_id as ShardId,
-            //             chain_head.height,
-            //             &mock_chain,
-            //         );
-            //     }
-            // }
             runtime
                 .add_validator_proposals(BlockHeaderInfo {
                     prev_hash: CryptoHash::default(),
