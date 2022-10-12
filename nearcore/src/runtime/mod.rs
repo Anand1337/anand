@@ -1963,32 +1963,32 @@ mod test {
                 self.last_shard_proposals.insert(i as ShardId, proposals);
             }
 
-            let head_prev_block_hash = self.head.last_block_hash;
-            let shard_layout =
-                self.runtime.get_shard_layout_from_prev_block(&head_prev_block_hash).unwrap();
-            for validator in &self.validators {
-                let shard_id = account_id_to_shard_id(validator, &shard_layout);
-                let state_root = old_state_roots[shard_id as usize];
-                let state = self
-                    .runtime
-                    .get_trie_for_shard(shard_id, &head_prev_block_hash, state_root)
-                    .unwrap();
-                let view_state = self
-                    .runtime
-                    .get_view_trie_for_shard(shard_id, &head_prev_block_hash, state_root)
-                    .unwrap();
-                println!("{} ?", validator);
-                let trie_key = TrieKey::Account { account_id: validator.clone() };
-                let key = trie_key.to_vec();
-
-                let state_value = state.get(&key).unwrap().unwrap();
-                let account = Account::try_from_slice(&state_value).unwrap();
-
-                let view_state_value = view_state.get(&key).unwrap().unwrap();
-                let view_account = Account::try_from_slice(&view_state_value).unwrap();
-
-                println!("{:?} {:?}", account, view_account);
-            }
+            // let head_prev_block_hash = self.head.last_block_hash;
+            // let shard_layout =
+            //     self.runtime.get_shard_layout_from_prev_block(&head_prev_block_hash).unwrap();
+            // for validator in &self.validators {
+            //     let shard_id = account_id_to_shard_id(validator, &shard_layout);
+            //     let state_root = old_state_roots[shard_id as usize];
+            //     let state = self
+            //         .runtime
+            //         .get_trie_for_shard(shard_id, &head_prev_block_hash, state_root)
+            //         .unwrap();
+            //     let view_state = self
+            //         .runtime
+            //         .get_view_trie_for_shard(shard_id, &head_prev_block_hash, state_root)
+            //         .unwrap();
+            //     println!("{} ?", validator);
+            //     let trie_key = TrieKey::Account { account_id: validator.clone() };
+            //     let key = trie_key.to_vec();
+            //
+            //     let state_value = state.get(&key).unwrap().unwrap();
+            //     let account = Account::try_from_slice(&state_value).unwrap();
+            //
+            //     let view_state_value = view_state.get(&key).unwrap().unwrap();
+            //     let view_account = Account::try_from_slice(&view_state_value).unwrap();
+            //
+            //     println!("{:?} {:?}", account, view_account);
+            // }
 
             self.runtime
                 .add_validator_proposals(BlockHeaderInfo {
