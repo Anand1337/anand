@@ -1712,10 +1712,6 @@ mod test {
                 )
                 .unwrap();
             println!("applied txns");
-            let mut store_update = self.store.store_update();
-            result.trie_changes.insertions_into(&mut store_update);
-            result.trie_changes.state_changes_into(&mut store_update);
-            store_update.commit().unwrap();
 
             let mut store_update = self.store.store_update();
             match self.get_flat_storage_state_for_shard(shard_id) {
@@ -1749,6 +1745,11 @@ mod test {
                     println!("no fss");
                 }
             }
+            store_update.commit().unwrap();
+
+            let mut store_update = self.store.store_update();
+            result.trie_changes.insertions_into(&mut store_update);
+            result.trie_changes.state_changes_into(&mut store_update);
             store_update.commit().unwrap();
 
             (result.new_root, result.validator_proposals, result.outgoing_receipts)
