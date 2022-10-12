@@ -1713,26 +1713,7 @@ mod test {
                 .unwrap();
             println!("applied txns");
 
-            let mut store_update = self.store.store_update();
             let delta = FlatStateDelta::from_state_changes(&result.trie_changes.state_changes());
-            match self.get_flat_storage_state_for_shard(shard_id) {
-                Some(flat_storage_state) => {
-                    println!("got fss for shard {}", shard_id);
-                    let block_info = flat_state::BlockInfo {
-                        hash: block_hash.clone(),
-                        height,
-                        prev_hash: prev_block_hash.clone(),
-                    };
-                    let new_store_update = flat_storage_state
-                        .add_block(&block_hash, delta.clone(), block_info)
-                        .unwrap();
-                    store_update.merge(new_store_update);
-                }
-                None => {
-                    println!("no fss");
-                }
-            }
-            store_update.commit().unwrap();
 
             let mut store_update = self.store.store_update();
             result.trie_changes.insertions_into(&mut store_update);
@@ -1751,6 +1732,24 @@ mod test {
                 let sr = StateRecord::from_raw_key_value(key.clone(), value).unwrap();
                 println!("from delta: {}", sr);
             }
+            let mut store_update = self.store.store_update();
+            match self.get_flat_storage_state_for_shard(shard_id) {
+                Some(flat_storage_state) => {
+                    println!("got fss for shard {}", shard_id);
+                    let block_info = flat_state::BlockInfo {
+                        hash: block_hash.clone(),
+                        height,
+                        prev_hash: prev_block_hash.clone(),
+                    };
+                    let new_store_update =
+                        flat_storage_state.add_block(&block_hash, delta, block_info).unwrap();
+                    store_update.merge(new_store_update);
+                }
+                None => {
+                    println!("no fss");
+                }
+            }
+            store_update.commit().unwrap();
 
             (result.new_root, result.validator_proposals, result.outgoing_receipts)
         }
