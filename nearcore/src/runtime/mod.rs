@@ -1831,7 +1831,7 @@ mod test {
                 validators.iter().map(|x| x.len() as ValidatorId).collect();
             let num_shards = num_validator_seats_per_shard.len();
             let mut genesis = Genesis::test_sharded_new_version(
-                all_validators.into_iter().collect(),
+                all_validators.clone().into_iter().collect(),
                 validators_len,
                 num_validator_seats_per_shard,
             );
@@ -1941,8 +1941,8 @@ mod test {
             let head_prev_block_hash = self.head.last_block_hash;
             let shard_layout =
                 self.runtime.get_shard_layout_from_prev_block(&head_prev_block_hash).unwrap();
-            for validator in self.validators {
-                let shard_id = account_id_to_shard_id(&validator, &shard_layout);
+            for validator in &self.validators {
+                let shard_id = account_id_to_shard_id(validator, &shard_layout);
                 let state_root = self.state_roots[shard_id as usize];
                 let state = self
                     .runtime
