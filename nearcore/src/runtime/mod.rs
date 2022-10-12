@@ -1728,7 +1728,7 @@ mod test {
                     Some(value_ref) => {
                         let value = state
                             .storage
-                            .retrieve_raw_bytes(&value_ref.clone().unwrap().hash)
+                            .retrieve_raw_bytes(&value_ref.clone().hash)
                             .unwrap()
                             .to_vec();
                         let sr = StateRecord::from_raw_key_value(key.clone(), value).unwrap();
