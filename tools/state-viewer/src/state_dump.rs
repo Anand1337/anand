@@ -245,7 +245,9 @@ fn iterate_over_records(
                 false,
             )
             .unwrap();
+        println!("start iterating...");
         for item in trie.iter().unwrap() {
+            println!("item {:?}", item);
             let (key, value) = item.unwrap();
             if let Some(mut sr) = StateRecord::from_raw_key_value(key, value) {
                 if !should_include_record(&sr, &account_allowlist) {
