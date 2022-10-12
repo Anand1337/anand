@@ -1938,7 +1938,6 @@ mod test {
             assert_eq!(chunk_mask.len() as NumShards, num_shards);
             let mut all_proposals = vec![];
             let mut all_receipts = vec![];
-            let old_state_roots = self.state_roots.clone();
 
             for i in 0..num_shards {
                 let (state_root, proposals, receipts) = self.runtime.update(
