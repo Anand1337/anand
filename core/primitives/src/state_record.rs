@@ -160,6 +160,11 @@ pub fn state_record_to_account_id(state_record: &StateRecord) -> &AccountId {
     }
 }
 
+pub fn is_account_key(key: &[u8]) -> bool {
+    debug_assert!(!key.is_empty());
+    key[0] == col::ACCOUNT
+}
+
 pub fn is_contract_code_key(key: &[u8]) -> bool {
     debug_assert!(!key.is_empty());
     key[0] == col::CONTRACT_CODE

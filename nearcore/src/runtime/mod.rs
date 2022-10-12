@@ -1655,6 +1655,7 @@ mod test {
 
     use super::*;
 
+    use near_primitives::state_record::{is_account_key, is_contract_code_key};
     use near_primitives::trie_key::TrieKey;
     use primitive_types::U256;
 
@@ -1715,11 +1716,28 @@ mod test {
             let mut store_update = self.store.store_update();
             result.trie_changes.insertions_into(&mut store_update);
             result.trie_changes.state_changes_into(&mut store_update);
+            store_update.commit().unwrap();
+
+            let mut store_update = self.store.store_update();
             match self.get_flat_storage_state_for_shard(shard_id) {
                 Some(flat_storage_state) => {
                     println!("got fss");
                     let delta =
                         FlatStateDelta::from_state_changes(&result.trie_changes.state_changes());
+                    let state_root = self.state_roots[shard_id as usize];
+                    let state = self
+                        .get_trie_for_shard(shard_id, &prev_block_hash, result.new_root)
+                        .unwrap();
+
+                    let state_value = state.get(&key).unwrap().unwrap();
+                    let account = Account::try_from_slice(&state_value).unwrap();
+                    for (key, value_ref) in delta.0.iter() {
+                        let value = state.get(&value_ref.unwrap().hash.0).unwrap();
+                        let sr =
+                            StateRecord::from_raw_key_value(key.clone(), value.unwrap()).unwrap();
+                        println!("from delta: {}", sr);
+                    }
+                    println!("{}: {:?}", shard_id, delta);
                     let block_info = flat_state::BlockInfo {
                         hash: block_hash.clone(),
                         height,
@@ -1732,8 +1750,9 @@ mod test {
                 None => {
                     println!("no fss");
                 }
-            };
+            }
             store_update.commit().unwrap();
+
             (result.new_root, result.validator_proposals, result.outgoing_receipts)
         }
     }

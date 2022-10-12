@@ -330,7 +330,7 @@ pub struct KeyForFlatStateDelta {
 /// Delta of the state for some shard and block, stores mapping from keys to value refs or None, if key was removed in
 /// this block.
 #[derive(BorshSerialize, BorshDeserialize, Default, Debug)]
-pub struct FlatStateDelta(HashMap<Vec<u8>, Option<ValueRef>>);
+pub struct FlatStateDelta(pub HashMap<Vec<u8>, Option<ValueRef>>);
 
 impl<const N: usize> From<[(Vec<u8>, Option<ValueRef>); N]> for FlatStateDelta {
     fn from(arr: [(Vec<u8>, Option<ValueRef>); N]) -> Self {
