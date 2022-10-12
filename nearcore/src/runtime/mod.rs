@@ -1724,13 +1724,18 @@ mod test {
                 self.get_trie_for_shard(shard_id, &prev_block_hash, result.new_root).unwrap();
 
             for (key, value_ref) in delta.0.iter() {
-                let value = state
-                    .storage
-                    .retrieve_raw_bytes(&value_ref.clone().unwrap().hash)
-                    .unwrap()
-                    .to_vec();
-                let sr = StateRecord::from_raw_key_value(key.clone(), value).unwrap();
-                println!("from delta: {}", sr);
+                match value_ref {
+                    Some(value_ref) => {
+                        let value = state
+                            .storage
+                            .retrieve_raw_bytes(&value_ref.clone().unwrap().hash)
+                            .unwrap()
+                            .to_vec();
+                        let sr = StateRecord::from_raw_key_value(key.clone(), value).unwrap();
+                        println!("from delta: {}", sr);
+                    }
+                    None => {}
+                }
             }
             let mut store_update = self.store.store_update();
             match self.get_flat_storage_state_for_shard(shard_id) {
