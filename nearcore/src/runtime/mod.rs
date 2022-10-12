@@ -1730,7 +1730,7 @@ mod test {
                     for (key, value_ref) in delta.0.iter() {
                         let value = state
                             .storage
-                            .retrieve_raw_bytes(&value_ref.unwrap().hash)
+                            .retrieve_raw_bytes(&value_ref.clone().unwrap().hash)
                             .unwrap()
                             .to_vec();
                         let sr = StateRecord::from_raw_key_value(key.clone(), value).unwrap();
