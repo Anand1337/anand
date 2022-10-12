@@ -1967,14 +1967,10 @@ mod test {
             for validator in &self.validators {
                 let shard_id = account_id_to_shard_id(validator, &shard_layout);
                 let state_root = self.state_roots[shard_id as usize];
-                let state = self
-                    .runtime
-                    .get_trie_for_shard(shard_id, &head_prev_block_hash, state_root)
-                    .unwrap();
-                let view_state = self
-                    .runtime
-                    .get_view_trie_for_shard(shard_id, &head_prev_block_hash, state_root)
-                    .unwrap();
+                let state =
+                    self.runtime.get_trie_for_shard(shard_id, &new_hash, state_root).unwrap();
+                let view_state =
+                    self.runtime.get_view_trie_for_shard(shard_id, &new_hash, state_root).unwrap();
                 println!("{} ?", validator);
                 let trie_key = TrieKey::Account { account_id: validator.clone() };
                 let key = trie_key.to_vec();
