@@ -1724,6 +1724,7 @@ mod test {
                 self.get_trie_for_shard(shard_id, &prev_block_hash, result.new_root).unwrap();
 
             for (key, value_ref) in delta.0.iter() {
+                println!("{} | D {:?} {:?}", shard_id, key, value_ref);
                 match value_ref {
                     Some(value_ref) => {
                         let value = state
