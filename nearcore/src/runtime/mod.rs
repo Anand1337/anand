@@ -1761,12 +1761,12 @@ mod test {
         }
     }
 
-    struct MockChain {
+    struct MockChainForFlatStorage {
         height_to_hashes: HashMap<BlockHeight, CryptoHash>,
         blocks: HashMap<CryptoHash, flat_state::BlockInfo>,
     }
 
-    impl ChainAccessForFlatStorage for MockChain {
+    impl ChainAccessForFlatStorage for MockChainForFlatStorage {
         fn get_block_info(&self, block_hash: &CryptoHash) -> flat_state::BlockInfo {
             self.blocks.get(block_hash).unwrap().clone()
         }
@@ -1776,7 +1776,7 @@ mod test {
         }
     }
 
-    impl MockChain {
+    impl MockChainForFlatStorage {
         fn get_block_hash(&self, height: BlockHeight) -> CryptoHash {
             *self.height_to_hashes.get(&height).unwrap()
         }
@@ -1871,12 +1871,6 @@ mod test {
             let genesis_protocol_version = genesis.config.protocol_version;
             let flat_state_factory = FlatStateFactory::new(store.clone());
             let genesis_hash = hash(&[0]);
-            for shard_id in 0..num_shards {
-                let flat_storage_state =
-                    FlatStorageState::test(store.clone(), shard_id as ShardId, 0, genesis_hash);
-                flat_state_factory
-                    .add_flat_storage_state_for_shard(shard_id as ShardId, flat_storage_state);
-            }
             let runtime = NightshadeRuntime::new(
                 dir.path(),
                 store,
@@ -1889,6 +1883,32 @@ mod test {
                 Default::default(),
                 flat_state_factory,
             );
+            let mut store_update = store.clone().store_update();
+            for shard_id in 0..num_shards {
+                let new_store_update = runtime
+                    .set_flat_storage_state_for_genesis(&genesis_hash, &EpochId::default())
+                    .unwrap();
+                store_update.merge(new_store_update);
+            }
+            store_update.commit().unwrap();
+            let mock_chain = MockChainForFlatStorage {
+                height_to_hashes: HashMap::from([(0, genesis_hash)]),
+                blocks: HashMap::from([(
+                    genesis_hash,
+                    flat_state::BlockInfo {
+                        hash: genesis_hash,
+                        height: 0,
+                        prev_hash: CryptoHash::default(),
+                    },
+                )]),
+            };
+            for shard_id in 0..num_shards {
+                runtime.create_flat_storage_state_for_shard(shard_id as ShardId, 0, &mock_chain);
+                // let flat_storage_state =
+                //     FlatStorageState::test(store.clone(), shard_id as ShardId, 0, genesis_hash);
+                // flat_state_factory
+                //     .add_flat_storage_state_for_shard(shard_id as ShardId, flat_storage_state);
+            }
             let (_store, state_roots) = runtime.genesis_state();
             let chain_head = Tip {
                 last_block_hash: genesis_hash,
