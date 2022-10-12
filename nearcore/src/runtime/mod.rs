@@ -1723,8 +1723,9 @@ mod test {
                         height,
                         prev_hash: prev_block_hash.clone(),
                     };
-                    let new_store_update =
-                        flat_storage_state.add_block(&block_hash, delta, block_info).unwrap();
+                    let new_store_update = flat_storage_state
+                        .add_block(&block_hash, delta.clone(), block_info)
+                        .unwrap();
                     store_update.merge(new_store_update);
                 }
                 None => {
