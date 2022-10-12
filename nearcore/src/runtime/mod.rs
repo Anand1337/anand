@@ -1883,13 +1883,9 @@ mod test {
                 Default::default(),
                 flat_state_factory,
             );
-            let mut store_update = store.clone().store_update();
-            for shard_id in 0..num_shards {
-                let new_store_update = runtime
-                    .set_flat_storage_state_for_genesis(&genesis_hash, &EpochId::default())
-                    .unwrap();
-                store_update.merge(new_store_update);
-            }
+            let store_update = runtime
+                .set_flat_storage_state_for_genesis(&genesis_hash, &EpochId::default())
+                .unwrap();
             store_update.commit().unwrap();
             let mock_chain = MockChainForFlatStorage {
                 height_to_hashes: HashMap::from([(0, genesis_hash)]),
