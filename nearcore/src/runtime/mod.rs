@@ -1714,24 +1714,10 @@ mod test {
             println!("applied txns");
 
             let mut store_update = self.store.store_update();
+            let delta = FlatStateDelta::from_state_changes(&result.trie_changes.state_changes());
             match self.get_flat_storage_state_for_shard(shard_id) {
                 Some(flat_storage_state) => {
                     println!("got fss for shard {}", shard_id);
-                    let delta =
-                        FlatStateDelta::from_state_changes(&result.trie_changes.state_changes());
-                    let state = self
-                        .get_trie_for_shard(shard_id, &prev_block_hash, result.new_root)
-                        .unwrap();
-
-                    for (key, value_ref) in delta.0.iter() {
-                        let value = state
-                            .storage
-                            .retrieve_raw_bytes(&value_ref.clone().unwrap().hash)
-                            .unwrap()
-                            .to_vec();
-                        let sr = StateRecord::from_raw_key_value(key.clone(), value).unwrap();
-                        println!("from delta: {}", sr);
-                    }
                     let block_info = flat_state::BlockInfo {
                         hash: block_hash.clone(),
                         height,
@@ -1751,6 +1737,19 @@ mod test {
             result.trie_changes.insertions_into(&mut store_update);
             result.trie_changes.state_changes_into(&mut store_update);
             store_update.commit().unwrap();
+
+            let state =
+                self.get_trie_for_shard(shard_id, &prev_block_hash, result.new_root).unwrap();
+
+            for (key, value_ref) in delta.0.iter() {
+                let value = state
+                    .storage
+                    .retrieve_raw_bytes(&value_ref.clone().unwrap().hash)
+                    .unwrap()
+                    .to_vec();
+                let sr = StateRecord::from_raw_key_value(key.clone(), value).unwrap();
+                println!("from delta: {}", sr);
+            }
 
             (result.new_root, result.validator_proposals, result.outgoing_receipts)
         }
