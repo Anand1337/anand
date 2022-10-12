@@ -1790,7 +1790,6 @@ mod test {
         pub last_shard_proposals: HashMap<ShardId, Vec<ValidatorStake>>,
         pub last_proposals: Vec<ValidatorStake>,
         time: u64,
-        validators: Vec<AccountId>,
     }
 
     impl TestEnv {
@@ -1924,7 +1923,6 @@ mod test {
                 last_proposals: vec![],
                 last_shard_proposals: HashMap::default(),
                 time: 0,
-                validators: all_validators.iter().cloned().collect(),
             }
         }
 
