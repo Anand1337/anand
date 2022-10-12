@@ -620,6 +620,7 @@ mod test {
     }
 
     #[test]
+    #[ignore]
     fn test_dump_state_shard_upgrade() {
         let epoch_length = 4;
         let (store, genesis, mut env, near_config) =
