@@ -1901,7 +1901,7 @@ mod test {
                 last_proposals: vec![],
                 last_shard_proposals: HashMap::default(),
                 time: 0,
-                validators: all_validators.iter().collect(),
+                validators: all_validators.iter().cloned().collect(),
             }
         }
 
@@ -1943,12 +1943,12 @@ mod test {
                 self.runtime.get_shard_layout_from_prev_block(&head_prev_block_hash).unwrap();
             for validator in self.validators {
                 let shard_id = account_id_to_shard_id(&validator, &shard_layout);
-                let state_root = self.state_roots[shard_id];
-                let state = env
+                let state_root = self.state_roots[shard_id as usize];
+                let state = self
                     .runtime
                     .get_trie_for_shard(shard_id, &head_prev_block_hash, state_root)
                     .unwrap();
-                let view_state = env
+                let view_state = self
                     .runtime
                     .get_view_trie_for_shard(shard_id, &head_prev_block_hash, state_root)
                     .unwrap();
