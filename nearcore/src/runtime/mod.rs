@@ -1721,10 +1721,9 @@ mod test {
             let mut store_update = self.store.store_update();
             match self.get_flat_storage_state_for_shard(shard_id) {
                 Some(flat_storage_state) => {
-                    println!("got fss");
+                    println!("got fss for shard {}", shard_id);
                     let delta =
                         FlatStateDelta::from_state_changes(&result.trie_changes.state_changes());
-                    let state_root = self.state_roots[shard_id as usize];
                     let state = self
                         .get_trie_for_shard(shard_id, &prev_block_hash, result.new_root)
                         .unwrap();
@@ -1737,7 +1736,6 @@ mod test {
                             StateRecord::from_raw_key_value(key.clone(), value.unwrap()).unwrap();
                         println!("from delta: {}", sr);
                     }
-                    println!("{}: {:?}", shard_id, delta);
                     let block_info = flat_state::BlockInfo {
                         hash: block_hash.clone(),
                         height,
