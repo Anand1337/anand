@@ -1655,7 +1655,6 @@ mod test {
 
     use super::*;
 
-    use near_primitives::state_record::{is_account_key, is_contract_code_key};
     use near_primitives::trie_key::TrieKey;
     use primitive_types::U256;
 
@@ -1728,12 +1727,13 @@ mod test {
                         .get_trie_for_shard(shard_id, &prev_block_hash, result.new_root)
                         .unwrap();
 
-                    let state_value = state.get(&key).unwrap().unwrap();
-                    let account = Account::try_from_slice(&state_value).unwrap();
                     for (key, value_ref) in delta.0.iter() {
-                        let value = state.get(&value_ref.unwrap().hash.0).unwrap();
-                        let sr =
-                            StateRecord::from_raw_key_value(key.clone(), value.unwrap()).unwrap();
+                        let value = state
+                            .storage
+                            .retrieve_raw_bytes(&value_ref.unwrap().hash)
+                            .unwrap()
+                            .to_vec();
+                        let sr = StateRecord::from_raw_key_value(key.clone(), value).unwrap();
                         println!("from delta: {}", sr);
                     }
                     let block_info = flat_state::BlockInfo {
