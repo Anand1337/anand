@@ -659,7 +659,6 @@ mod test {
 
     /// If the node does not track a shard, state dump will not give the correct result.
     #[test]
-    #[ignore]
     #[should_panic(expected = "Trie node missing")]
     fn test_dump_state_not_track_shard() {
         let epoch_length = 4;
