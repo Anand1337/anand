@@ -1974,6 +1974,7 @@ mod test {
                     .runtime
                     .get_view_trie_for_shard(shard_id, &head_prev_block_hash, state_root)
                     .unwrap();
+                println!("{} ?", validator);
                 let trie_key = TrieKey::Account { account_id: validator.clone() };
                 let key = trie_key.to_vec();
 
@@ -1983,7 +1984,7 @@ mod test {
                 let view_state_value = view_state.get(&key).unwrap().unwrap();
                 let view_account = Account::try_from_slice(&view_state_value).unwrap();
 
-                println!("{} {:?} {:?}", validator, account, view_account);
+                println!("{:?} {:?}", account, view_account);
             }
 
             self.runtime
