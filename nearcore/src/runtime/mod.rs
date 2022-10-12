@@ -1940,6 +1940,8 @@ mod test {
             assert_eq!(chunk_mask.len() as NumShards, num_shards);
             let mut all_proposals = vec![];
             let mut all_receipts = vec![];
+            let old_state_roots = self.state_roots.clone();
+
             for i in 0..num_shards {
                 let (state_root, proposals, receipts) = self.runtime.update(
                     &self.state_roots[i as usize],
@@ -1966,11 +1968,15 @@ mod test {
                 self.runtime.get_shard_layout_from_prev_block(&head_prev_block_hash).unwrap();
             for validator in &self.validators {
                 let shard_id = account_id_to_shard_id(validator, &shard_layout);
-                let state_root = self.state_roots[shard_id as usize];
-                let state =
-                    self.runtime.get_trie_for_shard(shard_id, &new_hash, state_root).unwrap();
-                let view_state =
-                    self.runtime.get_view_trie_for_shard(shard_id, &new_hash, state_root).unwrap();
+                let state_root = old_state_roots[shard_id as usize];
+                let state = self
+                    .runtime
+                    .get_trie_for_shard(shard_id, &head_prev_block_hash, state_root)
+                    .unwrap();
+                let view_state = self
+                    .runtime
+                    .get_view_trie_for_shard(shard_id, &head_prev_block_hash, state_root)
+                    .unwrap();
                 println!("{} ?", validator);
                 let trie_key = TrieKey::Account { account_id: validator.clone() };
                 let key = trie_key.to_vec();
