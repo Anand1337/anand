@@ -18,14 +18,16 @@ fn setup_subscriber_from_filter(mut env_filter: EnvFilter) {
     }
 
     let _ = subscriber_fmt::Subscriber::builder()
-        .with_span_events(subscriber_fmt::format::FmtSpan::CLOSE)
+        .with_span_events(subscriber_fmt::format::FmtSpan::CLOSE | subscriber_fmt::format::FmtSpan::ENTER)
         .with_env_filter(env_filter)
         .with_writer(subscriber_fmt::TestWriter::new())
+        .with_ansi(false)
         .try_init();
 }
 
 pub fn init_test_logger() {
-    let env_filter = EnvFilter::new("tokio_reactor=info,tokio_core=info,hyper=info,debug");
+    let env_filter = EnvFilter::new("tokio_reactor=info,tokio_core=info,hyper=info,trace");
+    // let env_filter = EnvFilter::new("tokio_reactor=info,tokio_core=info,hyper=info,debug");
     setup_subscriber_from_filter(env_filter);
 }
 

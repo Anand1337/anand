@@ -1192,6 +1192,7 @@ impl Handler<stream::Frame> for PeerActor {
                 debug!(target: "network", "Duplicate handshake from {}", self.peer_info);
             }
             (PeerStatus::Ready, PeerMessage::PeersRequest) => {
+                tracing::error!("PeerActor::PeersRequest");
                 self.network_state.peer_manager_addr.send(PeerToManagerMsg::PeersRequest(PeersRequest {}).with_span_context())
                 .into_actor(self).then(|res, act, _ctx| {
                     if let Ok(peers) = res.map(|f|f.unwrap_peers_request_result()) {
@@ -1204,6 +1205,7 @@ impl Handler<stream::Frame> for PeerActor {
                 }).spawn(ctx);
             }
             (PeerStatus::Ready, PeerMessage::PeersResponse(peers)) => {
+                tracing::error!("PeerActor::PeersResponse");
                 debug!(target: "network", "Received peers from {}: {} peers.", self.peer_info, peers.len());
                 self.network_state.peer_manager_addr.do_send(
                     PeerToManagerMsg::PeersResponse(PeersResponse { peers }).with_span_context(),

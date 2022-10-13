@@ -76,10 +76,12 @@ impl Handler<WithSpanContext<PeerToManagerMsg>> for FakePeerManagerActor {
         msg: WithSpanContext<PeerToManagerMsg>,
         _ctx: &mut Self::Context,
     ) -> Self::Result {
+        tracing::info!("handle");
         let msg = msg.msg;
         let msg_type: &str = (&msg).into();
-        println!("{}: PeerManager message {}", self.cfg.id(), msg_type);
-        match msg {
+        tracing::info!("{}: PeerManager message {}", self.cfg.id(), msg_type);
+        tracing::info!("{:#?}",msg);
+        let res = match msg {
             PeerToManagerMsg::RegisterPeer(..) => {
                 PeerToManagerMsgResp::RegisterPeer(RegisterPeerResponse::Accept)
             }
@@ -99,7 +101,9 @@ impl Handler<WithSpanContext<PeerToManagerMsg>> for FakePeerManagerActor {
             PeerToManagerMsg::PeersResponse(..) => PeerToManagerMsgResp::Empty,
             PeerToManagerMsg::Unregister(_) => PeerToManagerMsgResp::Empty,
             _ => panic!("unsupported message"),
-        }
+        };
+        tracing::error!("Handle result: {:#?}",res);
+        res
     }
 }
 
@@ -111,6 +115,7 @@ pub(crate) struct PeerHandle {
 
 impl PeerHandle {
     pub async fn send(&self, message: PeerMessage) {
+        tracing::info!("send");
         self.actix
             .addr
             .send(SendMessage { message: Arc::new(message) }.with_span_context())
@@ -119,6 +124,7 @@ impl PeerHandle {
     }
 
     pub async fn complete_handshake(&mut self) -> Edge {
+        tracing::info!("complete_handshake");
         self.events
             .recv_until(|ev| match ev {
                 Event::Network(peer_manager_actor::Event::HandshakeCompleted(ev)) => Some(ev.edge),
@@ -130,6 +136,7 @@ impl PeerHandle {
             .await
     }
     pub async fn fail_handshake(&mut self) -> ClosingReason {
+        tracing::info!("fail_handshake");
         self.events
             .recv_until(|ev| match ev {
                 Event::Network(peer_manager_actor::Event::ConnectionClosed(ev)) => Some(ev.reason),
@@ -148,6 +155,7 @@ impl PeerHandle {
         ttl: u8,
         utc: Option<time::Utc>,
     ) -> RoutedMessageV2 {
+        tracing::info!("routed_message");
         RawRoutedMessage { target: AccountOrPeerIdOrHash::PeerId(peer_id), body }.sign(
             &self.cfg.network.node_key,
             ttl,
@@ -160,10 +168,12 @@ impl PeerHandle {
         cfg: PeerConfig,
         stream: tcp::Stream,
     ) -> PeerHandle {
+        tracing::info!("start_endpoint");
         let cfg = Arc::new(cfg);
         let cfg_ = cfg.clone();
         let (send, recv) = broadcast::unbounded_channel();
         let actix = ActixSystem::spawn(move || {
+            tracing::info!("start_endpoint spawn");
             let fpm = FakePeerManagerActor { cfg: cfg.clone(), event_sink: send.sink() }.start();
             let fc = fake_client::start(send.sink().compose(Event::Client));
             let store = store::Store::from(near_store::db::TestDB::new());

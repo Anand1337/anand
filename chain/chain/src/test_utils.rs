@@ -709,7 +709,6 @@ impl RuntimeAdapter for KeyValueRuntime {
         shard_id: ShardId,
         _block_hash: &CryptoHash,
         state_root: StateRoot,
-        _use_flat_storage: bool,
     ) -> Result<Trie, Error> {
         Ok(self
             .tries

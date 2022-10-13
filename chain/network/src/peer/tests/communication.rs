@@ -51,68 +51,93 @@ async fn test_peer_communication(
     // As a workaround, in borsh encoding an empty RoutingTableUpdate is sent.
     // Once borsh support is removed, the initial SyncAccountsData should be consumed in
     // complete_handshake.
-    let filter = |ev| match ev {
-        Event::Network(PME::MessageProcessed(PeerMessage::SyncAccountsData(_))) => None,
-        Event::RoutingTable(_) => None,
-        ev => Some(ev),
+    let filter = |ev| {
+        tracing::info!("filter ev: {:#?}", ev);
+        let res = match ev {
+            Event::Network(PME::MessageProcessed(PeerMessage::SyncAccountsData(_))) => None,
+            Event::RoutingTable(_) => None,
+            ev => Some(ev),
+        };
+        tracing::info!("filter !2 res: {:#?}", res);
+        res
     };
+    tracing::info!("test_peer_communication !9");
 
-    let message_processed = |ev| match ev {
-        Event::Network(PME::MessageProcessed(PeerMessage::SyncAccountsData(_))) => None,
-        Event::Network(PME::MessageProcessed(msg)) => Some(msg),
-        _ => None,
+    let message_processed = |ev| {
+        tracing::info!("message_processed ev: {:#?}", ev);
+        let res = match ev {
+            Event::Network(PME::MessageProcessed(PeerMessage::SyncAccountsData(_))) => None,
+            Event::Network(PME::MessageProcessed(msg)) => Some(msg),
+            _ => None,
+        };
+        tracing::info!("message_processed !2 res: {:#?}", res);
+        res
     };
+    tracing::info!("test_peer_communication !10");
 
+    /*
     // RequestUpdateNonce
     let mut events = inbound.events.from_now();
     let want = PeerMessage::RequestUpdateNonce(data::make_partial_edge(&mut rng));
     outbound.send(want.clone()).await;
     assert_eq!(want, events.recv_until(message_processed).await);
+    tracing::info!("test_peer_communication !11");
 
-    // ReponseUpdateNonce
+    // ResponseUpdateNonce
     let mut events = inbound.events.from_now();
     let a = data::make_signer(&mut rng);
     let b = data::make_signer(&mut rng);
     let want = PeerMessage::ResponseUpdateNonce(data::make_edge(&a, &b));
     outbound.send(want.clone()).await;
     assert_eq!(want, events.recv_until(message_processed).await);
+    tracing::info!("test_peer_communication !12");
+
+     */
 
     // PeersRequest -> PeersResponse
     // This test is different from the rest, because we cannot skip sending the response back.
     let mut events = outbound.events.from_now();
     let want = PeerMessage::PeersResponse(inbound.cfg.peers.clone());
+    tracing::info!("want: {:#?}", want);
     outbound.send(PeerMessage::PeersRequest).await;
     assert_eq!(want, events.recv_until(message_processed).await);
+    tracing::info!("test_peer_communication !13");
 
+    /*
     // BlockRequest
     let mut events = inbound.events.from_now();
     let want = chain.blocks[5].hash().clone();
     outbound.send(PeerMessage::BlockRequest(want.clone())).await;
     assert_eq!(Event::Client(CE::BlockRequest(want)), events.recv_until(filter).await);
+    tracing::info!("test_peer_communication !14");
 
     // Block
     let mut events = inbound.events.from_now();
     let want = PeerMessage::Block(chain.blocks[5].clone());
     outbound.send(want.clone()).await;
     assert_eq!(want, events.recv_until(message_processed).await);
+    tracing::info!("test_peer_communication !15");
 
     // BlockHeadersRequest
     let mut events = inbound.events.from_now();
     let want: Vec<_> = chain.blocks.iter().map(|b| b.hash().clone()).collect();
     outbound.send(PeerMessage::BlockHeadersRequest(want.clone())).await;
     assert_eq!(Event::Client(CE::BlockHeadersRequest(want)), events.recv_until(filter).await);
+    tracing::info!("test_peer_communication !16");
 
     // BlockHeaders
     let mut events = inbound.events.from_now();
     let want = PeerMessage::BlockHeaders(chain.get_block_headers());
     outbound.send(want.clone()).await;
     assert_eq!(want, events.recv_until(message_processed).await);
+    tracing::info!("test_peer_communication !17");
 
     // SyncRoutingTable
     let mut events = inbound.events.from_now();
     let want = data::make_routing_table(&mut rng);
     outbound.send(PeerMessage::SyncRoutingTable(want.clone())).await;
     assert_eq!(Event::RoutingTable(want), events.recv().await);
+    tracing::info!("test_peer_communication !18");
 
     // PartialEncodedChunkRequest
     let mut events = inbound.events.from_now();
@@ -126,14 +151,17 @@ async fn test_peer_communication(
         1,    // ttl
         None, // TODO(gprusak): this should be clock.now_utc(), once borsh support is dropped.
     ));
+    tracing::info!("test_peer_communication !19");
     let want = PeerMessage::Routed(want);
     outbound.send(want.clone()).await;
     assert_eq!(want, events.recv_until(message_processed).await);
+    tracing::info!("test_peer_communication !20");
 
     // PartialEncodedChunkResponse
     let mut events = inbound.events.from_now();
     let want_hash = chain.blocks[3].chunks()[0].chunk_hash();
     let want_parts = data::make_chunk_parts(chain.chunks[&want_hash].clone());
+    tracing::info!("test_peer_communication !21");
     let want = PeerMessage::Routed(Box::new(outbound.routed_message(
         RoutedMessageBody::PartialEncodedChunkResponse(PartialEncodedChunkResponseMsg {
             chunk_hash: want_hash,
@@ -145,6 +173,7 @@ async fn test_peer_communication(
         None, // TODO(gprusak): this should be clock.now_utc(), once borsh support is dropped.
     )));
     outbound.send(want.clone()).await;
+    tracing::info!("test_peer_communication !22");
     assert_eq!(want, events.recv_until(message_processed).await);
 
     // Transaction
@@ -152,39 +181,47 @@ async fn test_peer_communication(
     let want = data::make_signed_transaction(&mut rng);
     let want = PeerMessage::Transaction(want);
     outbound.send(want.clone()).await;
+    tracing::info!("test_peer_communication !23");
     assert_eq!(want, events.recv_until(message_processed).await);
 
     // Challenge
     let mut events = inbound.events.from_now();
     let want = PeerMessage::Challenge(data::make_challenge(&mut rng));
     outbound.send(want.clone()).await;
+    tracing::info!("test_peer_communication !24");
     assert_eq!(want, events.recv_until(message_processed).await);
 
     // EpochSyncRequest
     let mut events = inbound.events.from_now();
     let want = EpochId(chain.blocks[1].hash().clone());
     outbound.send(PeerMessage::EpochSyncRequest(want.clone())).await;
+    tracing::info!("test_peer_communication !25");
     assert_eq!(Event::Client(CE::EpochSyncRequest(want)), events.recv_until(filter).await);
 
     // EpochSyncResponse
     let mut events = inbound.events.from_now();
     let want = PeerMessage::EpochSyncResponse(Box::new(EpochSyncResponse::UpToDate));
     outbound.send(want.clone()).await;
+    tracing::info!("test_peer_communication !26");
     assert_eq!(want, events.recv_until(message_processed).await);
 
     // EpochSyncFinalizationRequest
     let mut events = inbound.events.from_now();
     let want = EpochId(chain.blocks[1].hash().clone());
     outbound.send(PeerMessage::EpochSyncFinalizationRequest(want.clone())).await;
+    tracing::info!("test_peer_communication !27");
     assert_eq!(
         Event::Client(CE::EpochSyncFinalizationRequest(want)),
         events.recv_until(filter).await
     );
+    tracing::info!("test_peer_communication !28");
 
     // TODO:
     // LastEdge, HandshakeFailure, Disconnect - affect the state of the PeerActor and are
     // observable only under specific conditions.
     // ExpochSyncFinalizationResponse - unused.
+
+     */
     Ok(())
 }
 
@@ -286,7 +323,7 @@ async fn handshake() -> anyhow::Result<()> {
     let encodings = [None, Some(Encoding::Proto), Some(Encoding::Borsh)];
     for outbound in &encodings {
         for inbound in &encodings {
-            println!("oubound = {:?}, inbound = {:?}", outbound, inbound);
+            tracing::info!("oubound = {:?}, inbound = {:?}", outbound, inbound);
             if let (Some(a), Some(b)) = (outbound, inbound) {
                 if a != b {
                     continue;
