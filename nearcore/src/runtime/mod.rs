@@ -685,7 +685,8 @@ impl RuntimeAdapter for NightshadeRuntime {
         use_flat_storage: bool,
     ) -> Result<Trie, Error> {
         let shard_uid = self.get_shard_uid_from_prev_hash(shard_id, prev_hash)?;
-        if use_flat_storage {
+        // HACK: leave only shard 0
+        if use_flat_storage && shard_id == 0 {
             Ok(self.tries.get_trie_with_block_hash_for_shard(shard_uid, state_root, prev_hash))
         } else {
             Ok(self.tries.get_trie_for_shard(shard_uid, state_root))

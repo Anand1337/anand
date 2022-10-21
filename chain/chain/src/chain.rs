@@ -646,8 +646,9 @@ impl Chain {
         store_update.commit()?;
 
         // set up flat storage
+        // HACK: leave only shard 0
         #[cfg(feature = "protocol_feature_flat_state")]
-        for shard_id in 0..runtime_adapter.num_shards(&block_head.epoch_id)? {
+        for shard_id in 0..1 {
             runtime_adapter.create_flat_storage_state_for_shard(
                 shard_id,
                 store.head()?.height,
