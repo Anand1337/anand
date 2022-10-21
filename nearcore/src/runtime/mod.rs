@@ -501,6 +501,8 @@ impl NightshadeRuntime {
         };
 
         let instant = Instant::now();
+        let flat_state_trie_checks = trie.flat_state_trie_checks.clone();
+
         let apply_result = self
             .runtime
             .apply(
@@ -568,6 +570,8 @@ impl NightshadeRuntime {
             proof: apply_result.proof,
             processed_delayed_receipts: apply_result.processed_delayed_receipts,
         };
+
+        debug!(target: "store", "fs-trie checks: {}", flat_state_trie_checks.load(std::sync::atomic::Ordering::Relaxed));
 
         Ok(result)
     }

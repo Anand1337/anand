@@ -27,6 +27,7 @@ use crate::StorageError;
 pub use near_primitives::types::TrieNodesCount;
 use std::fmt::Write;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 
 mod config;
 mod insert_delete;
@@ -465,7 +466,7 @@ pub struct Trie {
     pub storage: Box<dyn TrieStorage>,
     root: StateRoot,
     pub flat_state: Option<FlatState>,
-    pub flat_state_trie_checks: AtomicU32,
+    pub flat_state_trie_checks: Arc<AtomicU32>,
 }
 
 /// Trait for reading data from a trie.
