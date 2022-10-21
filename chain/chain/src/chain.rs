@@ -4752,6 +4752,22 @@ impl<'a> ChainUpdate<'a> {
                 self.chain_store_update.merge(store_update);
             }
         }
+
+        // set deltas explicitly during migration
+        #[cfg(all(
+            not(feature = "protocol_feature_flat_state"),
+            feature = "protocol_feature_flat_state_migration"
+        ))]
+        {
+            info!(target: "chain", %shard_id, %block_hash, "Add flat state delta for migration");
+            let delta =
+                FlatStateDelta::from_state_changes(&apply_result.trie_changes.state_changes());
+            let mut store_update = self.chain_store_update.store().store_update();
+            store_helper::set_delta(&mut store_update, shard_id, block_hash.clone(), &delta)
+                .map_err(|e| StorageError::from(e))?;
+            self.chain_store_update.merge(store_update);
+        }
+
         Ok(())
     }
 
@@ -4796,27 +4812,6 @@ impl<'a> ChainUpdate<'a> {
                     shard_id,
                     &apply_result.trie_changes,
                 )?;
-
-                // set deltas explicitly during migration
-                #[cfg(all(
-                    not(feature = "protocol_feature_flat_state"),
-                    feature = "protocol_feature_flat_state_migration"
-                ))]
-                {
-                    info!(target: "chain", %shard_id, %block_hash, "Add flat state delta for migration");
-                    let delta = FlatStateDelta::from_state_changes(
-                        &apply_result.trie_changes.state_changes(),
-                    );
-                    let mut store_update = self.chain_store_update.store().store_update();
-                    store_helper::set_delta(
-                        &mut store_update,
-                        shard_id,
-                        block_hash.clone(),
-                        &delta,
-                    )
-                    .map_err(|e| StorageError::from(e))?;
-                    self.chain_store_update.merge(store_update);
-                }
 
                 self.chain_store_update.save_trie_changes(apply_result.trie_changes);
                 self.chain_store_update.save_outgoing_receipt(
