@@ -389,6 +389,7 @@ impl FlatStateDelta {
 
 use near_primitives::errors::StorageError;
 use std::sync::{Arc, RwLock};
+use tracing::debug;
 
 /// FlatStorageState stores information on which blocks flat storage current supports key lookups on.
 /// Note that this struct is shared by multiple threads, the chain thread, threads that apply chunks,
@@ -404,7 +405,7 @@ pub struct FlatStorageState(Arc<RwLock<FlatStorageStateInner>>);
 #[allow(unused)]
 const FLAT_STORAGE_MAX_BLOCKS: u64 = 16;
 
-#[derive(BorshSerialize, BorshDeserialize, Clone, PartialEq, Eq)]
+#[derive(BorshSerialize, BorshDeserialize, Clone, PartialEq, Eq, Debug)]
 pub struct BlockInfo {
     pub hash: CryptoHash,
     pub height: BlockHeight,
@@ -596,6 +597,7 @@ impl FlatStorageState {
     ) -> Self {
         let flat_head = store_helper::get_flat_head(&store, shard_id);
         let flat_head_info = chain_access.get_block_info(&flat_head);
+        debug!(target: "store", "flat head info: {:?}", flat_head_info);
         let flat_head_height = flat_head_info.height;
         let mut blocks = HashMap::from([(
             flat_head,
@@ -609,6 +611,7 @@ impl FlatStorageState {
         for height in flat_head_height + 1..=latest_block_height {
             for hash in chain_access.get_block_hashes_at_height(height) {
                 let block_info = chain_access.get_block_info(&hash);
+                debug!(target: "store", "getting delta for block with info: {:?}", block_info);
                 assert!(
                     blocks.contains_key(&block_info.prev_hash),
                     "Can't find a path from the current flat head {:?}@{} to block {:?}@{}",
