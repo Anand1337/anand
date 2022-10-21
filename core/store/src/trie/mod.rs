@@ -26,6 +26,7 @@ use crate::trie::trie_storage::{TrieMemoryPartialStorage, TrieRecordingStorage};
 use crate::StorageError;
 pub use near_primitives::types::TrieNodesCount;
 use std::fmt::Write;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 mod config;
 mod insert_delete;
@@ -464,6 +465,7 @@ pub struct Trie {
     pub storage: Box<dyn TrieStorage>,
     root: StateRoot,
     pub flat_state: Option<FlatState>,
+    pub flat_state_trie_checks: AtomicU32,
 }
 
 /// Trait for reading data from a trie.
@@ -544,7 +546,7 @@ impl Trie {
         root: StateRoot,
         flat_state: Option<FlatState>,
     ) -> Self {
-        Trie { storage, root, flat_state }
+        Trie { storage, root, flat_state, flat_state_trie_checks: Default::default() }
     }
 
     pub fn recording_reads(&self) -> Self {
@@ -555,7 +557,12 @@ impl Trie {
             shard_uid: storage.shard_uid,
             recorded: RefCell::new(Default::default()),
         };
-        Trie { storage: Box::new(storage), root: self.root.clone(), flat_state: None }
+        Trie {
+            storage: Box::new(storage),
+            root: self.root.clone(),
+            flat_state: None,
+            flat_state_trie_checks: Default::default(),
+        }
     }
 
     pub fn recorded_storage(&self) -> Option<PartialStorage> {
@@ -880,6 +887,7 @@ impl Trie {
         let is_delayed = is_delayed_receipt_key(key);
         match &self.flat_state {
             Some(flat_state) if !is_delayed => {
+                self.flat_state_trie_checks.fetch_add(1, Ordering::Relaxed);
                 let flat_result = flat_state.get_ref(&key);
                 assert_eq!(result, flat_result);
             }
