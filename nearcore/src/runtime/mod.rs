@@ -571,7 +571,7 @@ impl NightshadeRuntime {
             processed_delayed_receipts: apply_result.processed_delayed_receipts,
         };
 
-        debug!(target: "store", "fs-trie checks: {}", flat_state_trie_checks.load(std::sync::atomic::Ordering::Relaxed));
+        debug!(target: "store", %shard_id, %block_height, %block_hash, "fs-trie checks: {}", flat_state_trie_checks.load(std::sync::atomic::Ordering::Relaxed));
 
         Ok(result)
     }
