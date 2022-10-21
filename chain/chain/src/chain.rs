@@ -4760,8 +4760,7 @@ impl<'a> ChainUpdate<'a> {
         ))]
         {
             info!(target: "chain", %shard_id, %block_hash, "Add flat state delta for migration");
-            let delta =
-                FlatStateDelta::from_state_changes(&apply_result.trie_changes.state_changes());
+            let delta = FlatStateDelta::from_state_changes(&trie_changes.state_changes());
             let mut store_update = self.chain_store_update.store().store_update();
             store_helper::set_delta(&mut store_update, shard_id, block_hash.clone(), &delta)
                 .map_err(|e| StorageError::from(e))?;
