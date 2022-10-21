@@ -608,6 +608,7 @@ impl FlatStorageState {
             },
         )]);
         let mut deltas = HashMap::new();
+        debug!(target: "store", "latest height: {}", latest_block_height);
         for height in flat_head_height + 1..=latest_block_height {
             for hash in chain_access.get_block_hashes_at_height(height) {
                 let block_info = chain_access.get_block_info(&hash);
