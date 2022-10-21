@@ -501,7 +501,6 @@ impl NightshadeRuntime {
         };
 
         let instant = Instant::now();
-        let flat_state_trie_checks = trie.flat_state_trie_checks.clone();
 
         let apply_result = self
             .runtime
@@ -570,8 +569,6 @@ impl NightshadeRuntime {
             proof: apply_result.proof,
             processed_delayed_receipts: apply_result.processed_delayed_receipts,
         };
-
-        debug!(target: "store", %shard_id, %block_height, %block_hash, "fs-trie checks: {}", flat_state_trie_checks.load(std::sync::atomic::Ordering::Relaxed));
 
         Ok(result)
     }
@@ -689,8 +686,8 @@ impl RuntimeAdapter for NightshadeRuntime {
         use_flat_storage: bool,
     ) -> Result<Trie, Error> {
         let shard_uid = self.get_shard_uid_from_prev_hash(shard_id, prev_hash)?;
-        // HACK: leave only shard 0
-        if use_flat_storage && shard_id == 0 {
+        // HACK: leave only shards < 3
+        if use_flat_storage && shard_id < 3 {
             Ok(self.tries.get_trie_with_block_hash_for_shard(shard_uid, state_root, prev_hash))
         } else {
             Ok(self.tries.get_trie_for_shard(shard_uid, state_root))
