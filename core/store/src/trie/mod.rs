@@ -914,7 +914,7 @@ impl Trie {
                 if let Some(flat_state) = &self.flat_state {
                     self.flat_state_trie_checks.fetch_add(1, Ordering::Relaxed);
                     let flat_result = flat_state.get_ref(&key);
-                    assert_eq!(result, flat_result);
+                    assert_ne!(result, flat_result);
                 }
             }
         }
