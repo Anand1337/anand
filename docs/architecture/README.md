@@ -7,6 +7,8 @@ For reference documentation of the protocol, please refer to
 
 Some parts of our architecture are also covered in this [video series on YouTube](https://www.youtube.com/playlist?list=PL9tzQn_TEuFV4qlts0tVgndnytFs4QSYo).
 
+Adding some more documentation.
+
 ## Bird's Eye View
 
 If we put the entirety of nearcore onto one picture, we get something like this:
