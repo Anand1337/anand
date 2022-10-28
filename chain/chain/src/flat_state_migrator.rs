@@ -2,7 +2,7 @@ use crate::RuntimeAdapter;
 use near_primitives::types::{BlockHeight, NumShards};
 use std::sync::Arc;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MigrationStatus {
     SavingDeltas,
     FetchingState,
