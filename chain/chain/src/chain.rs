@@ -59,6 +59,7 @@ use crate::block_processing_utils::{
 };
 use crate::blocks_delay_tracker::BlocksDelayTracker;
 use crate::crypto_hash_timer::CryptoHashTimer;
+use crate::flat_state_migrator::{FlatStorageMigrator, MigrationStatus};
 use crate::lightclient::get_epoch_block_producers_view;
 use crate::migrations::check_if_block_is_first_with_chunk_of_version;
 use crate::missing_chunks::{BlockLike, MissingChunksPool};
@@ -84,7 +85,7 @@ use near_primitives::shard_layout::{
 use near_primitives::version::PROTOCOL_VERSION;
 #[cfg(feature = "protocol_feature_flat_state")]
 use near_store::flat_state::FlatStateDelta;
-use near_store::flat_state::FlatStorageError;
+use near_store::flat_state::{store_helper, FlatStorageError};
 use once_cell::sync::OnceCell;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
@@ -442,6 +443,7 @@ pub struct Chain {
     apply_chunks_receiver: Receiver<BlockApplyChunksResult>,
     /// Time when head was updated most recently.
     last_time_head_updated: Instant,
+    flat_storage_migrator: Option<FlatStorageMigrator>,
 
     /// Support for sandbox's patch_state requests.
     ///
@@ -517,6 +519,7 @@ impl Chain {
             apply_chunks_sender: sc,
             apply_chunks_receiver: rc,
             last_time_head_updated: Clock::instant(),
+            flat_storage_migrator: None,
             pending_state_patch: Default::default(),
         })
     }
@@ -633,14 +636,26 @@ impl Chain {
         store_update.commit()?;
 
         // set up flat storage
-        #[cfg(feature = "protocol_feature_flat_state")]
-        for shard_id in 0..runtime_adapter.num_shards(&block_head.epoch_id)? {
-            runtime_adapter.create_flat_storage_state_for_shard(
-                shard_id,
-                store.head()?.height,
-                &store,
-            );
-        }
+        let num_shards = runtime_adapter.num_shards(&block_head.epoch_id)?;
+        let existing_flat_storages = (0..num_shards)
+            .map(|shard_id| store_helper::get_flat_head(store.store(), shard_id).is_some() as u64)
+            .sum();
+        let flat_storage_migrator = match existing_flat_storages {
+            0 => Some(FlatStorageMigrator { runtime_adapter: runtime_adapter.clone(), statuses: vec![], starting_height: store.head()?.height }),
+            num_shards =>
+            {
+                #[cfg(feature = "protocol_feature_flat_state")]
+                for shard_id in 0..num_shards {
+                    runtime_adapter.create_flat_storage_state_for_shard(
+                        shard_id,
+                        store.head()?.height,
+                        &store,
+                    );
+                }
+                None
+            },
+            _ => panic!("Found {existing_flat_storages} flat storages, which doesn't match neither 0 nor {num_shards}")
+        };
 
         info!(target: "chain", "Init: header head @ #{} {}; block head @ #{} {}",
               header_head.height, header_head.last_block_hash,
@@ -673,6 +688,7 @@ impl Chain {
             apply_chunks_sender: sc,
             apply_chunks_receiver: rc,
             last_time_head_updated: Clock::instant(),
+            flat_storage_migrator,
             pending_state_patch: Default::default(),
         })
     }
@@ -3881,6 +3897,7 @@ impl Chain {
             self.runtime_adapter.clone(),
             self.doomslug_threshold_mode,
             self.transaction_validity_period,
+            &self.flat_storage_migrator,
         )
     }
 
@@ -4460,6 +4477,7 @@ pub struct ChainUpdate<'a> {
     doomslug_threshold_mode: DoomslugThresholdMode,
     #[allow(unused)]
     transaction_validity_period: BlockHeightDelta,
+    flat_storage_migrator: &'a Option<FlatStorageMigrator>,
 }
 
 pub struct SameHeightResult {
@@ -4493,6 +4511,7 @@ impl<'a> ChainUpdate<'a> {
         runtime_adapter: Arc<dyn RuntimeAdapter>,
         doomslug_threshold_mode: DoomslugThresholdMode,
         transaction_validity_period: BlockHeightDelta,
+        flat_storage_migrator: &'a Option<FlatStorageMigrator>,
     ) -> Self {
         let chain_store_update: ChainStoreUpdate<'_> = store.store_update();
         Self::new_impl(
@@ -4500,6 +4519,7 @@ impl<'a> ChainUpdate<'a> {
             doomslug_threshold_mode,
             transaction_validity_period,
             chain_store_update,
+            flat_storage_migrator,
         )
     }
 
@@ -4508,12 +4528,14 @@ impl<'a> ChainUpdate<'a> {
         doomslug_threshold_mode: DoomslugThresholdMode,
         transaction_validity_period: BlockHeightDelta,
         chain_store_update: ChainStoreUpdate<'a>,
+        flat_storage_migrator: &'a Option<FlatStorageMigrator>,
     ) -> Self {
         ChainUpdate {
             runtime_adapter,
             chain_store_update,
             doomslug_threshold_mode,
             transaction_validity_period,
+            flat_storage_migrator,
         }
     }
 
@@ -4732,13 +4754,32 @@ impl<'a> ChainUpdate<'a> {
         // the delta for the shards that we are tracking this epoch
         #[cfg(feature = "protocol_feature_flat_state")]
         if self.runtime_adapter.cares_about_shard(me.as_ref(), &prev_hash, shard_id, true) {
-            if let Some(chain_flat_storage) =
-                self.runtime_adapter.get_flat_storage_state_for_shard(shard_id)
-            {
+            let migrated = match self.flat_storage_migrator {
+                Some(flat_storage_migrator) => {
+                    let status = &flat_storage_migrator.statuses[shard_id as usize];
+                    match status {
+                        MigrationStatus::Finished => true,
+                        _ => false,
+                    }
+                }
+                None => false,
+            };
+            if migrated {
+                if let Some(chain_flat_storage) =
+                    self.runtime_adapter.get_flat_storage_state_for_shard(shard_id)
+                {
+                    let delta = FlatStateDelta::from_state_changes(&trie_changes.state_changes());
+                    let block_info = flat_state::BlockInfo { hash: block_hash, height, prev_hash };
+                    let store_update = chain_flat_storage
+                        .add_block(&block_hash, delta, block_info)
+                        .map_err(|e| StorageError::from(e))?;
+                    self.chain_store_update.merge(store_update);
+                }
+            } else {
+                info!(target: "chain", "Add flat state delta for migration");
                 let delta = FlatStateDelta::from_state_changes(&trie_changes.state_changes());
-                let block_info = flat_state::BlockInfo { hash: block_hash, height, prev_hash };
-                let store_update = chain_flat_storage
-                    .add_block(&block_hash, delta, block_info)
+                let mut store_update = self.chain_store_update.store().store_update();
+                store_helper::set_delta(&mut store_update, shard_id, block_hash.clone(), &delta)
                     .map_err(|e| StorageError::from(e))?;
                 self.chain_store_update.merge(store_update);
             }

@@ -483,11 +483,10 @@ pub mod store_helper {
         store_update.delete(crate::DBCol::FlatStateDeltas, &key.try_to_vec().unwrap());
     }
 
-    pub(crate) fn get_flat_head(store: &Store, shard_id: ShardId) -> CryptoHash {
+    pub fn get_flat_head(store: &Store, shard_id: ShardId) -> Option<CryptoHash> {
         store
             .get_ser(crate::DBCol::FlatStateMisc, &shard_id.try_to_vec().unwrap())
             .expect("Error reading flat head from storage")
-            .unwrap_or_else(|| panic!("Cannot read flat head for shard {} from storage", shard_id))
     }
 
     pub(crate) fn set_flat_head(
@@ -523,6 +522,13 @@ pub mod store_helper {
                 .map_err(|_| FlatStorageError::StorageInternalError),
             None => Ok(store_update.delete(crate::DBCol::FlatState, &key)),
         }
+    }
+}
+
+#[cfg(not(feature = "protocol_feature_flat_state"))]
+pub mod store_helper {
+    pub(crate) fn get_flat_head(store: &Store, shard_id: ShardId) -> Option<CryptoHash> {
+        None
     }
 }
 
@@ -591,7 +597,8 @@ impl FlatStorageState {
         // dependencies, so we pass these functions in to access chain info
         chain_access: &dyn ChainAccessForFlatStorage,
     ) -> Self {
-        let flat_head = store_helper::get_flat_head(&store, shard_id);
+        let flat_head = store_helper::get_flat_head(&store, shard_id)
+            .unwrap_or_else(|| panic!("Cannot read flat head for shard {} from storage", shard_id));
         let flat_head_info = chain_access.get_block_info(&flat_head);
         let flat_head_height = flat_head_info.height;
         let mut blocks = HashMap::from([(
