@@ -640,21 +640,24 @@ impl Chain {
         let existing_flat_storages = (0..num_shards)
             .map(|shard_id| store_helper::get_flat_head(store.store(), shard_id).is_some() as u64)
             .sum();
-        let flat_storage_migrator = match existing_flat_storages {
-            0 => Some(FlatStorageMigrator { runtime_adapter: runtime_adapter.clone(), statuses: vec![], starting_height: store.head()?.height }),
-            num_shards =>
-            {
-                #[cfg(feature = "protocol_feature_flat_state")]
-                for shard_id in 0..num_shards {
-                    runtime_adapter.create_flat_storage_state_for_shard(
-                        shard_id,
-                        store.head()?.height,
-                        &store,
-                    );
-                }
-                None
-            },
-            _ => panic!("Found {existing_flat_storages} flat storages, which doesn't match neither 0 nor {num_shards}")
+        let flat_storage_migrator = if existing_flat_storages == 0 {
+            Some(FlatStorageMigrator {
+                runtime_adapter: runtime_adapter.clone(),
+                statuses: vec![],
+                starting_height: store.head()?.height,
+            })
+        } else if existing_flat_storages == num_shards {
+            #[cfg(feature = "protocol_feature_flat_state")]
+            for shard_id in 0..num_shards {
+                runtime_adapter.create_flat_storage_state_for_shard(
+                    shard_id,
+                    store.head()?.height,
+                    &store,
+                );
+            }
+            None
+        } else {
+            panic!("Found {existing_flat_storages} flat storages, which doesn't match neither 0 nor {num_shards}");
         };
 
         info!(target: "chain", "Init: header head @ #{} {}; block head @ #{} {}",
