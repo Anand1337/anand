@@ -2166,6 +2166,18 @@ impl Chain {
                     // TODO (#7327): some error handling code here. Should probably return an error (or panic?)
                     // here if the flat storage doesn't exist. We don't do that yet because
                     // flat storage is not fully enabled yet.
+
+                    match &self.flat_storage_migrator {
+                        Some(flat_storage_migrator) => {
+                            assert_eq!(
+                                flat_storage_migrator.statuses[shard_id as usize],
+                                MigrationStatus::SavingDeltas
+                            )
+                        }
+                        None => {
+                            panic!("Flat storage state don't exist but migrator was not created")
+                        }
+                    }
                 }
             }
         }
