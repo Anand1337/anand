@@ -641,11 +641,7 @@ impl Chain {
             .map(|shard_id| store_helper::get_flat_head(store.store(), shard_id).is_some() as u64)
             .sum();
         let flat_storage_migrator = if existing_flat_storages == 0 {
-            Some(FlatStorageMigrator {
-                runtime_adapter: runtime_adapter.clone(),
-                statuses: vec![],
-                starting_height: store.head()?.height,
-            })
+            Some(FlatStorageMigrator::new(runtime_adapter, num_shards, store.head()?.height))
         } else if existing_flat_storages == num_shards {
             #[cfg(feature = "protocol_feature_flat_state")]
             for shard_id in 0..num_shards {
