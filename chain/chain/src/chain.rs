@@ -637,7 +637,7 @@ impl Chain {
 
         // set up flat storage
         let num_shards = runtime_adapter.num_shards(&block_head.epoch_id)?;
-        let existing_flat_storages = (0..num_shards)
+        let existing_flat_storages: u64 = (0..num_shards)
             .map(|shard_id| store_helper::get_flat_head(store.store(), shard_id).is_some() as u64)
             .sum();
         let flat_storage_migrator = if existing_flat_storages == 0 {
