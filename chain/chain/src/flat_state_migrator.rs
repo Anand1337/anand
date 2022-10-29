@@ -1,4 +1,5 @@
 use crate::{ChainStore, ChainStoreAccess, RuntimeAdapter};
+use assert_matches::assert_matches;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use near_chain_primitives::Error;
 use near_primitives::block::Tip;
@@ -8,7 +9,6 @@ use near_primitives::types::{BlockHeight, NumShards, ShardId};
 use near_store::flat_state::store_helper;
 use near_store::migrations::BatchedStoreUpdate;
 use near_store::{DBCol, Trie, TrieTraversalItem};
-use std::assert_matches;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info};
 
