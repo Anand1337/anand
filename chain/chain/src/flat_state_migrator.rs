@@ -85,7 +85,7 @@ impl FlatStorageMigrator {
     ) -> Result<(), Error> {
         let mut guard = self.shard_migrator[shard_id as usize].lock().unwrap();
 
-        match &guard.status {
+        match guard.status.clone() {
             MigrationStatus::SavingDeltas => {
                 // migrate only shard 0
                 if self.starting_height < final_head.height && shard_id == 0 {
