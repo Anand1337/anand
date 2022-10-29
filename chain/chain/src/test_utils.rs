@@ -739,7 +739,7 @@ impl RuntimeAdapter for KeyValueRuntime {
     fn get_view_trie_for_shard(
         &self,
         shard_id: ShardId,
-        _block_hash: &CryptoHash,
+        _prev_hash: &CryptoHash,
         state_root: StateRoot,
     ) -> Result<Trie, Error> {
         Ok(self.tries.get_view_trie_for_shard(

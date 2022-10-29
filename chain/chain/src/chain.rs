@@ -2166,13 +2166,14 @@ impl Chain {
                     // TODO (#7327): some error handling code here. Should probably return an error (or panic?)
                     // here if the flat storage doesn't exist. We don't do that yet because
                     // flat storage is not fully enabled yet.
-
+                    let final_head = self.final_head()?;
                     match &self.flat_storage_migrator {
                         Some(flat_storage_migrator) => {
-                            assert_eq!(
-                                flat_storage_migrator.statuses[shard_id as usize],
-                                MigrationStatus::SavingDeltas
-                            )
+                            // assert_eq!(
+                            //     flat_storage_migrator.get_status(shard_id),
+                            //     MigrationStatus::SavingDeltas
+                            // );
+                            flat_storage_migrator.update_status(shard_id, final_head)?;
                         }
                         None => {
                             panic!("Flat storage state don't exist but migrator was not created")
@@ -4771,7 +4772,7 @@ impl<'a> ChainUpdate<'a> {
         if self.runtime_adapter.cares_about_shard(me.as_ref(), &prev_hash, shard_id, true) {
             let migrated = match self.flat_storage_migrator {
                 Some(flat_storage_migrator) => {
-                    let status = &flat_storage_migrator.statuses[shard_id as usize];
+                    let status = &flat_storage_migrator.get_status(shard_id);
                     match status {
                         MigrationStatus::Finished => true,
                         _ => false,
