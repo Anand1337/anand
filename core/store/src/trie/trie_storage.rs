@@ -360,6 +360,7 @@ impl TrieStorage for TrieMemoryPartialStorage {
     }
 }
 
+#[derive(Clone)]
 pub struct TrieCachingStorage {
     pub(crate) store: Store,
     pub(crate) shard_uid: ShardUId,

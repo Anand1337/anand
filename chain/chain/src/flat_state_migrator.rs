@@ -140,7 +140,11 @@ impl FlatStorageMigrator {
                             let path_end =
                                 trie.find_path_for_part_boundary(part_id + 1, NUM_PARTS)?;
 
-                            let trie_storage = trie.storage.clone();
+                            let trie_storage = trie
+                                .storage
+                                .as_caching_storage()
+                                .expect("preload called without caching storage")
+                                .clone();
                             let root = state_root.clone();
                             let store = self.runtime_adapter.store().clone();
                             let inner_part_progress = part_progress.clone();
@@ -159,7 +163,7 @@ impl FlatStorageMigrator {
                                     })
                                     .collect();
                                 debug!(target: "store", "Preload state part from {hex_prefix}");
-                                let trie = Trie::new(trie_storage, root, None);
+                                let trie = Trie::new(Box::new(trie_storage), root, None);
                                 let mut trie_iter = trie.iter().unwrap();
 
                                 let mut store_update = BatchedStoreUpdate::new(&store, 10_000_000);

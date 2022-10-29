@@ -8,6 +8,7 @@ rust-version.workspace = true
 edition.workspace = true
 
 [dependencies]
+assert_matches.workspace = true
 actix.workspace = true
 ansi_term.workspace = true
 borsh.workspace = true
