@@ -2173,7 +2173,11 @@ impl Chain {
                             //     flat_storage_migrator.get_status(shard_id),
                             //     MigrationStatus::SavingDeltas
                             // );
-                            flat_storage_migrator.update_status(shard_id, final_head)?;
+                            flat_storage_migrator.update_status(
+                                shard_id,
+                                final_head,
+                                &self.store,
+                            )?;
                         }
                         None => {
                             panic!("Flat storage state don't exist but migrator was not created")

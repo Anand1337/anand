@@ -1,5 +1,4 @@
 use crate::{ChainStore, ChainStoreAccess, RuntimeAdapter};
-use assert_matches::assert_matches;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use near_chain_primitives::Error;
 use near_primitives::block::Tip;
@@ -9,6 +8,7 @@ use near_primitives::types::{BlockHeight, NumShards, ShardId};
 use near_store::flat_state::store_helper;
 use near_store::migrations::BatchedStoreUpdate;
 use near_store::{DBCol, Trie, TrieTraversalItem};
+use std::assert_matches;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info};
 
@@ -65,7 +65,7 @@ impl FlatStorageMigrator {
         Self {
             runtime_adapter,
             shard_migrator: (0..num_shards)
-                .iter(|shard_id| Arc::new(Mutex::new(FlatStorageShardMigrator::new(shard_id))))
+                .map(|shard_id| Arc::new(Mutex::new(FlatStorageShardMigrator::new(shard_id))))
                 .collect(),
             starting_height,
             pool: rayon::ThreadPoolBuilder::new().num_threads(PART_STEP as usize).build().unwrap(),
@@ -140,17 +140,12 @@ impl FlatStorageMigrator {
                             let path_end =
                                 trie.find_path_for_part_boundary(part_id + 1, NUM_PARTS)?;
 
-                            let storage = trie
-                                .storage
-                                .as_caching_storage()
-                                .expect("migrator called without caching storage")
-                                .clone();
+                            let trie_storage = trie.storage.clone();
                             let root = state_root.clone();
                             let store = self.runtime_adapter.store().clone();
                             let inner_part_progress = part_progress.clone();
                             let inner_sender = guard.traverse_trie_sender.clone();
 
-                            threads += 1;
                             self.pool.spawn(move || {
                                 let path_prefix = match path_begin.last() {
                                     Some(16) => &path_begin[..path_begin.len() - 1],
@@ -164,7 +159,7 @@ impl FlatStorageMigrator {
                                     })
                                     .collect();
                                 debug!(target: "store", "Preload state part from {hex_prefix}");
-                                let trie = Trie::new(Box::new(storage), root, None);
+                                let trie = Trie::new(trie_storage, root, None);
                                 let mut trie_iter = trie.iter().unwrap();
 
                                 let mut store_update = BatchedStoreUpdate::new(&store, 10_000_000);
@@ -207,7 +202,7 @@ impl FlatStorageMigrator {
                             })
                         }
                     }
-                    Some(x) if x == PART_STEP => {
+                    Some(x) if *x == PART_STEP => {
                         guard.finished_state_parts = None;
                         let new_start_part_id = start_part_id + PART_STEP;
                         guard.status = if new_start_part_id == NUM_PARTS {
@@ -220,7 +215,8 @@ impl FlatStorageMigrator {
                     }
                     Some(_) => {
                         while let Ok(n) = guard.traverse_trie_receiver.try_recv() {
-                            guard.finished_state_parts = Some(guard.finished_state_parts + 1);
+                            guard.finished_state_parts =
+                                Some(guard.finished_state_parts.unwrap() + 1);
                             guard.visited_items += n;
                         }
                     }
