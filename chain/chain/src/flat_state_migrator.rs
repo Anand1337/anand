@@ -276,7 +276,7 @@ impl FlatStorageMigrator {
                         self.runtime_adapter.create_flat_storage_state_for_shard(
                             shard_id,
                             chain_store.head().unwrap().height,
-                            &chain_store,
+                            chain_store,
                         );
                     }
                 }
