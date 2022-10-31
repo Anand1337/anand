@@ -67,7 +67,7 @@ impl FlatStorageMigrator {
         starting_height: BlockHeight,
     ) -> Self {
         Self {
-            runtime_adapter,
+            runtime_adapter: runtime_adapter.clone(),
             shard_migrator: (0..num_shards)
                 .map(|shard_id| {
                     Arc::new(Mutex::new(FlatStorageShardMigrator::new(
