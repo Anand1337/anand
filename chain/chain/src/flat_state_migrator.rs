@@ -48,6 +48,7 @@ impl FlatStorageShardMigrator {
                 let fetching_step: Option<u64> = store
                     .get_ser(DBCol::FlatStateMisc, &store_key)
                     .expect("Error reading flat head from storage");
+                info!(target: "chain", %shard_id, %block_hash, %fetching_step, "Read fetching step");
                 match fetching_step {
                     Some(fetching_step) => {
                         MigrationStatus::FetchingState((block_hash, fetching_step))
@@ -113,8 +114,19 @@ impl FlatStorageMigrator {
                 // migrate only shard 0
                 if self.starting_height < final_head.height && shard_id < 3 {
                     // it means that all deltas after final head are saved. we can start fetching state
-                    guard.status = MigrationStatus::FetchingState((final_head.last_block_hash, 0));
+                    let block_hash = final_head.last_block_hash;
+
+                    guard.status = MigrationStatus::FetchingState((block_hash.clone(), 0));
                     guard.finished_state_parts = None;
+
+                    let mut store_key = STATUS_KEY.to_vec();
+                    store_key.extend_from_slice(&shard_id.try_to_vec().unwrap());
+                    let mut store_update = self.runtime_adapter.store().store_update();
+                    store_helper::set_flat_head(&mut store_update, shard_id, &block_hash);
+                    store_update
+                        .set_ser(DBCol::FlatStateMisc, &store_key, &Some(0u64))
+                        .expect("Error setting fetching step to None");
+                    store_update.commit().unwrap();
 
                     // check deltas existence
                     for height in final_head.height + 1..=chain_store.head().unwrap().height {
@@ -241,7 +253,6 @@ impl FlatStorageMigrator {
                             info!(target: "chain", %shard_id, %block_hash, "Finished fetching state");
 
                             let mut store_update = self.runtime_adapter.store().store_update();
-                            store_helper::set_flat_head(&mut store_update, shard_id, &block_hash);
                             store_update
                                 .set_ser(DBCol::FlatStateMisc, &store_key, &None::<Option<u64>>)
                                 .expect("Error setting fetching step to None");
