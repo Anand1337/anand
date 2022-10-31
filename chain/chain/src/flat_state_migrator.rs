@@ -48,7 +48,7 @@ impl FlatStorageShardMigrator {
                 let fetching_step: Option<u64> = store
                     .get_ser(DBCol::FlatStateMisc, &store_key)
                     .expect("Error reading flat head from storage");
-                info!(target: "chain", %shard_id, %block_hash, %fetching_step, "Read fetching step");
+                info!(target: "chain", %shard_id, %block_hash, ?fetching_step, "Read fetching step");
                 match fetching_step {
                     Some(fetching_step) => {
                         MigrationStatus::FetchingState((block_hash, fetching_step))
