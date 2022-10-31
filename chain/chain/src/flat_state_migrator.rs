@@ -205,6 +205,8 @@ impl FlatStorageMigrator {
                                 inner_sender.send(n).unwrap();
                             })
                         }
+
+                        guard.finished_state_parts = Some(0);
                     }
                     Some(x) if *x == PART_STEP => {
                         guard.finished_state_parts = None;
