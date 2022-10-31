@@ -640,7 +640,8 @@ impl Chain {
         let existing_flat_storages: u64 = (0..num_shards)
             .map(|shard_id| store_helper::get_flat_head(store.store(), shard_id).is_some() as u64)
             .sum();
-        let flat_storage_migrator = if existing_flat_storages == 0 {
+        info!(target: "chain", "Found {existing_flat_storages} flat storages");
+        let flat_storage_migrator = if existing_flat_storages < num_shards {
             Some(FlatStorageMigrator::new(
                 runtime_adapter.clone(),
                 num_shards,

@@ -9,7 +9,7 @@ use near_primitives::state::ValueRef;
 use near_primitives::types::{BlockHeight, NumShards, ShardId};
 use near_store::flat_state::store_helper;
 use near_store::migrations::BatchedStoreUpdate;
-use near_store::{DBCol, FlatStateDelta, Trie, TrieTraversalItem};
+use near_store::{DBCol, FlatStateDelta, Store, Trie, TrieTraversalItem};
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info};
 
@@ -37,10 +37,14 @@ pub struct FlatStorageShardMigrator {
 }
 
 impl FlatStorageShardMigrator {
-    pub fn new(shard_id: ShardId) -> Self {
+    pub fn new(shard_id: ShardId, store: &Store) -> Self {
         let (traverse_trie_sender, traverse_trie_receiver) = unbounded();
+        let status = match store_helper::get_flat_head(store, shard_id) {
+            None => MigrationStatus::SavingDeltas,
+            Some(_) => MigrationStatus::CatchingUp,
+        };
         Self {
-            status: MigrationStatus::SavingDeltas,
+            status,
             shard_id,
             finished_state_parts: None,
             traverse_trie_sender,
@@ -66,7 +70,12 @@ impl FlatStorageMigrator {
         Self {
             runtime_adapter,
             shard_migrator: (0..num_shards)
-                .map(|shard_id| Arc::new(Mutex::new(FlatStorageShardMigrator::new(shard_id))))
+                .map(|shard_id| {
+                    Arc::new(Mutex::new(FlatStorageShardMigrator::new(
+                        shard_id,
+                        runtime_adapter.store(),
+                    )))
+                })
                 .collect(),
             starting_height,
             pool: rayon::ThreadPoolBuilder::new().num_threads(PART_STEP as usize).build().unwrap(),
@@ -260,9 +269,19 @@ impl FlatStorageMigrator {
                     store_helper::set_flat_head(&mut store_update, shard_id, &flat_head);
                     merged_delta.apply_to_flat_state(&mut store_update);
                     store_update.commit().unwrap();
+
+                    if height == final_head.height {
+                        guard.status = MigrationStatus::Finished;
+                        info!(target: "chain", %shard_id, %flat_head, %height, "Creating flat storage");
+                        self.runtime_adapter.create_flat_storage_state_for_shard(
+                            shard_id,
+                            chain_store.head().unwrap().height,
+                            &chain_store,
+                        );
+                    }
                 }
             }
-            _ => {}
+            MigrationStatus::Finished => {}
         }
 
         Ok(())
