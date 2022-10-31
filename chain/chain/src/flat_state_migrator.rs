@@ -1,6 +1,5 @@
 use crate::{ChainStore, ChainStoreAccess, RuntimeAdapter};
 use assert_matches::assert_matches;
-use borsh::BorshSerialize;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use near_chain_primitives::Error;
 use near_primitives::block::Tip;
