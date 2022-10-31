@@ -1,5 +1,6 @@
 use crate::{ChainStore, ChainStoreAccess, RuntimeAdapter};
 use assert_matches::assert_matches;
+use borsh::BorshSerialize;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use near_chain_primitives::Error;
 use near_primitives::block::Tip;
@@ -12,6 +13,7 @@ use near_store::{DBCol, FlatStateDelta, Store, Trie, TrieTraversalItem};
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info};
 
+pub const STATUS_KEY: &[u8; 6] = b"STATUS";
 const NUM_PARTS: u64 = 4_000;
 const PART_STEP: u64 = 50;
 
@@ -40,7 +42,19 @@ impl FlatStorageShardMigrator {
         let (traverse_trie_sender, traverse_trie_receiver) = unbounded();
         let status = match store_helper::get_flat_head(store, shard_id) {
             None => MigrationStatus::SavingDeltas,
-            Some(_) => MigrationStatus::CatchingUp,
+            Some(block_hash) => {
+                let mut store_key = STATUS_KEY.to_vec();
+                store_key.extend_from_slice(&shard_id.try_to_vec().unwrap());
+                let fetching_step: Option<u64> = store
+                    .get_ser(DBCol::FlatStateMisc, &store_key)
+                    .expect("Error reading flat head from storage");
+                match fetching_step {
+                    Some(fetching_step) => {
+                        MigrationStatus::FetchingState((block_hash, fetching_step))
+                    }
+                    None => MigrationStatus::CatchingUp,
+                }
+            }
         };
         Self {
             status,
@@ -97,8 +111,8 @@ impl FlatStorageMigrator {
         match guard.status.clone() {
             MigrationStatus::SavingDeltas => {
                 // migrate only shard 0
-                if self.starting_height < final_head.height && shard_id == 0 {
-                    // it means that we saved all deltas. spawn threads
+                if self.starting_height < final_head.height && shard_id < 3 {
+                    // it means that all deltas after final head are saved. we can start fetching state
                     guard.status = MigrationStatus::FetchingState((final_head.last_block_hash, 0));
                     guard.finished_state_parts = None;
 
@@ -122,11 +136,11 @@ impl FlatStorageMigrator {
                     }
                 }
             }
-            MigrationStatus::FetchingState((block_hash, start_part_id)) => {
+            MigrationStatus::FetchingState((block_hash, fetching_step)) => {
                 match &guard.finished_state_parts {
                     None => {
-                        info!(target: "chain", %shard_id, %block_hash, %start_part_id, "Spawning threads");
-                        let start_part_id = start_part_id.clone();
+                        info!(target: "chain", %shard_id, %block_hash, %fetching_step, "Spawning threads");
+                        let start_part_id = fetching_step * PART_STEP;
                         let epoch_id = self.runtime_adapter.get_epoch_id(&block_hash)?;
                         let shard_uid =
                             self.runtime_adapter.shard_id_to_uid(shard_id, &epoch_id)?;
@@ -219,16 +233,31 @@ impl FlatStorageMigrator {
                     }
                     Some(x) if *x == PART_STEP => {
                         guard.finished_state_parts = None;
-                        let new_start_part_id = start_part_id + PART_STEP;
-                        guard.status = if new_start_part_id == NUM_PARTS {
-                            info!(target: "chain", %shard_id, %block_hash, %new_start_part_id, "Finished fetching state");
+                        let new_fetching_step = fetching_step + 1;
+                        let mut store_key = STATUS_KEY.to_vec();
+                        store_key.extend_from_slice(&shard_id.try_to_vec().unwrap());
+
+                        guard.status = if new_fetching_step == NUM_PARTS / PART_STEP {
+                            info!(target: "chain", %shard_id, %block_hash, "Finished fetching state");
+
                             let mut store_update = self.runtime_adapter.store().store_update();
                             store_helper::set_flat_head(&mut store_update, shard_id, &block_hash);
+                            store_update
+                                .set_ser(DBCol::FlatStateMisc, &store_key, &None)
+                                .expect("Error setting fetching step to None");
                             store_update.commit().unwrap();
+
                             MigrationStatus::CatchingUp
                         } else {
-                            info!(target: "chain", %shard_id, %block_hash, %new_start_part_id, "Moving part id");
-                            MigrationStatus::FetchingState((block_hash.clone(), new_start_part_id))
+                            info!(target: "chain", %shard_id, %block_hash, %new_fetching_step, "New fetching step");
+
+                            let mut store_update = self.runtime_adapter.store().store_update();
+                            store_update
+                                .set_ser(DBCol::FlatStateMisc, &store_key, &Some(new_fetching_step))
+                                .expect("Error setting fetching step");
+                            store_update.commit().unwrap();
+
+                            MigrationStatus::FetchingState((block_hash.clone(), new_fetching_step))
                         };
                     }
                     Some(_) => {
