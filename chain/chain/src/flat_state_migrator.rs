@@ -72,7 +72,7 @@ impl FlatStorageMigrator {
                 .map(|shard_id| {
                     Arc::new(Mutex::new(FlatStorageShardMigrator::new(
                         shard_id,
-                        runtime_adapter.store(),
+                        &runtime_adapter.store().clone(),
                     )))
                 })
                 .collect(),
