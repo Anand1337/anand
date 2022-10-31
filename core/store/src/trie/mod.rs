@@ -27,6 +27,8 @@ use crate::trie::trie_storage::{TrieMemoryPartialStorage, TrieRecordingStorage};
 use crate::StorageError;
 pub use near_primitives::types::TrieNodesCount;
 use std::fmt::Write;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 
 mod config;
 mod insert_delete;
@@ -471,6 +473,7 @@ pub struct Trie {
     pub storage: Box<dyn TrieStorage>,
     root: StateRoot,
     pub flat_state: Option<FlatState>,
+    pub flat_state_trie_checks: Arc<AtomicU32>,
 }
 
 /// Trait for reading data from a trie.
@@ -551,7 +554,7 @@ impl Trie {
         root: StateRoot,
         flat_state: Option<FlatState>,
     ) -> Self {
-        Trie { storage, root, flat_state }
+        Trie { storage, root, flat_state, flat_state_trie_checks: Default::default() }
     }
 
     pub fn recording_reads(&self) -> Self {
@@ -562,7 +565,12 @@ impl Trie {
             shard_uid: storage.shard_uid,
             recorded: RefCell::new(Default::default()),
         };
-        Trie { storage: Box::new(storage), root: self.root.clone(), flat_state: None }
+        Trie {
+            storage: Box::new(storage),
+            root: self.root.clone(),
+            flat_state: None,
+            flat_state_trie_checks: Default::default(),
+        }
     }
 
     pub fn recorded_storage(&self) -> Option<PartialStorage> {
@@ -896,17 +904,22 @@ impl Trie {
         key: &[u8],
         mode: KeyLookupMode,
     ) -> Result<Option<ValueRef>, StorageError> {
+        let key_nibbles = NibbleSlice::new(key.clone());
+        let result = self.lookup(key_nibbles);
+
         #[cfg(feature = "protocol_feature_flat_state")]
         {
             let is_delayed = is_delayed_receipt_key(key);
             if matches!(mode, KeyLookupMode::FlatStorage) && !is_delayed {
                 if let Some(flat_state) = &self.flat_state {
-                    return flat_state.get_ref(&key);
+                    self.flat_state_trie_checks.fetch_add(1, Ordering::Relaxed);
+                    let flat_result = flat_state.get_ref(&key);
+                    assert_eq!(result, flat_result);
                 }
             }
         }
-        let key = NibbleSlice::new(key);
-        self.lookup(key)
+
+        result
     }
 
     pub fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, StorageError> {
