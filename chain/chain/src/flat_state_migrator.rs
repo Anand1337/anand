@@ -247,7 +247,7 @@ impl FlatStorageMigrator {
                     }
                     flat_head = chain_store.get_next_block_hash(&flat_head).unwrap();
                     let delta =
-                        store_helper::get_delta(store, shard_id, next_head).unwrap().unwrap();
+                        store_helper::get_delta(store, shard_id, flat_head).unwrap().unwrap();
                     // debug. don't merge > 10 deltas in prod
                     merged_delta.merge(delta.as_ref());
                 }
