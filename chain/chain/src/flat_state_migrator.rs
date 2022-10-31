@@ -45,11 +45,15 @@ impl FlatStorageShardMigrator {
             Some(block_hash) => {
                 let mut store_key = STATUS_KEY.to_vec();
                 store_key.extend_from_slice(&shard_id.try_to_vec().unwrap());
-                let fetching_step: Option<u64> =
-                    match store.get_ser(DBCol::FlatStateMisc, &store_key) {
-                        Ok(step) => step,
-                        Err(_) => None,
-                    };
+                let fetching_step: Option<u64> = match store
+                    .get_ser(DBCol::FlatStateMisc, &store_key)
+                {
+                    Ok(step) => step,
+                    Err(e) => {
+                        info!(target: "chain", %shard_id, %block_hash, "Error reading fetching step: {e}");
+                        Some(0)
+                    }
+                };
                 // .expect("Error reading fetching step");
                 info!(target: "chain", %shard_id, %block_hash, ?fetching_step, "Read fetching step");
                 match fetching_step {
