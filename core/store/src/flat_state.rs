@@ -491,11 +491,7 @@ pub mod store_helper {
             .expect("Error reading flat head from storage")
     }
 
-    pub(crate) fn set_flat_head(
-        store_update: &mut StoreUpdate,
-        shard_id: ShardId,
-        val: &CryptoHash,
-    ) {
+    pub fn set_flat_head(store_update: &mut StoreUpdate, shard_id: ShardId, val: &CryptoHash) {
         store_update
             .set_ser(crate::DBCol::FlatStateMisc, &shard_id.try_to_vec().unwrap(), val)
             .expect("Error writing flat head from storage")

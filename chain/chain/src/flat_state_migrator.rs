@@ -1,5 +1,6 @@
 use crate::{ChainStore, ChainStoreAccess, RuntimeAdapter};
 use assert_matches::assert_matches;
+use borsh::BorshSerialize;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use near_chain_primitives::Error;
 use near_primitives::block::Tip;
@@ -8,7 +9,7 @@ use near_primitives::state::ValueRef;
 use near_primitives::types::{BlockHeight, NumShards, ShardId};
 use near_store::flat_state::store_helper;
 use near_store::migrations::BatchedStoreUpdate;
-use near_store::{DBCol, Trie, TrieTraversalItem};
+use near_store::{DBCol, FlatStateDelta, Trie, TrieTraversalItem};
 use std::sync::{Arc, Mutex};
 use tracing::{debug, info};
 
@@ -213,6 +214,9 @@ impl FlatStorageMigrator {
                         let new_start_part_id = start_part_id + PART_STEP;
                         guard.status = if new_start_part_id == NUM_PARTS {
                             info!(target: "chain", %shard_id, %block_hash, %new_start_part_id, "Finished fetching state");
+                            let mut store_update = self.runtime_adapter.store().store_update();
+                            store_helper::set_flat_head(&mut store_update, shard_id, &block_hash);
+                            store_update.commit().unwrap();
                             MigrationStatus::CatchingUp
                         } else {
                             info!(target: "chain", %shard_id, %block_hash, %new_start_part_id, "Moving part id");
@@ -226,6 +230,36 @@ impl FlatStorageMigrator {
                             guard.visited_items += n;
                         }
                     }
+                }
+            }
+            MigrationStatus::CatchingUp => {
+                let store = self.runtime_adapter.store();
+                let old_flat_head = store_helper::get_flat_head(store, shard_id).unwrap();
+                let mut flat_head = old_flat_head.clone();
+                let mut merged_delta = FlatStateDelta::default();
+                for _ in 0..50 {
+                    let height = chain_store.get_block_height(&flat_head).unwrap();
+                    if height > final_head.height {
+                        panic!("New flat head moved too far: new head = {flat_head}, height = {height}, final block height = {}", final_head.height);
+                    }
+                    if height == final_head.height {
+                        break;
+                    }
+                    flat_head = chain_store.get_next_block_hash(&flat_head).unwrap();
+                    let delta =
+                        store_helper::get_delta(store, shard_id, next_head).unwrap().unwrap();
+                    // debug. don't merge > 10 deltas in prod
+                    merged_delta.merge(delta.as_ref());
+                }
+
+                if old_flat_head != flat_head {
+                    let old_height = chain_store.get_block_height(&old_flat_head).unwrap();
+                    let height = chain_store.get_block_height(&flat_head).unwrap();
+                    info!(target: "chain", %shard_id, %old_flat_head, %old_height, %flat_head, %height, "Catching up flat head");
+                    let mut store_update = self.runtime_adapter.store().store_update();
+                    store_helper::set_flat_head(&mut store_update, shard_id, &flat_head);
+                    merged_delta.apply_to_flat_state(&mut store_update);
+                    store_update.commit().unwrap();
                 }
             }
             _ => {}
