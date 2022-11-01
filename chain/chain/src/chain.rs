@@ -3891,7 +3891,6 @@ impl Chain {
             self.runtime_adapter.clone(),
             self.doomslug_threshold_mode,
             self.transaction_validity_period,
-            &self.flat_storage_migrator,
         )
     }
 
@@ -4471,7 +4470,6 @@ pub struct ChainUpdate<'a> {
     doomslug_threshold_mode: DoomslugThresholdMode,
     #[allow(unused)]
     transaction_validity_period: BlockHeightDelta,
-    flat_storage_migrator: &'a Option<FlatStorageMigrator>,
 }
 
 pub struct SameHeightResult {
@@ -4505,7 +4503,6 @@ impl<'a> ChainUpdate<'a> {
         runtime_adapter: Arc<dyn RuntimeAdapter>,
         doomslug_threshold_mode: DoomslugThresholdMode,
         transaction_validity_period: BlockHeightDelta,
-        flat_storage_migrator: &'a Option<FlatStorageMigrator>,
     ) -> Self {
         let chain_store_update: ChainStoreUpdate<'_> = store.store_update();
         Self::new_impl(
@@ -4513,7 +4510,6 @@ impl<'a> ChainUpdate<'a> {
             doomslug_threshold_mode,
             transaction_validity_period,
             chain_store_update,
-            flat_storage_migrator,
         )
     }
 
@@ -4522,14 +4518,12 @@ impl<'a> ChainUpdate<'a> {
         doomslug_threshold_mode: DoomslugThresholdMode,
         transaction_validity_period: BlockHeightDelta,
         chain_store_update: ChainStoreUpdate<'a>,
-        flat_storage_migrator: &'a Option<FlatStorageMigrator>,
     ) -> Self {
         ChainUpdate {
             runtime_adapter,
             chain_store_update,
             doomslug_threshold_mode,
             transaction_validity_period,
-            flat_storage_migrator,
         }
     }
 
