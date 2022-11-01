@@ -635,31 +635,8 @@ impl Chain {
         };
         store_update.commit()?;
 
-        // set up flat storage
-        let num_shards = runtime_adapter.num_shards(&block_head.epoch_id)?;
-        let existing_flat_storages: u64 = (0..num_shards)
-            .map(|shard_id| store_helper::get_flat_head(store.store(), shard_id).is_some() as u64)
-            .sum();
-        info!(target: "chain", "Found {existing_flat_storages} flat storages");
-        let flat_storage_migrator = if existing_flat_storages < num_shards {
-            Some(FlatStorageMigrator::new(
-                runtime_adapter.clone(),
-                num_shards,
-                store.head()?.height,
-            ))
-        } else if existing_flat_storages == num_shards {
-            #[cfg(feature = "protocol_feature_flat_state")]
-            for shard_id in 0..num_shards {
-                runtime_adapter.create_flat_storage_state_for_shard(
-                    shard_id,
-                    store.head()?.height,
-                    &store,
-                );
-            }
-            None
-        } else {
-            panic!("Found {existing_flat_storages} flat storages, which doesn't match neither 0 nor {num_shards}");
-        };
+        // Create flat storage or initiate migration to flat storage.
+        let flat_storage_migrator = FlatStorageMigrator::new(runtime_adapter.clone(), &store);
 
         info!(target: "chain", "Init: header head @ #{} {}; block head @ #{} {}",
               header_head.height, header_head.last_block_hash,
@@ -2170,10 +2147,6 @@ impl Chain {
                     let final_head = self.final_head()?;
                     match &self.flat_storage_migrator {
                         Some(flat_storage_migrator) => {
-                            // assert_eq!(
-                            //     flat_storage_migrator.get_status(shard_id),
-                            //     MigrationStatus::SavingDeltas
-                            // );
                             flat_storage_migrator.update_status(
                                 shard_id,
                                 final_head,
@@ -4775,30 +4748,18 @@ impl<'a> ChainUpdate<'a> {
         // the delta for the shards that we are tracking this epoch
         #[cfg(feature = "protocol_feature_flat_state")]
         if self.runtime_adapter.cares_about_shard(me.as_ref(), &prev_hash, shard_id, true) {
-            let migrated = match self.flat_storage_migrator {
-                Some(flat_storage_migrator) => {
-                    let status = &flat_storage_migrator.get_status(shard_id);
-                    match status {
-                        MigrationStatus::Finished => true,
-                        _ => false,
-                    }
-                }
-                None => false,
-            };
-            if migrated {
-                if let Some(chain_flat_storage) =
-                    self.runtime_adapter.get_flat_storage_state_for_shard(shard_id)
-                {
-                    let delta = FlatStateDelta::from_state_changes(&trie_changes.state_changes());
-                    let block_info = flat_state::BlockInfo { hash: block_hash, height, prev_hash };
-                    let store_update = chain_flat_storage
-                        .add_block(&block_hash, delta, block_info)
-                        .map_err(|e| StorageError::from(e))?;
-                    self.chain_store_update.merge(store_update);
-                }
+            let delta = FlatStateDelta::from_state_changes(&trie_changes.state_changes());
+
+            if let Some(chain_flat_storage) =
+                self.runtime_adapter.get_flat_storage_state_for_shard(shard_id)
+            {
+                let block_info = flat_state::BlockInfo { hash: block_hash, height, prev_hash };
+                let store_update = chain_flat_storage
+                    .add_block(&block_hash, delta, block_info)
+                    .map_err(|e| StorageError::from(e))?;
+                self.chain_store_update.merge(store_update);
             } else {
                 info!(target: "chain", "Add flat state delta for migration");
-                let delta = FlatStateDelta::from_state_changes(&trie_changes.state_changes());
                 let mut store_update = self.chain_store_update.store().store_update();
                 store_helper::set_delta(&mut store_update, shard_id, block_hash.clone(), &delta)
                     .map_err(|e| StorageError::from(e))?;

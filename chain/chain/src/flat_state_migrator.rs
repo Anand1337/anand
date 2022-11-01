@@ -1,7 +1,9 @@
 use crate::{ChainStore, ChainStoreAccess, RuntimeAdapter};
 use assert_matches::assert_matches;
 use borsh::BorshSerialize;
+use core::panicking::panic;
 use crossbeam_channel::{unbounded, Receiver, Sender};
+use itertools::all;
 use near_chain_primitives::Error;
 use near_primitives::block::Tip;
 use near_primitives::hash::CryptoHash;
@@ -38,7 +40,7 @@ pub struct FlatStorageShardMigrator {
 }
 
 impl FlatStorageShardMigrator {
-    pub fn new(shard_id: ShardId, store: &Store) -> Self {
+    pub fn new(shard_id: ShardId, chain_store: &ChainStore) -> Self {
         let (traverse_trie_sender, traverse_trie_receiver) = unbounded();
         let status = match store_helper::get_flat_head(store, shard_id) {
             None => MigrationStatus::SavingDeltas,
@@ -53,7 +55,18 @@ impl FlatStorageShardMigrator {
                     Some(fetching_step) => {
                         MigrationStatus::FetchingState((block_hash, fetching_step))
                     }
-                    None => MigrationStatus::CatchingUp,
+                    None => {
+                        let flat_state_head_height =
+                            chain_store.get_block_height(&block_hash).unwrap();
+                        let final_head_height = chain_store.final_head().unwrap().height;
+                        if flat_state_head_height < final_head_height {
+                            MigrationStatus::CatchingUp
+                        } else if flat_state_head_height == final_head_height {
+                            MigrationStatus::Finished
+                        } else {
+                            panic!("Flat state head {block_hash} with height {flat_state_head_height} is above final head with height {final_head_height}");
+                        }
+                    }
                 }
             }
         };
@@ -70,34 +83,54 @@ impl FlatStorageShardMigrator {
 
 pub struct FlatStorageMigrator {
     pub runtime_adapter: Arc<dyn RuntimeAdapter>,
-    pub shard_migrator: Vec<Arc<Mutex<FlatStorageShardMigrator>>>,
+    pub shard_migrators: Vec<Arc<Mutex<FlatStorageShardMigrator>>>,
     pub starting_height: BlockHeight,
     pub pool: rayon::ThreadPool,
 }
 
 impl FlatStorageMigrator {
-    pub fn new(
-        runtime_adapter: Arc<dyn RuntimeAdapter>,
-        num_shards: NumShards,
-        starting_height: BlockHeight,
-    ) -> Self {
-        Self {
-            runtime_adapter: runtime_adapter.clone(),
-            shard_migrator: (0..num_shards)
-                .map(|shard_id| {
-                    Arc::new(Mutex::new(FlatStorageShardMigrator::new(
-                        shard_id,
-                        &runtime_adapter.store().clone(),
-                    )))
-                })
-                .collect(),
-            starting_height,
-            pool: rayon::ThreadPoolBuilder::new().num_threads(PART_STEP as usize).build().unwrap(),
+    pub fn new(runtime_adapter: Arc<dyn RuntimeAdapter>, chain_store: &ChainStore) -> Option<Self> {
+        let chain_head = chain_store.head().unwrap();
+        let num_shards = runtime_adapter.num_shards(&chain_head.epoch_id)?;
+        let starting_height = chain_head.height;
+        let shard_migrators: Vec<Arc<Mutex<FlatStorageShardMigrator>>> = (0..num_shards)
+            .map(|shard_id| {
+                Arc::new(Mutex::new(FlatStorageShardMigrator::new(shard_id, chain_store)))
+            })
+            .collect();
+        let mut all_created = true;
+        for shard_migrator in shard_migrators.iter() {
+            let guard = shard_migrator.lock().unwrap();
+            let shard_id = guard.shard_id;
+            info!(target: "chain", %shard_id, "Flat storage migration status: {:?}", guard.status);
+            if matches!(guard.status, MigrationStatus::Finished) {
+                runtime_adapter.create_flat_storage_state_for_shard(
+                    shard_id,
+                    chain_store.head().unwrap().height,
+                    &chain_store,
+                );
+            } else {
+                all_created = false;
+            }
+        }
+
+        if all_created {
+            None
+        } else {
+            Some(Self {
+                runtime_adapter: runtime_adapter.clone(),
+                shard_migrators,
+                starting_height,
+                pool: rayon::ThreadPoolBuilder::new()
+                    .num_threads(PART_STEP as usize)
+                    .build()
+                    .unwrap(),
+            })
         }
     }
 
     pub fn get_status(&self, shard_id: ShardId) -> MigrationStatus {
-        let guard = self.shard_migrator[shard_id as usize].lock().unwrap();
+        let guard = self.shard_migrators[shard_id as usize].lock().unwrap();
         guard.status.clone()
     }
 
@@ -107,12 +140,12 @@ impl FlatStorageMigrator {
         final_head: Tip,
         chain_store: &ChainStore,
     ) -> Result<(), Error> {
-        let mut guard = self.shard_migrator[shard_id as usize].lock().unwrap();
+        let mut guard = self.shard_migrators[shard_id as usize].lock().unwrap();
 
         match guard.status.clone() {
             MigrationStatus::SavingDeltas => {
                 // migrate only shard 0
-                if self.starting_height < final_head.height && shard_id < 3 {
+                if self.starting_height < final_head.height {
                     // it means that all deltas after final head are saved. we can start fetching state
                     let block_hash = final_head.last_block_hash;
 
