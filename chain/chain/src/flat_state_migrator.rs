@@ -45,16 +45,9 @@ impl FlatStorageShardMigrator {
             Some(block_hash) => {
                 let mut store_key = STATUS_KEY.to_vec();
                 store_key.extend_from_slice(&shard_id.try_to_vec().unwrap());
-                let fetching_step: Option<u64> = match store
+                let fetching_step: Option<u64> = store
                     .get_ser(DBCol::FlatStateMisc, &store_key)
-                {
-                    Ok(step) => step,
-                    Err(e) => {
-                        info!(target: "chain", %shard_id, %block_hash, "Error reading fetching step: {e}");
-                        Some(0)
-                    }
-                };
-                // .expect("Error reading fetching step");
+                    .expect("Error reading fetching step");
                 info!(target: "chain", %shard_id, %block_hash, ?fetching_step, "Read fetching step");
                 match fetching_step {
                     Some(fetching_step) => {
@@ -260,9 +253,7 @@ impl FlatStorageMigrator {
                             info!(target: "chain", %shard_id, %block_hash, "Finished fetching state");
 
                             let mut store_update = self.runtime_adapter.store().store_update();
-                            store_update
-                                .set_ser(DBCol::FlatStateMisc, &store_key, &None::<Option<u64>>)
-                                .expect("Error setting fetching step to None");
+                            store_update.delete(DBCol::FlatStateMisc, &store_key);
                             store_update.commit().unwrap();
 
                             MigrationStatus::CatchingUp
@@ -270,9 +261,8 @@ impl FlatStorageMigrator {
                             info!(target: "chain", %shard_id, %block_hash, %new_fetching_step, "New fetching step");
 
                             let mut store_update = self.runtime_adapter.store().store_update();
-                            let store_value: Option<u64> = Some(new_fetching_step);
                             store_update
-                                .set_ser(DBCol::FlatStateMisc, &store_key, &store_value)
+                                .set_ser(DBCol::FlatStateMisc, &store_key, &new_fetching_step)
                                 .expect("Error setting fetching step");
                             store_update.commit().unwrap();
 
