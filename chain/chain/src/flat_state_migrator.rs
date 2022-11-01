@@ -41,6 +41,7 @@ pub struct FlatStorageShardMigrator {
 impl FlatStorageShardMigrator {
     pub fn new(shard_id: ShardId, chain_store: &ChainStore) -> Self {
         let (traverse_trie_sender, traverse_trie_receiver) = unbounded();
+        let store = chain_store.store();
         let status = match store_helper::get_flat_head(store, shard_id) {
             None => MigrationStatus::SavingDeltas,
             Some(block_hash) => {
