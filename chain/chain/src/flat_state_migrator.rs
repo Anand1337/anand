@@ -124,7 +124,7 @@ impl FlatStorageMigrator {
                     let mut store_update = self.runtime_adapter.store().store_update();
                     store_helper::set_flat_head(&mut store_update, shard_id, &block_hash);
                     store_update
-                        .set_ser(DBCol::FlatStateMisc, &store_key, &Some(0u64))
+                        .set_ser(DBCol::FlatStateMisc, &store_key, &0u64)
                         .expect("Error setting fetching step to None");
                     store_update.commit().unwrap();
 
