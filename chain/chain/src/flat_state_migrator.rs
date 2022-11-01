@@ -1,7 +1,6 @@
 use crate::{ChainStore, ChainStoreAccess, RuntimeAdapter};
 use assert_matches::assert_matches;
 use borsh::BorshSerialize;
-use core::panicking::panic;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use itertools::all;
 use near_chain_primitives::Error;
@@ -91,7 +90,7 @@ pub struct FlatStorageMigrator {
 impl FlatStorageMigrator {
     pub fn new(runtime_adapter: Arc<dyn RuntimeAdapter>, chain_store: &ChainStore) -> Option<Self> {
         let chain_head = chain_store.head().unwrap();
-        let num_shards = runtime_adapter.num_shards(&chain_head.epoch_id)?;
+        let num_shards = runtime_adapter.num_shards(&chain_head.epoch_id).unwrap();
         let starting_height = chain_head.height;
         let shard_migrators: Vec<Arc<Mutex<FlatStorageShardMigrator>>> = (0..num_shards)
             .map(|shard_id| {
@@ -107,7 +106,7 @@ impl FlatStorageMigrator {
                 runtime_adapter.create_flat_storage_state_for_shard(
                     shard_id,
                     chain_store.head().unwrap().height,
-                    &chain_store,
+                    chain_store,
                 );
             } else {
                 all_created = false;
