@@ -4,7 +4,6 @@ use near_chain_primitives::Error;
 use near_primitives::hash::CryptoHash;
 use near_primitives::types::{BlockHeight, ShardId};
 use std::sync::{Arc, Mutex};
-use tracing::info;
 
 /// Number of parts to which we divide shard state for parallel traversal.
 // TODO: consider changing it for different shards, ensure that shard memory usage / `NUM_PARTS` < X MiB.
@@ -94,21 +93,21 @@ impl FlatStorageCreator {
             .collect();
 
         let mut creation_needed = false;
-        for shard_creator in shard_creators.iter() {
-            let guard = shard_creator.lock().unwrap();
-            let shard_id = guard.shard_id;
-            info!(target: "chain", %shard_id, "Flat storage creation status: {:?}", guard.status);
-
-            if matches!(guard.status, CreationStatus::Finished) {
-                #[cfg(feature = "protocol_feature_flat_state")]
-                runtime_adapter.create_flat_storage_state_for_shard(
-                    shard_id,
-                    chain_store.head().unwrap().height,
-                    chain_store,
-                );
-            } else {
-                creation_needed = true;
-            }
+        for _shard_creator in shard_creators.iter() {
+            // let guard = shard_creator.lock().unwrap();
+            // let shard_id = guard.shard_id;
+            // info!(target: "chain", %shard_id, "Flat storage creation status: {:?}", guard.status);
+            creation_needed = true;
+            // if matches!(guard.status, CreationStatus::Finished) {
+            //     #[cfg(feature = "protocol_feature_flat_state")]
+            //     runtime_adapter.create_flat_storage_state_for_shard(
+            //         shard_id,
+            //         chain_store.head().unwrap().height,
+            //         chain_store,
+            //     );
+            // } else {
+            //     creation_needed = true;
+            // }
         }
 
         if creation_needed {
@@ -116,10 +115,7 @@ impl FlatStorageCreator {
                 start_height,
                 shard_creators,
                 runtime_adapter: runtime_adapter.clone(),
-                pool: rayon::ThreadPoolBuilder::new()
-                    .num_threads(PART_STEP as usize)
-                    .build()
-                    .unwrap(),
+                pool: rayon::ThreadPoolBuilder::new().num_threads(1 as usize).build().unwrap(),
             })
         } else {
             None
