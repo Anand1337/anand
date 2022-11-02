@@ -81,65 +81,71 @@ pub struct FlatStorageCreator {
 }
 
 impl FlatStorageCreator {
-    pub fn new(runtime_adapter: Arc<dyn RuntimeAdapter>, chain_store: &ChainStore) -> Option<Self> {
-        let chain_head = chain_store.head().unwrap();
-        let num_shards = runtime_adapter.num_shards(&chain_head.epoch_id).unwrap();
-        let start_height = chain_head.height;
-        let shard_creators: Vec<Arc<Mutex<FlatStorageShardCreator>>> = (0..num_shards)
-            .map(|shard_id| {
-                Arc::new(Mutex::new(FlatStorageShardCreator::new(shard_id, chain_store)))
-            })
-            .collect();
-        let mut creation_needed = false;
-        for shard_creator in shard_creators.iter() {
-            let guard = shard_creator.lock().unwrap();
-            let shard_id = guard.shard_id;
-            info!(target: "chain", %shard_id, "Flat storage creation status: {:?}", guard.status);
+    pub fn new(
+        _runtime_adapter: Arc<dyn RuntimeAdapter>,
+        _chain_store: &ChainStore,
+    ) -> Option<Self> {
+        None
 
-            if matches!(guard.status, CreationStatus::Finished) {
-                #[cfg(feature = "protocol_feature_flat_state")]
-                runtime_adapter.create_flat_storage_state_for_shard(
-                    shard_id,
-                    chain_store.head().unwrap().height,
-                    chain_store,
-                );
-            } else {
-                creation_needed = true;
-            }
-        }
-
-        if creation_needed {
-            Some(Self {
-                start_height,
-                shard_creators,
-                runtime_adapter: runtime_adapter.clone(),
-                pool: rayon::ThreadPoolBuilder::new()
-                    .num_threads(PART_STEP as usize)
-                    .build()
-                    .unwrap(),
-            })
-        } else {
-            None
-        }
+        // let chain_head = chain_store.head().unwrap();
+        // let num_shards = runtime_adapter.num_shards(&chain_head.epoch_id).unwrap();
+        // let start_height = chain_head.height;
+        // let shard_creators: Vec<Arc<Mutex<FlatStorageShardCreator>>> = (0..num_shards)
+        //     .map(|shard_id| {
+        //         Arc::new(Mutex::new(FlatStorageShardCreator::new(shard_id, chain_store)))
+        //     })
+        //     .collect();
+        // let mut creation_needed = false;
+        // for shard_creator in shard_creators.iter() {
+        //     let guard = shard_creator.lock().unwrap();
+        //     let shard_id = guard.shard_id;
+        //     info!(target: "chain", %shard_id, "Flat storage creation status: {:?}", guard.status);
+        //
+        //     if matches!(guard.status, CreationStatus::Finished) {
+        //         #[cfg(feature = "protocol_feature_flat_state")]
+        //         runtime_adapter.create_flat_storage_state_for_shard(
+        //             shard_id,
+        //             chain_store.head().unwrap().height,
+        //             chain_store,
+        //         );
+        //     } else {
+        //         creation_needed = true;
+        //     }
+        // }
+        //
+        // if creation_needed {
+        //     Some(Self {
+        //         start_height,
+        //         shard_creators,
+        //         runtime_adapter: runtime_adapter.clone(),
+        //         pool: rayon::ThreadPoolBuilder::new()
+        //             .num_threads(PART_STEP as usize)
+        //             .build()
+        //             .unwrap(),
+        //     })
+        // } else {
+        //     None
+        // }
     }
 
     pub fn update_status(&self, shard_id: ShardId, _chain_store: &ChainStore) -> Result<(), Error> {
-        if shard_id as usize >= self.shard_creators.len() {
-            // We can request update for not supported shard if resharding happens. We don't support it yet, so we just
-            // return Ok.
-            return Ok(());
-        }
-
-        let guard = self.shard_creators[shard_id as usize].lock().unwrap();
-        match guard.status.clone() {
-            CreationStatus::SavingDeltas => {
-                // Once final head height > start height, we can switch to next step.
-                // Then, ChainStore is used to get state roots, block infos and flat storage creation in the end.
-                Ok(())
-            }
-            _ => {
-                panic!("Status {:?} is not supported yet", guard.status);
-            }
-        }
+        Ok(())
+        // if shard_id as usize >= self.shard_creators.len() {
+        //     // We can request update for not supported shard if resharding happens. We don't support it yet, so we just
+        //     // return Ok.
+        //     return Ok(());
+        // }
+        //
+        // let guard = self.shard_creators[shard_id as usize].lock().unwrap();
+        // match guard.status.clone() {
+        //     CreationStatus::SavingDeltas => {
+        //         // Once final head height > start height, we can switch to next step.
+        //         // Then, ChainStore is used to get state roots, block infos and flat storage creation in the end.
+        //         Ok(())
+        //     }
+        //     _ => {
+        //         panic!("Status {:?} is not supported yet", guard.status);
+        //     }
+        // }
     }
 }
