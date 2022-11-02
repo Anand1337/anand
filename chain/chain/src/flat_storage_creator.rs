@@ -1,4 +1,4 @@
-use crate::{ChainStore, RuntimeAdapter};
+use crate::{ChainStore, ChainStoreAccess, RuntimeAdapter};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use near_chain_primitives::Error;
 use near_primitives::hash::CryptoHash;
@@ -82,20 +82,17 @@ pub struct FlatStorageCreator {
 }
 
 impl FlatStorageCreator {
-    pub fn new(
-        _runtime_adapter: Arc<dyn RuntimeAdapter>,
-        _chain_store: &ChainStore,
-    ) -> Option<Self> {
-        None
+    pub fn new(runtime_adapter: Arc<dyn RuntimeAdapter>, chain_store: &ChainStore) -> Option<Self> {
+        let chain_head = chain_store.head().unwrap();
+        let num_shards = runtime_adapter.num_shards(&chain_head.epoch_id).unwrap();
+        let _start_height = chain_head.height;
+        let _shard_creators: Vec<Arc<Mutex<FlatStorageShardCreator>>> = (0..num_shards)
+            .map(|shard_id| {
+                Arc::new(Mutex::new(FlatStorageShardCreator::new(shard_id, chain_store)))
+            })
+            .collect();
 
-        // let chain_head = chain_store.head().unwrap();
-        // let num_shards = runtime_adapter.num_shards(&chain_head.epoch_id).unwrap();
-        // let start_height = chain_head.height;
-        // let shard_creators: Vec<Arc<Mutex<FlatStorageShardCreator>>> = (0..num_shards)
-        //     .map(|shard_id| {
-        //         Arc::new(Mutex::new(FlatStorageShardCreator::new(shard_id, chain_store)))
-        //     })
-        //     .collect();
+        None
         // let mut creation_needed = false;
         // for shard_creator in shard_creators.iter() {
         //     let guard = shard_creator.lock().unwrap();
