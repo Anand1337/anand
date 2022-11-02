@@ -1,10 +1,9 @@
-use crate::{ChainStore, ChainStoreAccess, RuntimeAdapter};
+use crate::{ChainStore, RuntimeAdapter};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use near_chain_primitives::Error;
 use near_primitives::hash::CryptoHash;
 use near_primitives::types::{BlockHeight, ShardId};
 use std::sync::{Arc, Mutex};
-use tracing::info;
 
 /// Number of parts to which we divide shard state for parallel traversal.
 // TODO: consider changing it for different shards, ensure that shard memory usage / `NUM_PARTS` < X MiB.
@@ -21,6 +20,7 @@ pub enum CreationStatus {
     /// We can't start fetching state on node start, because `FlatStorageDelta`s are not saved to disk by default.
     /// During this step, we save current chain head, start saving all deltas for blocks after chain head and wait until
     /// final chain head moves after saved chain head.
+    #[allow(unused)]
     SavingDeltas,
     /// We can start fetching state to fill flat storage for some final chain head, because all deltas after it are
     /// saved to disk. It is done in `NUM_PARTS` / `PART_STEP` steps, during each step we spawn background threads to
@@ -55,6 +55,7 @@ pub struct FlatStorageShardCreator {
 }
 
 impl FlatStorageShardCreator {
+    #[allow(unused)]
     pub fn new(shard_id: ShardId, _chain_store: &ChainStore) -> Self {
         let (traversed_parts_sender, traversed_parts_receiver) = unbounded();
         // TODO: read flat storage data and set correct status. ChainStore will be used to get flat storage heads and
@@ -128,7 +129,11 @@ impl FlatStorageCreator {
         // }
     }
 
-    pub fn update_status(&self, shard_id: ShardId, _chain_store: &ChainStore) -> Result<(), Error> {
+    pub fn update_status(
+        &self,
+        _shard_id: ShardId,
+        _chain_store: &ChainStore,
+    ) -> Result<(), Error> {
         Ok(())
         // if shard_id as usize >= self.shard_creators.len() {
         //     // We can request update for not supported shard if resharding happens. We don't support it yet, so we just
