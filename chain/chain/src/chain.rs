@@ -46,9 +46,9 @@ use near_primitives::types::{
 use near_primitives::unwrap_or_return;
 use near_primitives::utils::MaybeValidated;
 use near_primitives::views::{
-    BlockStatusView, DroppedReason, ExecutionOutcomeWithIdView, ExecutionStatusView,
-    FinalExecutionOutcomeView, FinalExecutionOutcomeWithReceiptView, FinalExecutionStatus,
-    LightClientBlockView, SignedTransactionView,
+    BlockStatusView,DroppedReason, ExecutionOutcomeWithIdView, ExecutionStatusView, FinalExecutionOutcomeView,
+    FinalExecutionOutcomeWithReceiptFinalizedView, FinalExecutionOutcomeWithReceiptView,
+    FinalExecutionStatus, InclusionOutcomeView, LightClientBlockView, SignedTransactionView,
 };
 #[cfg(feature = "protocol_feature_flat_state")]
 use near_store::{flat_state, StorageError};
@@ -3395,6 +3395,73 @@ impl Chain {
         Ok(FinalExecutionOutcomeWithReceiptView { final_outcome, receipts })
     }
 
+    pub fn get_finalizied_final_transaction_result_with_receipt(
+        &self,
+        final_execution_outcome_with_receipt_view: FinalExecutionOutcomeWithReceiptView,
+    ) -> Result<FinalExecutionOutcomeWithReceiptFinalizedView, Error> {
+        if self.is_final_transaction_result_with_receipt_finalized(
+            &final_execution_outcome_with_receipt_view,
+        )? {
+            Ok(FinalExecutionOutcomeWithReceiptFinalizedView {
+                final_execution_outcome_with_receipts: final_execution_outcome_with_receipt_view,
+                is_final: true,
+            })
+        } else {
+            Ok(FinalExecutionOutcomeWithReceiptFinalizedView {
+                final_execution_outcome_with_receipts: final_execution_outcome_with_receipt_view,
+                is_final: false,
+            })
+        }
+    }
+
+    pub fn is_final_transaction_result_with_receipt_finalized(
+        &self,
+        final_outcome_with_receipts: &FinalExecutionOutcomeWithReceiptView,
+    ) -> Result<bool, Error> {
+        for receipt_outcome in &final_outcome_with_receipts.final_outcome.receipts_outcome {
+            let current_block = self.get_block(&receipt_outcome.block_hash)?;
+            if self.is_on_current_chain(current_block.header())?
+                && current_block.header().height() <= self.final_head()?.height
+            {
+            } else {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+    /// Return transaction inclusion
+    pub fn get_included_transaction_result(
+        &self,
+        transaction_hash: &CryptoHash,
+    ) -> Result<InclusionOutcomeView, Error> {
+        let transaction = self.store.get_transaction(transaction_hash)?.ok_or_else(|| {
+            Error::DBNotFoundErr(format!("Transaction {} is not found", transaction_hash))
+        })?;
+        let status = FinalExecutionStatus::Included;
+        let transaction: SignedTransactionView = SignedTransaction::clone(&transaction).into();
+        Ok(InclusionOutcomeView { status, transaction })
+    }
+
+    /// Return finalized transaction inclusion
+    pub fn get_finalized_included_transaction_result(
+        &self,
+        transaction_hash: &CryptoHash,
+    ) -> Result<InclusionOutcomeView, Error> {
+        let transaction = self.store.get_transaction(transaction_hash)?.ok_or_else(|| {
+            Error::DBNotFoundErr(format!("Transaction {} is not found", transaction_hash))
+        })?;
+        let mut current_status = FinalExecutionStatus::NotStarted;
+        let current_block = self.get_block(&transaction.transaction.block_hash)?;
+        if self.is_on_current_chain(current_block.header())?
+            && current_block.header().height() <= self.final_head()?.height
+        {
+            current_status = FinalExecutionStatus::IncludedFinal;
+        } else {
+            current_status = FinalExecutionStatus::Included;
+        }
+        let transaction: SignedTransactionView = SignedTransaction::clone(&transaction).into();
+        Ok(InclusionOutcomeView { status: current_status, transaction })
+    }
     /// Find a validator to forward transactions to
     pub fn find_chunk_producer_for_forwarding(
         &self,

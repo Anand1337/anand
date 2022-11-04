@@ -3,7 +3,8 @@ use serde_json::Value;
 use near_client_primitives::types::TxStatusError;
 use near_jsonrpc_primitives::errors::RpcParseError;
 use near_jsonrpc_primitives::types::transactions::{
-    RpcBroadcastTransactionRequest, RpcTransactionError, RpcTransactionResponse,
+    RpcBroadcastTransactionRequest, RpcBroadcastWait, RpcBroadcastWaitResponse,
+    RpcBroadcastWaitTransactionRequest, RpcTransactionError, RpcTransactionResponse,
     RpcTransactionStatusCommonRequest, TransactionInfo,
 };
 use near_primitives::hash::CryptoHash;

@@ -4,6 +4,7 @@
 use actix::{Actor, Addr, Handler, SyncArbiter, SyncContext};
 use near_primitives::receipt::Receipt;
 use near_primitives::time::Clock;
+use near_primitives::transaction::ExecutionOutcomeWithIdAndProof;
 use std::cmp::Ordering;
 use std::collections::{HashMap, VecDeque};
 use std::hash::Hash;
@@ -51,6 +52,7 @@ use near_primitives::views::{
     BlockView, ChunkView, EpochValidatorInfo, ExecutionOutcomeWithIdView,
     FinalExecutionOutcomeView, FinalExecutionOutcomeViewEnum, GasPriceView, LightClientBlockView,
     QueryRequest, QueryResponse, ReceiptView, StateChangesKindsView, StateChangesView,
+    TransactionStatusViewEnum,
 };
 
 use crate::adapter::{
@@ -365,12 +367,13 @@ impl ViewClientActor {
         tx_hash: CryptoHash,
         signer_account_id: AccountId,
         fetch_receipt: bool,
-    ) -> Result<Option<FinalExecutionOutcomeViewEnum>, TxStatusError> {
+        await_for: near_client_primitives::types::TxStatusWaitFor,
+    ) -> Result<Option<TransactionStatusViewEnum>, TxStatusError> {
         {
             let mut request_manager = self.request_manager.write().expect(POISONED_LOCK_ERR);
             if let Some(res) = request_manager.tx_status_response.pop(&tx_hash) {
                 request_manager.tx_status_requests.pop(&tx_hash);
-                return Ok(Some(FinalExecutionOutcomeViewEnum::FinalExecutionOutcome(res)));
+                return Ok(Some(near_primitives::views::TransactionStatusViewEnum::FinalExecutionOutcomeViewEnum(FinalExecutionOutcomeViewEnum::FinalExecutionOutcome(res))));
             }
         }
 
@@ -386,29 +389,100 @@ impl ViewClientActor {
             target_shard_id,
             true,
         ) {
-            match self.chain.get_final_transaction_result(&tx_hash) {
-                Ok(tx_result) => {
-                    let res = if fetch_receipt {
-                        let final_result =
-                            self.chain.get_final_transaction_result_with_receipt(tx_result)?;
-                        FinalExecutionOutcomeViewEnum::FinalExecutionOutcomeWithReceipt(
-                            final_result,
-                        )
-                    } else {
-                        FinalExecutionOutcomeViewEnum::FinalExecutionOutcome(tx_result)
-                    };
-                    Ok(Some(res))
-                }
-                Err(near_chain::Error::DBNotFoundErr(_)) => {
-                    if self.chain.get_execution_outcome(&tx_hash).is_ok() {
-                        Ok(None)
-                    } else {
-                        Err(TxStatusError::MissingTransaction(tx_hash))
+            match await_for {
+                near_client_primitives::types::TxStatusWaitFor::Inclusion => {
+                    match self.chain.get_included_transaction_result(&tx_hash) {
+                        Ok(tx_result) => Ok(Some(
+                            near_primitives::views::TransactionStatusViewEnum::InclusionOutcomeView(
+                                tx_result,
+                            ),
+                        )),
+                        Err(err) => {
+                            warn!(target: "client", ?err, "Error trying to get transaction result");
+                            Err(err.into())
+                        }
                     }
                 }
-                Err(err) => {
-                    warn!(target: "client", ?err, "Error trying to get transaction result");
-                    Err(err.into())
+                near_client_primitives::types::TxStatusWaitFor::InclusionFinal => {
+                    match self.chain.get_finalized_included_transaction_result(&tx_hash) {
+                        Ok(tx_result) => Ok(Some(
+                            near_primitives::views::TransactionStatusViewEnum::InclusionOutcomeView(
+                                tx_result,
+                            ),
+                        )),
+                        Err(err) => {
+                            warn!(target: "client", ?err, "Error trying to get transaction result");
+                            Err(err.into())
+                        }
+                    }
+                }
+                near_client_primitives::types::TxStatusWaitFor::Executed => {
+                    match self.get_final_transaction_results(tx_hash, fetch_receipt, false) {
+                        Ok(tx_result) => {
+                            if let Some(tx_result) = tx_result {
+                                Ok(Some(near_primitives::views::TransactionStatusViewEnum::FinalExecutionOutcomeViewEnum(
+                                tx_result,
+                            )))
+                            } else {
+                                return Ok(None);
+                            }
+                        }
+                        Err(err) => {
+                            warn!(target: "client", ?err, "Error trying to get transaction result");
+                            Err(err.into())
+                        }
+                    }
+                }
+                near_client_primitives::types::TxStatusWaitFor::ExecutedFinal => {
+                    match self.get_final_transaction_results(tx_hash, fetch_receipt, true) {
+                        Ok(tx_result) => {
+                            if let Some(tx_result) = tx_result {
+                                Ok(Some(near_primitives::views::TransactionStatusViewEnum::FinalExecutionOutcomeViewEnum(
+                                tx_result,
+                            )))
+                            } else {
+                                return Ok(None);
+                            }
+                        }
+                        Err(err) => {
+                            warn!(target: "client", ?err, "Error trying to get transaction result");
+                            Err(err.into())
+                        }
+                    }
+                }
+                near_client_primitives::types::TxStatusWaitFor::Final => {
+                    match self.get_final_transaction_results(tx_hash, fetch_receipt, true) {
+                        Ok(tx_result) => {
+                            if let Some(tx_result) = tx_result {
+                                Ok(Some(near_primitives::views::TransactionStatusViewEnum::FinalExecutionOutcomeViewEnum(
+                                tx_result,
+                            )))
+                            } else {
+                                return Ok(None);
+                            }
+                        }
+                        Err(err) => {
+                            warn!(target: "client", ?err, "Error trying to get transaction result");
+                            Err(err.into())
+                        }
+                    }
+                }
+                near_client_primitives::types::TxStatusWaitFor::Legacy => {
+                    match self.get_final_transaction_results(tx_hash, fetch_receipt, false) {
+                        Ok(tx_result) => {
+                            if let Some(tx_result) = tx_result {
+                                Ok(Some(near_primitives::views::TransactionStatusViewEnum::FinalExecutionOutcomeViewEnum(
+                                tx_result,
+                            )))
+                            } else {
+                                return Ok(None);
+                            }
+                        }
+                        Err(err) => {
+                            warn!(target: "client", ?err, "Error trying to get transaction result");
+                            Err(err.into())
+                        }
+                    }
                 }
             }
         } else {
@@ -433,6 +507,43 @@ impl ViewClientActor {
         }
     }
 
+    fn get_final_transaction_results(
+        &mut self,
+        tx_hash: CryptoHash,
+        fetch_receipt: bool,
+        finality: bool,
+    ) -> Result<Option<FinalExecutionOutcomeViewEnum>, TxStatusError> {
+        match self.chain.get_final_transaction_result(&tx_hash) {
+            Ok(tx_result) => {
+                let res = if fetch_receipt {
+                    let final_result =
+                        self.chain.get_final_transaction_result_with_receipt(tx_result)?;
+                    if finality {
+                        let finalized_final_result = self
+                            .chain
+                            .get_finalizied_final_transaction_result_with_receipt(final_result)?;
+                        Ok(Some(near_primitives::views::FinalExecutionOutcomeViewEnum::FinalExecutionOutcomeWithReceiptFinalized(finalized_final_result)))
+                    } else {
+                        Ok(Some(near_primitives::views::FinalExecutionOutcomeViewEnum::FinalExecutionOutcomeWithReceipt(final_result)))
+                    }
+                } else {
+                    Ok(Some(near_primitives::views::FinalExecutionOutcomeViewEnum::FinalExecutionOutcome(tx_result)))
+                };
+                res
+            }
+            Err(near_chain::Error::DBNotFoundErr(_)) => {
+                if self.chain.get_execution_outcome(&tx_hash).is_ok() {
+                    Ok(None)
+                } else {
+                    Err(TxStatusError::MissingTransaction(tx_hash))
+                }
+            }
+            Err(err) => {
+                warn!(target: "client", ?err, "Error trying to get transaction result");
+                Err(err.into())
+            }
+        }
+    }
     fn retrieve_headers(
         &mut self,
         hashes: Vec<CryptoHash>,
@@ -589,17 +700,16 @@ impl Handler<WithSpanContext<GetChunk>> for ViewClientActor {
 }
 
 impl Handler<WithSpanContext<TxStatus>> for ViewClientActor {
-    type Result = Result<Option<FinalExecutionOutcomeViewEnum>, TxStatusError>;
+    type Result = Result<Option<TransactionStatusViewEnum>, TxStatusError>;
 
     #[perf]
     fn handle(&mut self, msg: WithSpanContext<TxStatus>, _: &mut Self::Context) -> Self::Result {
         let (_span, msg) = handler_debug_span!(target: "client", msg);
         let _timer =
             metrics::VIEW_CLIENT_MESSAGE_TIME.with_label_values(&["TxStatus"]).start_timer();
-        self.get_tx_status(msg.tx_hash, msg.signer_account_id, msg.fetch_receipt)
+        self.get_tx_status(msg.tx_hash, msg.signer_account_id, msg.fetch_receipt, msg.await_for)
     }
 }
-
 impl Handler<WithSpanContext<GetValidatorInfo>> for ViewClientActor {
     type Result = Result<EpochValidatorInfo, GetValidatorInfoError>;
 
@@ -1025,9 +1135,41 @@ impl Handler<WithSpanContext<NetworkAdversarialMessage>> for ViewClientActor {
             .with_label_values(&["NetworkAdversarialMessage"])
             .start_timer();
         match msg {
-            NetworkAdversarialMessage::AdvDisableDoomslug => {
-                info!(target: "adversary", "Turning Doomslug off");
-                self.adv.set_disable_doomslug(true);
+            #[cfg(feature = "test_features")]
+            NetworkViewClientMessages::Adversarial(adversarial_msg) => {
+                return match adversarial_msg {
+                    NetworkAdversarialMessage::AdvDisableDoomslug => {
+                        info!(target: "adversary", "Turning Doomslug off");
+                        self.adv.set_disable_doomslug(true);
+                        self.chain.adv_disable_doomslug();
+                        NetworkViewClientResponses::NoResponse
+                    }
+                    NetworkAdversarialMessage::AdvDisableHeaderSync => {
+                        info!(target: "adversary", "Blocking header sync");
+                        self.adv.set_disable_header_sync(true);
+                        NetworkViewClientResponses::NoResponse
+                    }
+                    NetworkAdversarialMessage::AdvSwitchToHeight(height) => {
+                        info!(target: "adversary", "Switching to height");
+                        let mut chain_store_update = self.chain.mut_store().store_update();
+                        chain_store_update.save_largest_target_height(height);
+                        chain_store_update
+                            .adv_save_latest_known(height)
+                            .expect("adv method should not fail");
+                        chain_store_update.commit().expect("adv method should not fail");
+                        NetworkViewClientResponses::NoResponse
+                    }
+                    _ => panic!("invalid adversary message"),
+                }
+            }
+            NetworkViewClientMessages::TxStatus { tx_hash, signer_account_id, await_for } => {
+                if let Ok(Some(result)) =
+                    self.get_tx_status(tx_hash, signer_account_id, false, await_for)
+                {
+                    NetworkViewClientResponses::TxStatus(Box::new(result))
+                } else {
+                    NetworkViewClientResponses::NoResponse
+                }
             }
             NetworkAdversarialMessage::AdvDisableHeaderSync => {
                 info!(target: "adversary", "Blocking header sync");

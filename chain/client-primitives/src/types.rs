@@ -572,6 +572,21 @@ pub struct KnownProducer {
     pub next_hops: Option<Vec<PeerId>>,
 }
 
+#[derive(Clone, Debug)]
+pub enum TxStatusWaitFor {
+    /// For legacy tx status requets
+    Legacy,
+    /// Returns right away.
+    Inclusion,
+    /// Waits until block with inclusion is finalized.
+    InclusionFinal,
+    /// Waits until all non-refund receipts are executed.
+    Executed,
+    /// Waits until all non-refund receipts are executed and the last of the blocks is final.
+    ExecutedFinal,
+    /// Waits until everything has executed and is final.
+    Final,
+}
 #[derive(Debug)]
 pub struct NetworkInfoResponse {
     pub connected_peers: Vec<PeerInfo>,
@@ -588,6 +603,7 @@ pub struct TxStatus {
     pub tx_hash: CryptoHash,
     pub signer_account_id: AccountId,
     pub fetch_receipt: bool,
+    pub await_for: TxStatusWaitFor,
 }
 
 #[derive(Debug)]

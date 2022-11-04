@@ -1111,6 +1111,10 @@ impl From<SignedTransaction> for SignedTransactionView {
 pub enum FinalExecutionStatus {
     /// The execution has not yet started.
     NotStarted,
+    /// The execution is included.
+    Included,
+    /// The execution inclusion is final.
+    IncludedFinal,
     /// The execution has started and still going.
     Started,
     /// The execution has failed with the given error.
@@ -1124,6 +1128,8 @@ impl fmt::Debug for FinalExecutionStatus {
         match self {
             FinalExecutionStatus::NotStarted => f.write_str("NotStarted"),
             FinalExecutionStatus::Started => f.write_str("Started"),
+            FinalExecutionStatus::Included => f.write_str("Included"),
+            FinalExecutionStatus::IncludedFinal => f.write_str("IncludedFinal"),
             FinalExecutionStatus::Failure(e) => f.write_fmt(format_args!("Failure({:?})", e)),
             FinalExecutionStatus::SuccessValue(v) => {
                 f.write_fmt(format_args!("SuccessValue({})", pretty::AbbrBytes(v)))
@@ -1354,6 +1360,7 @@ impl ExecutionOutcomeWithIdView {
 pub enum FinalExecutionOutcomeViewEnum {
     FinalExecutionOutcome(FinalExecutionOutcomeView),
     FinalExecutionOutcomeWithReceipt(FinalExecutionOutcomeWithReceiptView),
+    FinalExecutionOutcomeWithReceiptFinalized(FinalExecutionOutcomeWithReceiptFinalizedView),
 }
 
 impl FinalExecutionOutcomeViewEnum {
@@ -1361,8 +1368,24 @@ impl FinalExecutionOutcomeViewEnum {
         match self {
             Self::FinalExecutionOutcome(outcome) => outcome,
             Self::FinalExecutionOutcomeWithReceipt(outcome) => outcome.final_outcome,
+            Self::FinalExecutionOutcomeWithReceiptFinalized(outcome) => {
+                outcome.final_execution_outcome_with_receipts.final_outcome
+            }
         }
     }
+}
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
+pub struct FinalExecutionOutcomeWithReceiptFinalizedView {
+    /// Final outcome view with receipts
+    #[serde(flatten)]
+    pub final_execution_outcome_with_receipts: FinalExecutionOutcomeWithReceiptView,
+    /// Finality
+    pub is_final: bool,
+}
+
+pub enum TransactionStatusViewEnum {
+    FinalExecutionOutcomeViewEnum(FinalExecutionOutcomeViewEnum),
+    InclusionOutcomeView(InclusionOutcomeView),
 }
 
 /// Final execution outcome of the transaction and all of subsequent the receipts.
@@ -1398,6 +1421,13 @@ pub struct FinalExecutionOutcomeWithReceiptView {
     pub final_outcome: FinalExecutionOutcomeView,
     /// Receipts generated from the transaction
     pub receipts: Vec<ReceiptView>,
+}
+#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub struct InclusionOutcomeView {
+    /// Execution status. Contains the result in case of successful execution.
+    pub status: FinalExecutionStatus,
+    /// Signed Transaction
+    pub transaction: SignedTransactionView,
 }
 
 pub mod validator_stake_view {

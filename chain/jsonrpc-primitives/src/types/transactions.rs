@@ -6,6 +6,26 @@ pub struct RpcBroadcastTransactionRequest {
     pub signed_transaction: near_primitives::transaction::SignedTransaction,
 }
 
+#[derive(Debug, Clone)]
+pub struct RpcBroadcastWaitTransactionRequest {
+    pub signed_transaction: near_primitives::transaction::SignedTransaction,
+    pub rpc_broadcast_wait_type: RpcBroadcastWait,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum RpcBroadcastWait {
+    /// Returns right away.
+    None,
+    /// Waits only for inclusion into the block.
+    Inclusion,
+    /// Waits until block with inclusion is finalized.
+    InclusionFinal,
+    /// Waits until all non-refund receipts are executed.
+    Executed,
+    /// Waits until all non-refund receipts are executed and the last of the blocks is final.
+    ExecutedFinal,
+    /// Waits until everything has executed and is final.
+    Final,
+}
 #[derive(Debug)]
 pub struct RpcTransactionStatusCommonRequest {
     pub transaction_info: TransactionInfo,
@@ -49,6 +69,12 @@ pub struct RpcTransactionResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RpcBroadcastTxSyncResponse {
     pub transaction_hash: near_primitives::hash::CryptoHash,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RpcBroadcastWaitResponse {
+    pub transaction_hash: near_primitives::hash::CryptoHash,
+    pub final_execution_outcome: Option<near_primitives::views::FinalExecutionOutcomeViewEnum>,
 }
 
 impl From<RpcTransactionError> for crate::errors::RpcError {

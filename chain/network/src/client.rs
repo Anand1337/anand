@@ -10,7 +10,7 @@ use near_primitives::network::{AnnounceAccount, PeerId};
 use near_primitives::sharding::PartialEncodedChunk;
 use near_primitives::transaction::SignedTransaction;
 use near_primitives::types::{AccountId, EpochId, ShardId};
-use near_primitives::views::FinalExecutionOutcomeView;
+use near_primitives::views::{FinalExecutionOutcomeView, TransactionStatusViewEnum};
 
 /// A strongly typed asynchronous API for the Client logic.
 /// It abstracts away the fact that client is implemented using actix
@@ -21,7 +21,7 @@ pub trait Client: Send + Sync + 'static {
         &self,
         account_id: AccountId,
         tx_hash: CryptoHash,
-    ) -> Option<Box<FinalExecutionOutcomeView>>;
+    ) -> Option<Box<TransactionStatusViewEnum>>;
 
     async fn tx_status_response(&self, tx_result: FinalExecutionOutcomeView);
 

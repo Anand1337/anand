@@ -14,7 +14,7 @@ use near_primitives::network::{AnnounceAccount, PeerId};
 use near_primitives::sharding::PartialEncodedChunk;
 use near_primitives::transaction::SignedTransaction;
 use near_primitives::types::{AccountId, EpochId, ShardId};
-use near_primitives::views::FinalExecutionOutcomeView;
+use near_primitives::views::{FinalExecutionOutcomeView, TransactionStatusViewEnum};
 
 /// Transaction status query
 #[derive(actix::Message)]
@@ -134,6 +134,8 @@ pub enum ProcessTxResponse {
     /// The node being queried does not track the shard needed and therefore cannot provide userful
     /// response.
     DoesNotTrackShard,
+    /// Ban peer for malicious behavior.
+    Ban { ban_reason: ReasonForBan },
 }
 
 pub struct Adapter {
@@ -158,7 +160,8 @@ impl near_network::client::Client for Adapter {
         &self,
         account_id: AccountId,
         tx_hash: CryptoHash,
-    ) -> Option<Box<FinalExecutionOutcomeView>> {
+        await_for: near_client_primitives::types::TxStatusWaitFor,
+    ) -> Option<Box<TransactionStatusViewEnum>> {
         match self
             .view_client_addr
             .send(
