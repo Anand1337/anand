@@ -18,7 +18,7 @@ fn process_blocks_with_storage_usage_fix(
     check_storage_usage: fn(AccountId, u64, u64),
 ) {
     let epoch_length = 5;
-    let mut genesis = Genesis::test(vec!["test0".parse().unwrap(), "near".parse().unwrap()], 1);
+    let mut genesis = Genesis::test(vec!["test0".parse().unwrap()], 1);
     genesis.config.chain_id = chain_id;
     genesis.config.epoch_length = epoch_length;
     genesis.config.protocol_version = ProtocolFeature::FixStorageUsage.protocol_version() - 1;
