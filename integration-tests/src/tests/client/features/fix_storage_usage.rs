@@ -18,7 +18,7 @@ fn process_blocks_with_storage_usage_fix(
     check_storage_usage: fn(AccountId, u64, u64),
 ) {
     let epoch_length = 5;
-    let mut genesis = Genesis::test(vec!["test0".parse().unwrap(), "test1".parse().unwrap()], 1);
+    let mut genesis = Genesis::test(vec!["test0".parse().unwrap(), "near".parse().unwrap()], 1);
     genesis.config.chain_id = chain_id;
     genesis.config.epoch_length = epoch_length;
     genesis.config.protocol_version = ProtocolFeature::FixStorageUsage.protocol_version() - 1;
@@ -52,7 +52,7 @@ fn process_blocks_with_storage_usage_fix(
         let state_update = TrieUpdate::new(trie.clone());
         use near_primitives::account::Account;
         let mut account_test1_raw = state_update
-            .get(&TrieKey::Account { account_id: "test1".parse().unwrap() })
+            .get(&TrieKey::Account { account_id: "near".parse().unwrap() })
             .unwrap()
             .unwrap()
             .clone();
@@ -64,7 +64,7 @@ fn process_blocks_with_storage_usage_fix(
             .clone();
         let account_test0 = Account::try_from_slice(&mut account_test0_raw).unwrap();
         println!("{} {:?} {:?}", i, account_test0, account_test1);
-        check_storage_usage("test1".parse().unwrap(), i, account_test1.storage_usage());
+        check_storage_usage("near".parse().unwrap(), i, account_test1.storage_usage());
         check_storage_usage("test0".parse().unwrap(), i, account_test0.storage_usage());
     }
 }
