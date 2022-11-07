@@ -63,6 +63,7 @@ fn process_blocks_with_storage_usage_fix(
             .unwrap()
             .clone();
         let account_test0 = Account::try_from_slice(&mut account_test0_raw).unwrap();
+        println!("{} {:?} {:?}", i, account_test0.storage_usage(), account_test1.storage_usage());
         check_storage_usage("test1".parse().unwrap(), i, account_test1.storage_usage());
         check_storage_usage("test0".parse().unwrap(), i, account_test0.storage_usage());
     }
@@ -70,7 +71,7 @@ fn process_blocks_with_storage_usage_fix(
 
 #[test]
 fn test_fix_storage_usage_migration() {
-    init_test_logger();
+    // init_test_logger();
     process_blocks_with_storage_usage_fix(
         "mainnet".to_string(),
         |account_id: AccountId, block_height: u64, storage_usage: u64| {
