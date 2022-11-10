@@ -89,11 +89,13 @@ if __name__ == '__main__':
                         default=False,
                         action='store_true')
     parser.add_argument('--num-seats', type=int, required=False, default=100)
+    parser.add_argument('--max-nodes', type=int, required=False, default=100)
     parser.add_argument('--binary-url', required=False)
     parser.add_argument('--clear-data',
                         required=False,
                         default=False,
                         action='store_true')
+
 
     args = parser.parse_args()
 
@@ -102,20 +104,19 @@ if __name__ == '__main__':
     epoch_length = args.epoch_length
     assert epoch_length > 0
 
-    all_nodes = mocknet.get_nodes(pattern=pattern)
-    validator_nodes = [
-        node for node in all_nodes if 'validator' in node.instance_name
-    ]
+    all_nodes = mocknet.get_nodes(pattern=pattern,max_nodes=args.max_nodes)
+    validator_nodes = all_nodes[:args.num_seats]
+    rpc_nodes = all_nodes[args.num_seats:]
     logger.info(f'validator_nodes: {validator_nodes}')
-    rpc_nodes = [
-        node for node in all_nodes if 'validator' not in node.instance_name
-    ]
     logger.info(
         f'Starting Load of {chain_id} test using {len(validator_nodes)} validator nodes and {len(rpc_nodes)} RPC nodes.'
     )
 
     mocknet.stop_nodes(all_nodes)
     time.sleep(10)
+    pmap(lambda node: node.machine.run("killall wget"),all_nodes)
+    if args.binary_url:
+        mocknet.redownload_neard(all_nodes, args.binary_url)
     if not args.skip_reconfigure:
         logger.info(f'Reconfiguring nodes')
         # Make sure nodes are running by restarting them.
@@ -131,9 +132,7 @@ if __name__ == '__main__':
             epoch_length=epoch_length,
             num_seats=args.num_seats)
         mocknet.create_and_upload_config_file_from_default(
-            all_nodes, chain_id, override_config)
-    if args.binary_url:
-        mocknet.redownload_neard(all_nodes, args.binary_url)
+            all_nodes, chain_id, override_config) 
     mocknet.start_nodes(all_nodes)
     mocknet.wait_all_nodes_up(all_nodes)
 

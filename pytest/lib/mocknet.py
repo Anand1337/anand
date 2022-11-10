@@ -6,6 +6,7 @@ import shlex
 import subprocess
 import tempfile
 import time
+# import concurrent
 
 import base58
 import requests
@@ -18,12 +19,14 @@ from key import Key
 from metrics import Metrics
 from transaction import sign_payment_tx_and_get_hash, sign_staking_tx_and_get_hash
 
+# EXECUTOR = concurrent.futures.ThreadPoolExecutor(60)
+
 DEFAULT_KEY_TARGET = '/tmp/mocknet'
 KEY_TARGET_ENV_VAR = 'NEAR_PYTEST_KEY_TARGET'
 # NODE_SSH_KEY_PATH = '~/.ssh/near_ops'
 NODE_SSH_KEY_PATH = None
 NODE_USERNAME = 'ubuntu'
-NUM_ACCOUNTS = 26 * 2
+NUM_ACCOUNTS = 0 # 26 * 2
 PROJECT = 'near-mocknet'
 PUBLIC_KEY = 'ed25519:76NVkDErhbP1LGrSAf5Db6BsFJ6LBw6YVA4BsfTBohmN'
 TX_OUT_FILE = '/home/ubuntu/tx_events'
@@ -95,11 +98,14 @@ def get_node(hostname):
     return n
 
 
-def get_nodes(pattern=None):
+def get_nodes(pattern=None,max_nodes=100):
+    logger.info(f'get_nodes')
     machines = gcloud.list(pattern=pattern,
                            project=PROJECT,
                            username=NODE_USERNAME,
-                           ssh_key_path=NODE_SSH_KEY_PATH)
+                           ssh_key_path=NODE_SSH_KEY_PATH)[:max_nodes]
+    
+    logger.info(f'get_nodes: DONE')
     nodes = pmap(
         lambda machine: GCloudNode(machine.name,
                                    username=NODE_USERNAME,
@@ -450,10 +456,12 @@ def compress_and_upload(nodes, src_filename, dst_filename):
 
 
 def redownload_neard(nodes, binary_url):
+    logger.info(f'redownload_neard')
     pmap(
         lambda node: node.machine.run('sudo -u ubuntu -i',
                                       input='wget -O /home/ubuntu/neard {}'.
                                       format(binary_url)), nodes)
+    logger.info(f'redownload_neard: DONE')
 
 
 # check each of /home/ubuntu/neard and /home/ubuntu/neard.upgrade to see
@@ -906,8 +914,11 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
 
     stakes = []
     account_id_to_validator_pk = {}
-    for i, (node, stake_multiplier) in enumerate(validator_node_and_stakes):
-        validator = get_validator_account(node)
+    validator_and_stakes = pmap(
+            lambda x: (get_validator_account(x[0]),x[1]),
+            validator_node_and_stakes
+    )
+    for i, (validator, stake_multiplier) in enumerate(validator_and_stakes):
         logger.info(f'Adding account {validator.account_id}')
         account_id_to_validator_pk[validator.account_id] = validator.pk
         staked = MIN_STAKE * stake_multiplier
@@ -996,11 +1007,14 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
     genesis_config['num_block_producer_seats_per_shard'] = [int(num_seats)] * 4
 
     genesis_config['records'] = records
-    for node in [node for (node, _) in validator_node_and_stakes] + rpc_nodes:
-        upload_json(node, '/home/ubuntu/.near/genesis.json', genesis_config)
+    pmap(
+        lambda node: upload_json(node, '/home/ubuntu/.near/genesis.json', genesis_config),
+        [node for (node, _) in validator_node_and_stakes] + rpc_nodes
+    )
 
 
 def download_and_read_json(node, filename):
+    logger.info(f'Download json {node.instance_name} {filename}')
     tmp_file = tempfile.NamedTemporaryFile(mode='r+', delete=False)
     node.machine.download(filename, tmp_file.name)
     tmp_file.close()
@@ -1009,6 +1023,7 @@ def download_and_read_json(node, filename):
 
 
 def upload_json(node, filename, data):
+    logger.info(f'Upload json {node.instance_name} {filename}')
     tmp_file = tempfile.NamedTemporaryFile(mode='r+', delete=False)
     with open(tmp_file.name, 'w') as f:
         json.dump(data, f, indent=2)
@@ -1065,10 +1080,10 @@ def create_and_upload_config_file_from_default(nodes, chain_id, overrider=None):
         .format(chain_id))
     config_json = download_and_read_json(nodes[0],
                                          '/home/ubuntu/.near-tmp/config.json')
+    node_addresses = pmap(lambda node: get_node_addr(node, 24567), nodes)
     config_json['tracked_shards'] = [0, 1, 2, 3]
     config_json['archive'] = True
     config_json['archival_peer_connections_lower_bound'] = 1
-    node_addresses = [get_node_addr(node, 24567) for node in nodes]
     config_json['network']['boot_nodes'] = ','.join(node_addresses)
     config_json['network']['skip_sync_wait'] = False
     config_json['rpc']['addr'] = '0.0.0.0:3030'
@@ -1076,12 +1091,12 @@ def create_and_upload_config_file_from_default(nodes, chain_id, overrider=None):
     if 'telemetry' in config_json:
         config_json['telemetry']['endpoints'] = []
 
-    for node in nodes:
-        copied_config = json.loads(json.dumps(config_json))
-        if overrider:
-            overrider(node, copied_config)
-        upload_json(node, '/home/ubuntu/.near/config.json', copied_config)
-
+    # copied_config = json.loads(json.dumps(config_json))
+    pmap(
+        lambda node: upload_json(node, '/home/ubuntu/.near/config.json', config_json),
+        nodes
+    )
+    
 
 def start_nodes(nodes, upgrade_schedule=None):
     pmap(lambda node: start_node(node, upgrade_schedule=upgrade_schedule),
@@ -1093,6 +1108,7 @@ def stop_nodes(nodes):
 
 
 def clear_data(nodes):
+    logger.info(f'clear_data')
     pmap(lambda node: node.machine.run('rm -rf /home/ubuntu/.near/data'), nodes)
 
 
