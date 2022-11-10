@@ -90,11 +90,8 @@ if __name__ == '__main__':
                         action='store_true')
     parser.add_argument('--num-seats', type=int, required=False, default=100)
     parser.add_argument('--max-nodes', type=int, required=False, default=100)
+    parser.add_argument('--num-shards', type=int, required=False, default=4)
     parser.add_argument('--binary-url', required=False)
-    parser.add_argument('--clear-data',
-                        required=False,
-                        default=False,
-                        action='store_true')
 
 
     args = parser.parse_args()
@@ -121,18 +118,17 @@ if __name__ == '__main__':
         logger.info(f'Reconfiguring nodes')
         # Make sure nodes are running by restarting them.
 
-        if args.clear_data:
-            mocknet.clear_data(all_nodes)
+        mocknet.clear_data(all_nodes)
         mocknet.create_and_upload_genesis_file_from_empty_genesis(
             # Give bad validators less stake.
-            [(node, 1 if 'bad' in node.instance_name else 5)
-             for node in validator_nodes],
+            [(node, 5) for node in validator_nodes],
             rpc_nodes,
-            chain_id,
+            chain_id=chain_id,
             epoch_length=epoch_length,
-            num_seats=args.num_seats)
+            num_seats=args.num_seats,
+            num_shards=args.num_shards)
         mocknet.create_and_upload_config_file_from_default(
-            all_nodes, chain_id, override_config) 
+            all_nodes, chain_id, args.num_shards, override_config) 
     mocknet.start_nodes(all_nodes)
     mocknet.wait_all_nodes_up(all_nodes)
 

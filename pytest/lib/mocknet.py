@@ -853,7 +853,8 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
                                                       rpc_nodes,
                                                       chain_id=None,
                                                       epoch_length=None,
-                                                      num_seats=None):
+                                                      num_seats=None,
+                                                      num_shards=4):
     node0 = validator_node_and_stakes[0][0]
     node0.machine.run(
         'rm -rf /home/ubuntu/.near-tmp && mkdir /home/ubuntu/.near-tmp && /home/ubuntu/neard --home /home/ubuntu/.near-tmp init --chain-id {}'
@@ -1002,9 +1003,9 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
     # The default value of this parameter is 90.
     genesis_config['block_producer_kickout_threshold'] = 10
 
-    genesis_config['shard_layout'] = {'V0': {'num_shards': 4, 'version': 0}}
+    genesis_config['shard_layout'] = {'V0': {'num_shards': num_shards, 'version': 0}}
     genesis_config['simple_nightshade_shard_layout'] = {}
-    genesis_config['num_block_producer_seats_per_shard'] = [int(num_seats)] * 4
+    genesis_config['minimum_validators_per_shard'] = 4
 
     genesis_config['records'] = records
     pmap(
@@ -1074,14 +1075,14 @@ def update_config_file(config_filename_in, config_filename_out, all_node_pks,
         json.dump(config_json, f, indent=2)
 
 
-def create_and_upload_config_file_from_default(nodes, chain_id, overrider=None):
+def create_and_upload_config_file_from_default(nodes, chain_id, num_shards, overrider=None):
     nodes[0].machine.run(
         'rm -rf /home/ubuntu/.near-tmp && mkdir /home/ubuntu/.near-tmp && /home/ubuntu/neard --home /home/ubuntu/.near-tmp init --chain-id {}'
         .format(chain_id))
     config_json = download_and_read_json(nodes[0],
                                          '/home/ubuntu/.near-tmp/config.json')
     node_addresses = pmap(lambda node: get_node_addr(node, 24567), nodes)
-    config_json['tracked_shards'] = [0, 1, 2, 3]
+    config_json['tracked_shards'] = [i for i in range(num_shards)]
     config_json['archive'] = True
     config_json['archival_peer_connections_lower_bound'] = 1
     config_json['network']['boot_nodes'] = ','.join(node_addresses)
