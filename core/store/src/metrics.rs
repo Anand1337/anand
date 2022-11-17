@@ -293,10 +293,3 @@ pub mod flat_state_metrics {
         .unwrap()
     });
 }
-
-/// Format integer to use as a metric label.
-/// `itoa` is much faster for printing shard_id to a string than trivial alternatives.
-pub fn format_integer<I: Integer>(i: &I) -> &str {
-    let mut buffer = itoa::Buffer::new();
-    buffer.format(i.clone())
-}

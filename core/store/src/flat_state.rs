@@ -399,7 +399,6 @@ impl FlatStateDelta {
     }
 }
 
-use crate::metrics::format_integer;
 use near_o11y::metrics::prometheus;
 use near_o11y::metrics::prometheus::core::GenericGauge;
 use near_primitives::errors::StorageError;
@@ -795,7 +794,9 @@ impl FlatStorageState {
             },
         )]);
         let mut deltas = HashMap::new();
-        let shard_id_label = format_integer(&shard_id);
+        // `itoa` is much faster for printing shard_id to a string than trivial alternatives.
+        let mut buffer = itoa::Buffer::new();
+        let shard_id_label = buffer.format(shard_id);
         let metrics = FlatStorageMetrics {
             flat_head_height: metrics::FLAT_STORAGE_HEAD_HEIGHT
                 .with_label_values(&[shard_id_label]),
@@ -934,9 +935,9 @@ impl FlatStorageState {
         }
         let mut store_update = StoreUpdate::new(guard.store.storage.clone());
         store_helper::set_delta(&mut store_update, guard.shard_id, block_hash.clone(), &delta)?;
-        guard.deltas.insert(*block_hash, Arc::new(delta));
         guard.metrics.cached_deltas_num_items.add(delta.len() as i64);
         guard.metrics.cached_deltas_size.add(delta.total_size() as i64);
+        guard.deltas.insert(*block_hash, Arc::new(delta));
 
         guard.blocks.insert(*block_hash, block);
         guard.metrics.cached_blocks.inc();

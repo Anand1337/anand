@@ -19,7 +19,7 @@ use near_store::migrations::BatchedStoreUpdate;
 use near_store::DBCol;
 #[cfg(feature = "protocol_feature_flat_state")]
 use near_store::FlatStateDelta;
-use near_store::{format_integer, Store, FLAT_STORAGE_HEAD_HEIGHT};
+use near_store::{Store, FLAT_STORAGE_HEAD_HEIGHT};
 use near_store::{Trie, TrieDBStorage, TrieTraversalItem};
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -65,7 +65,10 @@ impl FlatStorageShardCreator {
         runtime_adapter: Arc<dyn RuntimeAdapter>,
     ) -> Self {
         let (fetched_parts_sender, fetched_parts_receiver) = unbounded();
-        let shard_id_label = format_integer(&shard_id);
+        // `itoa` is much faster for printing shard_id to a string than trivial alternatives.
+        let mut buffer = itoa::Buffer::new();
+        let shard_id_label = buffer.format(shard_id);
+
         Self {
             shard_id,
             start_height,
