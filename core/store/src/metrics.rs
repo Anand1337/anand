@@ -214,3 +214,49 @@ pub static COLD_MIGRATION_READS: Lazy<IntCounterVec> = Lazy::new(|| {
     )
     .unwrap()
 });
+
+#[cfg(feature = "protocol_feature_flat_state")]
+pub mod flat_state {
+    use super::*;
+
+    pub static FLAT_STORAGE_CREATION_TOTAL_BYTES: Lazy<IntCounterVec> = Lazy::new(|| {
+        try_create_int_counter_vec(
+            "flat_storage_creation_total_bytes",
+            "Estimation of total size of data to fetch to fill flat storage in bytes",
+            &["shard_id"],
+        )
+        .unwrap()
+    });
+    pub static FLAT_STORAGE_CREATION_FETCHED_BYTES: Lazy<IntCounterVec> = Lazy::new(|| {
+        try_create_int_counter_vec(
+            "flat_storage_creation_fetched_bytes",
+            "Estimation of fetched data to fill flat storage in bytes",
+            &["shard_id"],
+        )
+        .unwrap()
+    });
+    pub static FLAT_STORAGE_CREATION_FETCHED_ITEMS: Lazy<IntCounterVec> = Lazy::new(|| {
+        try_create_int_counter_vec(
+            "flat_storage_creation_fetched_bytes",
+            "Number of fetched items to fill flat storage",
+            &["shard_id"],
+        )
+        .unwrap()
+    });
+    pub static FLAT_STORAGE_HEAD_HEIGHT: Lazy<IntCounterVec> = Lazy::new(|| {
+        try_create_int_counter_vec(
+            "flat_storage_head_height",
+            "Height of flat storage head",
+            &["shard_id"],
+        )
+        .unwrap()
+    });
+    pub static FLAT_STORAGE_CREATION_THREADS_USED: Lazy<IntCounterVec> = Lazy::new(|| {
+        try_create_int_counter_vec(
+            "flat_storage_head_height",
+            "Height of flat storage head",
+            &["shard_id"],
+        )
+        .unwrap()
+    });
+}
