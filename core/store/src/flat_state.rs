@@ -896,7 +896,7 @@ impl FlatStorageState {
         for hash in hashes_to_remove {
             // Note that we have to remove delta for new head but we still need to keep block info, e.g. for knowing
             // height of the head.
-            guard.deltas.remove(&hash);
+            let delta = guard.deltas.remove(&hash).unwrap();
             guard.metrics.cached_deltas_num_items.sub(delta.len() as i64);
             guard.metrics.cached_deltas_size.sub(delta.total_size() as i64);
 
