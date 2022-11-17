@@ -65,7 +65,7 @@ impl FlatStorageShardCreator {
         runtime_adapter: Arc<dyn RuntimeAdapter>,
     ) -> Self {
         let (fetched_parts_sender, fetched_parts_receiver) = unbounded();
-        let shard_id_label = format_integer(shard_id);
+        let shard_id_label = format_integer(&shard_id);
         Self {
             shard_id,
             start_height,

@@ -795,7 +795,7 @@ impl FlatStorageState {
             },
         )]);
         let mut deltas = HashMap::new();
-        let shard_id_label = format_integer(shard_id);
+        let shard_id_label = format_integer(&shard_id);
         let metrics = FlatStorageMetrics {
             flat_head_height: metrics::FLAT_STORAGE_HEAD_HEIGHT
                 .with_label_values(&[shard_id_label]),
