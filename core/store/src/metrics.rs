@@ -1,4 +1,3 @@
-use itoa::Integer;
 use near_o11y::metrics::{
     try_create_histogram_vec, try_create_int_counter_vec, try_create_int_gauge_vec, HistogramVec,
     IntCounterVec, IntGaugeVec,
