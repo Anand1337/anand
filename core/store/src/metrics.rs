@@ -257,29 +257,28 @@ pub static FLAT_STORAGE_DISTANCE_TO_HEAD: Lazy<IntGaugeVec> = Lazy::new(|| {
     .unwrap()
 });
 
-#[cfg(feature = "protocol_feature_flat_state")]
-pub mod flat_state {
+pub mod flat_state_metrics {
     use super::*;
 
-    pub static FLAT_STORAGE_CREATION_TOTAL_BYTES: Lazy<IntCounterVec> = Lazy::new(|| {
+    pub static FLAT_STORAGE_CREATION_REMAINING_STATE_PARTS: Lazy<IntGaugeVec> = Lazy::new(|| {
         try_create_int_counter_vec(
-            "flat_storage_creation_total_bytes",
-            "Estimation of total size of data to fetch to fill flat storage in bytes",
+            "flat_storage_creation_remaining_state_parts",
+            "Number of remaining state parts to fetch to fill flat storage in bytes",
             &["shard_id"],
         )
         .unwrap()
     });
-    pub static FLAT_STORAGE_CREATION_FETCHED_BYTES: Lazy<IntCounterVec> = Lazy::new(|| {
+    pub static FLAT_STORAGE_CREATION_FETCHED_STATE_PARTS: Lazy<IntCounterVec> = Lazy::new(|| {
         try_create_int_counter_vec(
-            "flat_storage_creation_fetched_bytes",
-            "Estimation of fetched data to fill flat storage in bytes",
+            "flat_storage_creation_fetched_state_parts",
+            "Number of fetched state parts to fill flat storage in bytes",
             &["shard_id"],
         )
         .unwrap()
     });
-    pub static FLAT_STORAGE_CREATION_FETCHED_ITEMS: Lazy<IntCounterVec> = Lazy::new(|| {
+    pub static FLAT_STORAGE_CREATION_FETCHED_STATE_ITEMS: Lazy<IntCounterVec> = Lazy::new(|| {
         try_create_int_counter_vec(
-            "flat_storage_creation_fetched_bytes",
+            "flat_storage_creation_fetched_state_items",
             "Number of fetched items to fill flat storage",
             &["shard_id"],
         )
@@ -287,8 +286,8 @@ pub mod flat_state {
     });
     pub static FLAT_STORAGE_CREATION_THREADS_USED: Lazy<IntGaugeVec> = Lazy::new(|| {
         try_create_int_counter_vec(
-            "flat_storage_head_height",
-            "Height of flat storage head",
+            "flat_storage_creation_threads_used",
+            "Number of currently used threads to fetch state",
             &["shard_id"],
         )
         .unwrap()

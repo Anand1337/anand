@@ -3,6 +3,8 @@ use crate::{ChainStore, ChainStoreAccess, RuntimeAdapter};
 use assert_matches::assert_matches;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use near_chain_primitives::Error;
+use near_o11y::metrics::prometheus;
+use near_o11y::metrics::prometheus::core::{GenericCounter, GenericGauge};
 use near_primitives::shard_layout::ShardUId;
 use near_primitives::state::ValueRef;
 use near_primitives::state_part::PartId;
@@ -17,12 +19,20 @@ use near_store::migrations::BatchedStoreUpdate;
 use near_store::DBCol;
 #[cfg(feature = "protocol_feature_flat_state")]
 use near_store::FlatStateDelta;
-use near_store::Store;
+use near_store::{format_integer, Store, FLAT_STORAGE_HEAD_HEIGHT};
 use near_store::{Trie, TrieDBStorage, TrieTraversalItem};
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use tracing::debug;
 use tracing::info;
+
+struct FlatStorageCreationMetrics {
+    flat_head_height: GenericGauge<prometheus::core::AtomicI64>,
+    remaining_state_parts: GenericGauge<prometheus::core::AtomicI64>,
+    fetched_state_parts: GenericCounter<prometheus::core::AtomicU64>,
+    fetched_state_items: GenericCounter<prometheus::core::AtomicU64>,
+    threads_used: GenericGauge<prometheus::core::AtomicI64>,
+}
 
 /// If we launched a node with enabled flat storage but it doesn't have flat storage data on disk, we have to create it.
 /// This struct is responsible for this process for the given shard.
@@ -45,7 +55,7 @@ pub struct FlatStorageShardCreator {
     #[allow(unused)]
     fetched_parts_receiver: Receiver<u64>,
     #[allow(unused)]
-    visited_trie_items: u64,
+    metrics: FlatStorageCreationMetrics,
 }
 
 impl FlatStorageShardCreator {
@@ -55,6 +65,7 @@ impl FlatStorageShardCreator {
         runtime_adapter: Arc<dyn RuntimeAdapter>,
     ) -> Self {
         let (fetched_parts_sender, fetched_parts_receiver) = unbounded();
+        let shard_id_label = format_integer(shard_id);
         Self {
             shard_id,
             start_height,
@@ -62,7 +73,20 @@ impl FlatStorageShardCreator {
             remaining_state_parts: None,
             fetched_parts_sender,
             fetched_parts_receiver,
-            visited_trie_items: 0,
+            metrics: FlatStorageCreationMetrics {
+                flat_head_height: FLAT_STORAGE_HEAD_HEIGHT.with_label_values(&[shard_id_label]),
+                remaining_state_parts:
+                    near_store::flat_state_metrics::FLAT_STORAGE_CREATION_REMAINING_STATE_PARTS
+                        .with_label_values(&[shard_id_label]),
+                fetched_state_parts:
+                    near_store::flat_state_metrics::FLAT_STORAGE_CREATION_FETCHED_STATE_PARTS
+                        .with_label_values(&[shard_id_label]),
+                fetched_state_items:
+                    near_store::flat_state_metrics::FLAT_STORAGE_CREATION_FETCHED_STATE_ITEMS
+                        .with_label_values(&[shard_id_label]),
+                threads_used: near_store::flat_state_metrics::FLAT_STORAGE_CREATION_THREADS_USED
+                    .with_label_values(&[shard_id_label]),
+            },
         }
     }
 
@@ -190,6 +214,7 @@ impl FlatStorageShardCreator {
 
                     let mut store_update = chain_store.store().store_update();
                     store_helper::set_flat_head(&mut store_update, shard_id, &block_hash);
+                    self.metrics.flat_head_height.set(final_head.height as i64);
                     store_helper::set_fetching_state_status(&mut store_update, shard_id, status);
                     store_update.commit()?;
                 }
@@ -202,6 +227,7 @@ impl FlatStorageShardCreator {
                 let num_parts_in_step = fetching_state_status.num_parts_in_step;
                 let num_parts = fetching_state_status.num_parts;
                 let next_start_part_id = num_parts.min(start_part_id + num_parts_in_step);
+                self.metrics.remaining_state_parts.set((num_parts - start_part_id) as i64);
 
                 match self.remaining_state_parts.clone() {
                     None => {
@@ -225,6 +251,7 @@ impl FlatStorageShardCreator {
                             let inner_progress = progress.clone();
                             let inner_sender = self.fetched_parts_sender.clone();
                             thread_pool.spawn(move || {
+                                self.metrics.threads_used.inc();
                                 Self::fetch_state_part(
                                     inner_store,
                                     shard_uid,
@@ -233,6 +260,7 @@ impl FlatStorageShardCreator {
                                     inner_progress,
                                     inner_sender,
                                 );
+                                self.metrics.threads_used.dec();
                             })
                         }
 
@@ -242,9 +270,10 @@ impl FlatStorageShardCreator {
                     Some(state_parts) if state_parts > 0 => {
                         // If not all state parts were fetched, try receiving new results.
                         let mut updated_state_parts = state_parts;
-                        while let Ok(n) = self.fetched_parts_receiver.try_recv() {
+                        while let Ok(num_items) = self.fetched_parts_receiver.try_recv() {
                             updated_state_parts -= 1;
-                            self.visited_trie_items += n;
+                            self.metrics.fetched_state_items.inc_by(num_items);
+                            self.metrics.fetched_state_parts.inc();
                         }
                         self.remaining_state_parts = Some(updated_state_parts);
                         Ok(())
@@ -308,6 +337,7 @@ impl FlatStorageShardCreator {
                     let old_height = chain_store.get_block_height(&old_flat_head).unwrap();
                     let height = chain_store.get_block_height(&flat_head).unwrap();
                     debug!(target: "chain", %shard_id, %old_flat_head, %old_height, %flat_head, %height, "Catching up flat head");
+                    self.metrics.flat_head_height.set(height as i64);
                     let mut store_update = self.runtime_adapter.store().store_update();
                     store_helper::set_flat_head(&mut store_update, shard_id, &flat_head);
                     merged_delta.apply_to_flat_state(&mut store_update);
