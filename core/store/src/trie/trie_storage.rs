@@ -1,4 +1,5 @@
 use crate::db::refcount::decode_value_with_rc;
+use crate::metrics::format_integer;
 use crate::trie::config::TrieConfig;
 use crate::trie::prefetching_trie_storage::PrefetcherResult;
 use crate::trie::POISONED_LOCK_ERR;
@@ -420,9 +421,7 @@ impl TrieCachingStorage {
         is_view: bool,
         prefetch_api: Option<PrefetchApi>,
     ) -> TrieCachingStorage {
-        // `itoa` is much faster for printing shard_id to a string than trivial alternatives.
-        let mut buffer = itoa::Buffer::new();
-        let shard_id = buffer.format(shard_uid.shard_id);
+        let shard_id = format_integer(shard_uid.shard_id);
 
         let metrics_labels: [&str; 2] = [&shard_id, if is_view { "1" } else { "0" }];
         let metrics = TrieCacheInnerMetrics {

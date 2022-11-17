@@ -1,6 +1,7 @@
+use itoa::Integer;
 use near_o11y::metrics::{
     try_create_histogram_vec, try_create_int_counter_vec, try_create_int_gauge_vec, HistogramVec,
-    IntCounterVec, IntGaugeVec,
+    IntCounterVec, IntGauge, IntGaugeVec,
 };
 use once_cell::sync::Lazy;
 
@@ -215,6 +216,47 @@ pub static COLD_MIGRATION_READS: Lazy<IntCounterVec> = Lazy::new(|| {
     .unwrap()
 });
 
+pub static FLAT_STORAGE_HEAD_HEIGHT: Lazy<IntGaugeVec> = Lazy::new(|| {
+    try_create_int_counter_vec(
+        "flat_storage_head_height",
+        "Height of flat storage head",
+        &["shard_id"],
+    )
+    .unwrap()
+});
+pub static FLAT_STORAGE_CACHED_BLOCKS: Lazy<IntGaugeVec> = Lazy::new(|| {
+    try_create_int_counter_vec(
+        "flat_storage_cached_blocks",
+        "Number of cached blocks in flat storage",
+        &["shard_id"],
+    )
+    .unwrap()
+});
+pub static FLAT_STORAGE_CACHED_DELTAS_NUM_ITEMS: Lazy<IntGaugeVec> = Lazy::new(|| {
+    try_create_int_counter_vec(
+        "flat_storage_cached_deltas_num_items",
+        "Number of items in all cached deltas in flat storage",
+        &["shard_id"],
+    )
+    .unwrap()
+});
+pub static FLAT_STORAGE_CACHED_DELTAS_SIZE: Lazy<IntGaugeVec> = Lazy::new(|| {
+    try_create_int_counter_vec(
+        "flat_storage_cached_deltas_size",
+        "Total size of cached deltas in flat storage",
+        &["shard_id"],
+    )
+    .unwrap()
+});
+pub static FLAT_STORAGE_DISTANCE_TO_HEAD: Lazy<IntGaugeVec> = Lazy::new(|| {
+    try_create_int_counter_vec(
+        "flat_storage_distance_to_head",
+        "Distance between processed block and flat storage head",
+        &["shard_id"],
+    )
+    .unwrap()
+});
+
 #[cfg(feature = "protocol_feature_flat_state")]
 pub mod flat_state {
     use super::*;
@@ -243,7 +285,7 @@ pub mod flat_state {
         )
         .unwrap()
     });
-    pub static FLAT_STORAGE_HEAD_HEIGHT: Lazy<IntCounterVec> = Lazy::new(|| {
+    pub static FLAT_STORAGE_CREATION_THREADS_USED: Lazy<IntGaugeVec> = Lazy::new(|| {
         try_create_int_counter_vec(
             "flat_storage_head_height",
             "Height of flat storage head",
@@ -251,12 +293,11 @@ pub mod flat_state {
         )
         .unwrap()
     });
-    pub static FLAT_STORAGE_CREATION_THREADS_USED: Lazy<IntCounterVec> = Lazy::new(|| {
-        try_create_int_counter_vec(
-            "flat_storage_head_height",
-            "Height of flat storage head",
-            &["shard_id"],
-        )
-        .unwrap()
-    });
+}
+
+/// Format integer to use as a metric label.
+/// `itoa` is much faster for printing shard_id to a string than trivial alternatives.
+pub fn format_integer<I: Integer>(i: I) -> &str {
+    let mut buffer = itoa::Buffer::new();
+    buffer.format(i)
 }
