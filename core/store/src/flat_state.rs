@@ -897,13 +897,21 @@ impl FlatStorageState {
         for hash in hashes_to_remove {
             // Note that we have to remove delta for new head but we still need to keep block info, e.g. for knowing
             // height of the head.
-            let delta = guard.deltas.remove(&hash).unwrap();
-            guard.metrics.cached_deltas_num_items.sub(delta.len() as i64);
-            guard.metrics.cached_deltas_size.sub(delta.total_size() as i64);
+            match guard.deltas.remove(&hash) {
+                Some(delta) => {
+                    guard.metrics.cached_deltas_num_items.sub(delta.len() as i64);
+                    guard.metrics.cached_deltas_size.sub(delta.total_size() as i64);
+                }
+                None => {}
+            }
 
             if &hash != new_head {
-                guard.blocks.remove(&hash);
-                guard.metrics.cached_blocks.dec();
+                match guard.blocks.remove(&hash) {
+                    Some(_) => {
+                        guard.metrics.cached_blocks.dec();
+                    }
+                    None => {}
+                }
             }
             store_helper::remove_delta(&mut store_update, guard.shard_id, hash);
         }
