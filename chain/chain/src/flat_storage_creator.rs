@@ -253,8 +253,10 @@ impl FlatStorageShardCreator {
                             let inner_state_root = state_root.clone();
                             let inner_progress = progress.clone();
                             let inner_sender = self.fetched_parts_sender.clone();
+                            let inner_threads_used = self.metrics.threads_used.clone();
+
                             thread_pool.spawn(move || {
-                                self.metrics.threads_used.inc();
+                                inner_threads_used.inc();
                                 Self::fetch_state_part(
                                     inner_store,
                                     shard_uid,
@@ -263,7 +265,7 @@ impl FlatStorageShardCreator {
                                     inner_progress,
                                     inner_sender,
                                 );
-                                self.metrics.threads_used.dec();
+                                inner_threads_used.dec();
                             })
                         }
 
