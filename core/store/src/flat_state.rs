@@ -395,7 +395,7 @@ impl FlatStateDelta {
     }
 
     fn total_size(&self) -> u64 {
-        self.0.keys().map(|key| key.len() + Self::PER_ENTRY_OVERHEAD).sum()
+        self.0.keys().map(|key| key.len() as u64 + Self::PER_ENTRY_OVERHEAD).sum()
     }
 }
 
