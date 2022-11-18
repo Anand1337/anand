@@ -212,7 +212,7 @@ impl Default for StoreConfig {
 
             // We checked that this number of threads doesn't impact
             // regular block processing significantly.
-            background_work_threads: 8,
+            background_work_threads: 16,
         }
     }
 }
