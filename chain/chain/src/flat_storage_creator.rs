@@ -11,9 +11,9 @@ use near_primitives::state_part::PartId;
 use near_primitives::types::{BlockHeight, ShardId, StateRoot};
 use near_store::flat_state::FlatStorageStateStatus;
 #[cfg(feature = "protocol_feature_flat_state")]
-use near_store::flat_state::{store_helper, FetchingStateStatus};
-#[cfg(feature = "protocol_feature_flat_state")]
-use near_store::flat_state::{NUM_PARTS_IN_ONE_STEP, STATE_PART_MEMORY_LIMIT};
+use near_store::flat_state::{
+    store_helper, FetchingStateStatus, NUM_PARTS_IN_ONE_STEP, STATE_PART_MEMORY_LIMIT,
+};
 use near_store::migrations::BatchedStoreUpdate;
 #[cfg(feature = "protocol_feature_flat_state")]
 use near_store::DBCol;
@@ -383,7 +383,11 @@ pub struct FlatStorageCreator {
 }
 
 impl FlatStorageCreator {
-    pub fn new(runtime_adapter: Arc<dyn RuntimeAdapter>, chain_store: &ChainStore) -> Option<Self> {
+    pub fn new(
+        runtime_adapter: Arc<dyn RuntimeAdapter>,
+        chain_store: &ChainStore,
+        num_threads: usize,
+    ) -> Option<Self> {
         let chain_head = chain_store.head().unwrap();
         let num_shards = runtime_adapter.num_shards(&chain_head.epoch_id).unwrap();
         let start_height = chain_head.height;
@@ -412,7 +416,7 @@ impl FlatStorageCreator {
         if creation_needed {
             Some(Self {
                 shard_creators,
-                pool: rayon::ThreadPoolBuilder::new().num_threads(8).build().unwrap(),
+                pool: rayon::ThreadPoolBuilder::new().num_threads(num_threads).build().unwrap(),
             })
         } else {
             None
