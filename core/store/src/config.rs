@@ -86,7 +86,7 @@ pub struct StoreConfig {
     /// Number of threads to execute background work with storage.
     /// Needed to create flat storage which need to happen in parallel
     /// with block processing.
-    pub background_work_threads: usize,
+    pub background_migration_threads: usize,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -212,7 +212,7 @@ impl Default for StoreConfig {
 
             // We checked that this number of threads doesn't impact
             // regular block processing significantly.
-            background_work_threads: 16,
+            background_migration_threads: 16,
         }
     }
 }

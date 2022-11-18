@@ -57,6 +57,8 @@
   to set limits on the trie cache. Deprecates the never announced 
   `store.trie_cache_capacities` option which was mentioned in previous change.
   [#7578](https://github.com/near/nearcore/pull/7578)
+* New option `store.background_migration_threads` in `config.json` to set number of
+  threads to execute 
 * Tracing of work across actix workers within a process:
   [#7866](https://github.com/near/nearcore/pull/7866),
   [#7819](https://github.com/near/nearcore/pull/7819),

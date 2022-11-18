@@ -241,12 +241,12 @@ pub struct ChainConfig {
     pub save_trie_changes: bool,
     /// Number of threads to execute auxiliary background work.
     /// Currently used for flat storage background creation.
-    pub background_work_threads: usize,
+    pub background_migration_threads: usize,
 }
 
 impl Default for ChainConfig {
     fn default() -> Self {
-        Self { save_trie_changes: true, background_work_threads: 1 }
+        Self { save_trie_changes: true, background_migration_threads: 1 }
     }
 }
 
