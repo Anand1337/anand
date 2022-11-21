@@ -206,7 +206,7 @@ where
     S: tracing::Subscriber + for<'span> LookupSpan<'span> + Send + Sync,
     W: for<'writer> fmt::MakeWriter<'writer> + 'static,
 {
-    let layer = fmt::layer().with_ansi(ansi).with_writer(writer).with_filter(filter);
+    let layer = fmt::layer().with_ansi(ansi).with_span_events(get_fmt_span(true)).with_writer(writer).with_filter(filter);
 
     subscriber.with(layer)
 }
