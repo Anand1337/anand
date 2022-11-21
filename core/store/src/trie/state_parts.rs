@@ -24,6 +24,11 @@ impl Trie {
     /// # Errors
     /// StorageError if the storage is corrupted
     pub fn get_trie_nodes_for_part(&self, part_id: PartId) -> Result<PartialState, StorageError> {
+        let _span = tracing::trace_span!(
+            target: "runtime",
+            "get_trie_nodes_for_part",
+            ?part_id)
+        .entered();
         assert!(self.storage.as_caching_storage().is_some());
 
         let with_recording = self.recording_reads();
@@ -42,6 +47,11 @@ impl Trie {
     /// Creating a StatePart takes all these nodes, validating a StatePart checks that it has the
     /// right set of nodes.
     fn visit_nodes_for_state_part(&self, part_id: PartId) -> Result<(), StorageError> {
+        let _span = tracing::trace_span!(
+            target: "runtime",
+            "visit_nodes_for_state_part",
+            ?part_id)
+        .entered();
         let path_begin = self.find_path_for_part_boundary(part_id.idx, part_id.total)?;
         let path_end = self.find_path_for_part_boundary(part_id.idx + 1, part_id.total)?;
         let mut iterator = self.iter()?;
@@ -69,6 +79,10 @@ impl Trie {
         part_id: u64,
         num_parts: u64,
     ) -> Result<Vec<u8>, StorageError> {
+        let _span = tracing::trace_span!(
+            target: "runtime",
+            "find_path_for_part_boundary", part_id, num_parts)
+        .entered();
         assert!(part_id <= num_parts);
         if part_id == num_parts {
             return Ok(vec![16]);

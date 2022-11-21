@@ -171,6 +171,10 @@ impl ShardTries {
     }
 
     pub fn get_view_trie_for_shard(&self, shard_uid: ShardUId, state_root: StateRoot) -> Trie {
+        let _span = tracing::trace_span!(
+            target: "runtime",
+            "get_view_trie_for_shard")
+        .entered();
         self.get_trie_for_shard_internal(shard_uid, state_root, true, None)
     }
 

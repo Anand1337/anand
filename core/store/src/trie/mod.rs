@@ -570,6 +570,10 @@ impl Trie {
     }
 
     pub fn recording_reads(&self) -> Self {
+        let _span = tracing::trace_span!(
+            target: "runtime",
+            "recording_reads")
+        .entered();
         let storage =
             self.storage.as_caching_storage().expect("Storage should be TrieCachingStorage");
         let storage = TrieRecordingStorage {
