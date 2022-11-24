@@ -1034,18 +1034,6 @@ def upload_json(node, filename, data):
     tmp_file.close()
 
 
-def get_node_addr(node, port):
-    node_key_json = download_and_read_json(node,
-                                           '/home/ubuntu/.near/node_key.json')
-    return f'{node_key_json["public_key"]}@{node.ip}:{port}'
-
-
-def get_validator_account_id(node):
-    node_key_json = download_and_read_json(
-        node, '/home/ubuntu/.near/validator_key.json')
-    return node_key_json["account_id"]
-
-
 def get_node_keys(node):
     logger.info(f'get_node_keys from {node.instance_name}')
     node_key_json = download_and_read_json(node,
@@ -1076,6 +1064,8 @@ def update_config_file(config_filename_in, config_filename_out, all_node_pks,
     with open(config_filename_out, 'w') as f:
         json.dump(config_json, f, indent=2)
 
+def upload_config(node, config, 
+    upload_json(node, '/home/ubuntu/.near/config.json', config_json),
 
 def create_and_upload_config_file_from_default(nodes, chain_id, num_shards, overrider=None):
     nodes[0].machine.run(
@@ -1087,16 +1077,17 @@ def create_and_upload_config_file_from_default(nodes, chain_id, num_shards, over
     config_json['tracked_shards'] = [2,3] # [i for i in range(num_shards)]
     config_json['archive'] = True
     config_json['archival_peer_connections_lower_bound'] = 1
-    config_json['network']['boot_nodes'] = ','.join(node_addresses)
+    config_json['network']['boot_nodes'] = ','.join(node_addresses[:4])
     config_json['network']['skip_sync_wait'] = False
+    config_json['network']['experimental']['tier1_enable_inbound'] = True
+    config_json['network']['experimental']['tier1_enable_outbound'] = True
     config_json['rpc']['addr'] = '0.0.0.0:3030'
     config_json['rpc']['enable_debug_rpc'] = True
     if 'telemetry' in config_json:
         config_json['telemetry']['endpoints'] = []
 
-    # copied_config = json.loads(json.dumps(config_json))
     pmap(
-        lambda node: upload_json(node, '/home/ubuntu/.near/config.json', config_json),
+        lambda node: upload_config(node, json.loads(json.dumps(config_json)))
         nodes
     )
     

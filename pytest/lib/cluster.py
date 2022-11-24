@@ -539,6 +539,8 @@ class GCloudNode(BaseNode):
                                       project=project,
                                       ssh_key_path=ssh_key_path)
             self.ip = self.machine.ip
+            self.node_key = download_and_read_json(self,'/home/ubuntu/.near/node_key.json')["public_key"]
+            self.account_key = download_and_read_json(self, '/home/ubuntu/.near/validator_key.json')
         elif len(args) == 4:
             # Create new instance from scratch
             instance_name, zone, node_dir, binary = args
@@ -649,7 +651,8 @@ chmod +x neard
             json.dump(new_key.to_json(), f)
         self.machine.upload(os.path.join(self.node_dir, 'validator_key.json'),
                             f'/home/{self.machine.username}/.near/')
-
+    def addr(self, port):
+        return f'{self.node_key_json["public_key"]}@{self.ip}:{port}'
 
 def spin_up_node(config,
                  near_root,
