@@ -1006,6 +1006,8 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
     genesis_config['shard_layout'] = {'V0': {'num_shards': num_shards, 'version': 0}}
     genesis_config['simple_nightshade_shard_layout'] = {}
     genesis_config['minimum_validators_per_shard'] = 4
+    # not used, but required by some stupid assert.
+    genesis_config['num_block_producer_seats_per_shard'] = num_shards * [0]
 
     genesis_config['records'] = records
     pmap(
@@ -1082,7 +1084,7 @@ def create_and_upload_config_file_from_default(nodes, chain_id, num_shards, over
     config_json = download_and_read_json(nodes[0],
                                          '/home/ubuntu/.near-tmp/config.json')
     node_addresses = pmap(lambda node: get_node_addr(node, 24567), nodes)
-    config_json['tracked_shards'] = [i for i in range(num_shards)]
+    config_json['tracked_shards'] = [2,3] # [i for i in range(num_shards)]
     config_json['archive'] = True
     config_json['archival_peer_connections_lower_bound'] = 1
     config_json['network']['boot_nodes'] = ','.join(node_addresses)
