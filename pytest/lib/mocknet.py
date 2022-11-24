@@ -129,11 +129,6 @@ def load_testing_account_id(node_account_id, i):
     return '%s%02d_%s' % (chr(ord('a') + letter), num, node_account_id)
 
 
-def get_validator_account(node):
-    return Key.from_json(
-        download_and_read_json(node, '/home/ubuntu/.near/validator_key.json'))
-
-
 def list_validators(node):
     validators = node.get_validators()['result']
     validator_accounts = set(
@@ -859,8 +854,8 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
     node0.machine.run(
         'rm -rf /home/ubuntu/.near-tmp && mkdir /home/ubuntu/.near-tmp && /home/ubuntu/neard --home /home/ubuntu/.near-tmp init --chain-id {}'
         .format(chain_id))
-    genesis_config = download_and_read_json(
-        node0, "/home/ubuntu/.near-tmp/genesis.json")
+    genesis_config = node0.download_and_read_json(
+        "/home/ubuntu/.near-tmp/genesis.json")
     records = []
 
     VALIDATOR_BALANCE = (10**2) * ONE_NEAR
@@ -915,18 +910,14 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
 
     stakes = []
     account_id_to_validator_pk = {}
-    validator_and_stakes = pmap(
-            lambda x: (get_validator_account(x[0]),x[1]),
-            validator_node_and_stakes
-    )
     for i, (validator, stake_multiplier) in enumerate(validator_and_stakes):
         logger.info(f'Adding account {validator.account_id}')
-        account_id_to_validator_pk[validator.account_id] = validator.pk
+        account_id_to_validator_pk[validator.account_key.account_id] = validator.account_key.pk
         staked = MIN_STAKE * stake_multiplier
-        stakes.append((staked, validator.account_id))
+        stakes.append((staked, validator.account_key.account_id))
         records.append({
             'Account': {
-                'account_id': validator.account_id,
+                'account_id': validator.account_key.account_id,
                 'account': {
                     'amount': str(VALIDATOR_BALANCE),
                     'locked': str(staked),
@@ -938,7 +929,7 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
         })
         records.append({
             'AccessKey': {
-                'account_id': validator.account_id,
+                'account_id': validator.account_key.account_id,
                 'public_key': PUBLIC_KEY,
                 'access_key': {
                     'nonce': 0,
@@ -948,7 +939,7 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
         })
         for i in range(NUM_ACCOUNTS):
             load_testing_account = load_testing_account_id(
-                validator.account_id, i)
+                validator.account_key.account_id, i)
             logger.info(f'Adding load testing account {load_testing_account}')
             records.append({
                 'Account': {
@@ -1011,35 +1002,9 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
 
     genesis_config['records'] = records
     pmap(
-        lambda node: upload_json(node, '/home/ubuntu/.near/genesis.json', genesis_config),
+        lambda node: node.upload_json('/home/ubuntu/.near/genesis.json', genesis_config),
         [node for (node, _) in validator_node_and_stakes] + rpc_nodes
     )
-
-
-def download_and_read_json(node, filename):
-    logger.info(f'Download json {node.instance_name} {filename}')
-    tmp_file = tempfile.NamedTemporaryFile(mode='r+', delete=False)
-    node.machine.download(filename, tmp_file.name)
-    tmp_file.close()
-    with open(tmp_file.name, 'r') as f:
-        return json.load(f)
-
-
-def upload_json(node, filename, data):
-    logger.info(f'Upload json {node.instance_name} {filename}')
-    tmp_file = tempfile.NamedTemporaryFile(mode='r+', delete=False)
-    with open(tmp_file.name, 'w') as f:
-        json.dump(data, f, indent=2)
-    node.machine.upload(tmp_file.name, filename)
-    tmp_file.close()
-
-
-def get_node_keys(node):
-    logger.info(f'get_node_keys from {node.instance_name}')
-    node_key_json = download_and_read_json(node,
-                                           '/home/ubuntu/.near/node_key.json')
-    return node_key_json['public_key'], node_key_json['secret_key']
-
 
 def update_config_file(config_filename_in, config_filename_out, all_node_pks,
                        node_ips):
@@ -1064,8 +1029,10 @@ def update_config_file(config_filename_in, config_filename_out, all_node_pks,
     with open(config_filename_out, 'w') as f:
         json.dump(config_json, f, indent=2)
 
-def upload_config(node, config, 
-    upload_json(node, '/home/ubuntu/.near/config.json', config_json),
+def upload_config(node, config_json):
+    config_json = json.loads(json.dumps(config_json))
+    config_json['network']['publid_addrs'] = [node.addr(24567)]
+    node.upload_json('/home/ubuntu/.near/config.json', config_json)
 
 def create_and_upload_config_file_from_default(nodes, chain_id, num_shards, overrider=None):
     nodes[0].machine.run(
@@ -1073,11 +1040,11 @@ def create_and_upload_config_file_from_default(nodes, chain_id, num_shards, over
         .format(chain_id))
     config_json = download_and_read_json(nodes[0],
                                          '/home/ubuntu/.near-tmp/config.json')
-    node_addresses = pmap(lambda node: get_node_addr(node, 24567), nodes)
+    boot_nodes = [n.addr(24567) for n in nodes[:10]]
     config_json['tracked_shards'] = [2,3] # [i for i in range(num_shards)]
     config_json['archive'] = True
     config_json['archival_peer_connections_lower_bound'] = 1
-    config_json['network']['boot_nodes'] = ','.join(node_addresses[:4])
+    config_json['network']['boot_nodes'] = ','.join(boot_nodes)
     config_json['network']['skip_sync_wait'] = False
     config_json['network']['experimental']['tier1_enable_inbound'] = True
     config_json['network']['experimental']['tier1_enable_outbound'] = True
@@ -1086,11 +1053,7 @@ def create_and_upload_config_file_from_default(nodes, chain_id, num_shards, over
     if 'telemetry' in config_json:
         config_json['telemetry']['endpoints'] = []
 
-    pmap(
-        lambda node: upload_config(node, json.loads(json.dumps(config_json)))
-        nodes
-    )
-    
+    pmap(lambda node: upload_config(node, config_json), nodes)
 
 def start_nodes(nodes, upgrade_schedule=None):
     pmap(lambda node: start_node(node, upgrade_schedule=upgrade_schedule),

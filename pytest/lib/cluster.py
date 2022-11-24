@@ -11,6 +11,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import traceback
@@ -137,7 +138,6 @@ class BlockId(typing.NamedTuple):
     def __eq__(self, rhs) -> bool:
         return (isinstance(rhs, BlockId) and self.height == rhs.height and
                 self.hash == rhs.hash)
-
 
 class BaseNode(object):
 
@@ -539,8 +539,8 @@ class GCloudNode(BaseNode):
                                       project=project,
                                       ssh_key_path=ssh_key_path)
             self.ip = self.machine.ip
-            self.node_key = download_and_read_json(self,'/home/ubuntu/.near/node_key.json')["public_key"]
-            self.account_key = download_and_read_json(self, '/home/ubuntu/.near/validator_key.json')
+            self.node_key = self.download_and_read_json('/home/ubuntu/.near/node_key.json')["public_key"]
+            self.account_key = Key.from_json(self.download_and_read_json('/home/ubuntu/.near/validator_key.json'))
         elif len(args) == 4:
             # Create new instance from scratch
             instance_name, zone, node_dir, binary = args
@@ -653,6 +653,24 @@ chmod +x neard
                             f'/home/{self.machine.username}/.near/')
     def addr(self, port):
         return f'{self.node_key_json["public_key"]}@{self.ip}:{port}'
+
+    def download_and_read_json(self, filename):
+        logger.info(f'Download json {self.instance_name} {filename}')
+        tmp_file = tempfile.NamedTemporaryFile(mode='r+', delete=False)
+        self.machine.download(filename, tmp_file.name)
+        tmp_file.close()
+        with open(tmp_file.name, 'r') as f:
+            return json.load(f)
+
+    def upload_json(self, filename, data):
+        logger.info(f'Upload json {self.instance_name} {filename}')
+        tmp_file = tempfile.NamedTemporaryFile(mode='r+', delete=False)
+        with open(tmp_file.name, 'w') as f:
+            json.dump(data, f, indent=2)
+        self.machine.upload(tmp_file.name, filename)
+        tmp_file.close()
+
+
 
 def spin_up_node(config,
                  near_root,
