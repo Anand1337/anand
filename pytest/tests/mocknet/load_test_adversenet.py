@@ -101,15 +101,15 @@ if __name__ == '__main__':
     epoch_length = args.epoch_length
     assert epoch_length > 0
 
-    all_nodes = mocknet.get_nodes(pattern=pattern,max_nodes=args.max_nodes)
+    all_nodes = mocknet.get_nodes(pattern=pattern)
+    mocknet.stop_nodes(all_nodes)
     validator_nodes = all_nodes[:args.num_seats]
-    rpc_nodes = all_nodes[args.num_seats:]
+    rpc_nodes = all_nodes[args.num_seats:args.max_nodes]
     logger.info(f'validator_nodes: {validator_nodes}')
     logger.info(
         f'Starting Load of {chain_id} test using {len(validator_nodes)} validator nodes and {len(rpc_nodes)} RPC nodes.'
     )
 
-    mocknet.stop_nodes(all_nodes)
     time.sleep(10)
     pmap(lambda node: node.machine.run("killall wget"),all_nodes)
     if args.binary_url:

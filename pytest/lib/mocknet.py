@@ -1066,6 +1066,7 @@ def stop_nodes(nodes):
 def clear_data(nodes):
     logger.info(f'clear_data')
     pmap(lambda node: node.machine.run('rm -rf /home/ubuntu/.near/data'), nodes)
+    pmap(lambda node: node.machine.run('rm -rf /home/ubuntu/neard.log'), nodes)
 
 
 def neard_start_script(node, upgrade_schedule=None, epoch_height=None):
