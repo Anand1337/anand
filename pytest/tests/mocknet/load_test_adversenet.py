@@ -103,24 +103,25 @@ if __name__ == '__main__':
 
     all_nodes = mocknet.get_nodes(pattern=pattern)
     mocknet.stop_nodes(all_nodes)
+    pmap(lambda node: node.machine.run("killall wget"),all_nodes)
+    all_nodes = all_nodes[:args.max_nodes]
+    
     validator_nodes = all_nodes[:args.num_seats]
-    rpc_nodes = all_nodes[args.num_seats:args.max_nodes]
+    rpc_nodes = all_nodes[args.num_seats:]
     logger.info(f'validator_nodes: {validator_nodes}')
     logger.info(
         f'Starting Load of {chain_id} test using {len(validator_nodes)} validator nodes and {len(rpc_nodes)} RPC nodes.'
     )
 
     time.sleep(10)
-    pmap(lambda node: node.machine.run("killall wget"),all_nodes)
     if args.binary_url:
         mocknet.redownload_neard(all_nodes, args.binary_url)
     if not args.skip_reconfigure:
         logger.info(f'Reconfiguring nodes')
         # Make sure nodes are running by restarting them.
-
+    
         mocknet.clear_data(all_nodes)
         mocknet.create_and_upload_genesis_file_from_empty_genesis(
-            # Give bad validators less stake.
             [(node, 5) for node in validator_nodes],
             rpc_nodes,
             chain_id=chain_id,
