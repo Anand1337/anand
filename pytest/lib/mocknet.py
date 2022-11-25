@@ -910,8 +910,8 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
 
     stakes = []
     account_id_to_validator_pk = {}
-    for i, (validator, stake_multiplier) in enumerate(validator_and_stakes):
-        logger.info(f'Adding account {validator.account_id}')
+    for i, (validator, stake_multiplier) in enumerate(validator_node_and_stakes):
+        logger.info(f'Adding account {validator.account_key.account_id}')
         account_id_to_validator_pk[validator.account_key.account_id] = validator.account_key.pk
         staked = MIN_STAKE * stake_multiplier
         stakes.append((staked, validator.account_key.account_id))
@@ -1038,8 +1038,7 @@ def create_and_upload_config_file_from_default(nodes, chain_id, num_shards, over
     nodes[0].machine.run(
         'rm -rf /home/ubuntu/.near-tmp && mkdir /home/ubuntu/.near-tmp && /home/ubuntu/neard --home /home/ubuntu/.near-tmp init --chain-id {}'
         .format(chain_id))
-    config_json = download_and_read_json(nodes[0],
-                                         '/home/ubuntu/.near-tmp/config.json')
+    config_json = nodes[0].download_and_read_json('/home/ubuntu/.near-tmp/config.json')
     boot_nodes = [n.addr(24567) for n in nodes[:10]]
     config_json['tracked_shards'] = [2,3] # [i for i in range(num_shards)]
     config_json['archive'] = True
