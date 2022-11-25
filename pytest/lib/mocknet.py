@@ -1030,9 +1030,9 @@ def update_config_file(config_filename_in, config_filename_out, all_node_pks,
         json.dump(config_json, f, indent=2)
 
 def upload_config(node, config_json):
-    config_json = json.loads(json.dumps(config_json))
-    config_json['network']['publid_addrs'] = [node.addr(24567)]
-    node.upload_json('/home/ubuntu/.near/config.json', config_json)
+    c = json.loads(json.dumps(config_json))
+    c['network']['publid_addrs'] = [node.addr(24567)]
+    node.upload_json('/home/ubuntu/.near/config.json', c)
 
 def create_and_upload_config_file_from_default(nodes, chain_id, num_shards, overrider=None):
     nodes[0].machine.run(
