@@ -31,6 +31,7 @@ impl Trie {
         let recorded = with_recording.recorded_storage().unwrap();
 
         let trie_nodes = recorded.nodes;
+        tracing::debug!(target: "state_parts", num_nodes = trie_nodes.0.len());
         Ok(trie_nodes)
     }
 
@@ -45,13 +46,13 @@ impl Trie {
         let path_begin = self.find_path_for_part_boundary(part_id.idx, part_id.total)?;
         let path_end = self.find_path_for_part_boundary(part_id.idx + 1, part_id.total)?;
 
-        let mut iterator = self.iter()?;
-        let nodes_list = iterator.visit_nodes_interval(&path_begin, &path_end)?;
         tracing::debug!(
             target: "state_parts",
-            num_nodes = nodes_list.len(),
             ?path_begin,
             ?path_end);
+
+        let mut iterator = self.iter()?;
+        iterator.visit_nodes_interval(&path_begin, &path_end)?;
 
         // Extra nodes for compatibility with the previous version of computing state parts
         if part_id.idx + 1 != part_id.total {
