@@ -176,6 +176,7 @@ impl<'a> TrieIterator<'a> {
     /// list.
     fn descend_into_node(&mut self, hash: &CryptoHash) -> Result<(), StorageError> {
         let (bytes, node) = self.trie.retrieve_node(hash)?;
+        tracing::debug!(?self.key_nibbles, node_direct_usage=?node.node.memory_usage_direct_no_memory(), node_total_usage=?node.memory_usage, bytes_len=bytes.clone().map_or(0,|n|n.len()), "descend_into_node");
         if let Some(ref mut visited) = self.visited_nodes {
             visited.push(bytes.ok_or(StorageError::TrieNodeMissing)?);
         }

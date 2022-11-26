@@ -49,7 +49,9 @@ impl Trie {
         let nodes_list = iterator.visit_nodes_interval(&path_begin, &path_end)?;
         tracing::debug!(
             target: "state_parts",
-            num_nodes = nodes_list.len());
+            num_nodes = nodes_list.len(),
+            ?path_begin,
+            ?path_end);
 
         // Extra nodes for compatibility with the previous version of computing state parts
         if part_id.idx + 1 != part_id.total {
@@ -80,6 +82,7 @@ impl Trie {
         let root_node = self.retrieve_node(&self.root)?.1;
         let total_size = root_node.memory_usage;
         let size_start = (total_size + num_parts - 1) / num_parts * part_id;
+        tracing::debug!(total_size, size_start, "find_path_for_part_boundary");
         self.find_path(&root_node, size_start)
     }
 
@@ -91,6 +94,7 @@ impl Trie {
         key_nibbles: &mut Vec<u8>,
     ) -> Result<bool, StorageError> {
         let node_size = node.node.memory_usage_direct_no_memory();
+        tracing::debug!(size_start, size_skipped, ?key_nibbles, node_size, "find_child");
         if *size_skipped + node_size <= size_start {
             *size_skipped += node_size;
         } else {
@@ -114,6 +118,7 @@ impl Trie {
                         }
                         Some(NodeHandle::Hash(h)) => self.retrieve_node(h)?.1,
                     };
+                    tracing::debug!(child_index, child.memory_usage);
                     if *size_skipped + child.memory_usage <= size_start {
                         *size_skipped += child.memory_usage;
                         continue;
@@ -154,6 +159,7 @@ impl Trie {
 
     // find the first node so that including this node, the traversed size is larger than size
     fn find_path(&self, root_node: &TrieNodeWithSize, size: u64) -> Result<Vec<u8>, StorageError> {
+        tracing::debug!(size, root_node.memory_usage, "find_path");
         if root_node.memory_usage <= size {
             return Ok(vec![16u8]);
         }

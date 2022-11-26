@@ -578,8 +578,15 @@ impl Trie {
 
     pub fn recorded_storage(&self) -> Option<PartialStorage> {
         let storage = self.storage.as_recording_storage()?;
-        let mut nodes: Vec<_> =
-            storage.recorded.borrow_mut().drain().map(|(_key, value)| value).collect();
+        let mut nodes: Vec<_> = storage
+            .recorded
+            .borrow_mut()
+            .drain()
+            .map(|(_key, value)| {
+                tracing::debug!(value_len = value.len(), "recorded_storage");
+                value
+            })
+            .collect();
         nodes.sort();
         Some(PartialStorage { nodes: PartialState(nodes) })
     }
