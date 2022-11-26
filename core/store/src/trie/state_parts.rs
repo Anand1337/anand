@@ -12,7 +12,7 @@ use crate::trie::{
 };
 use crate::{PartialStorage, StorageError, Trie, TrieChanges};
 use near_primitives::contract::ContractCode;
-use near_primitives::state_record::is_contract_code_key;
+use near_primitives::state_record::{is_contract_code_key, StateRecord};
 
 impl Trie {
     /// Computes the set of trie nodes for a state part.
@@ -52,7 +52,7 @@ impl Trie {
             ?path_end);
 
         let mut iterator = self.iter()?;
-        iterator.visit_nodes_interval(&path_begin, &path_end)?;
+        let nodes_list = iterator.visit_nodes_interval(&path_begin, &path_end)?;
 
         // Extra nodes for compatibility with the previous version of computing state parts
         if part_id.idx + 1 != part_id.total {
@@ -62,6 +62,16 @@ impl Trie {
                 .seek_nibble_slice(NibbleSlice::from_encoded(&path_end_encoded[..]).0, false)?;
             if let Some(item) = iterator.next() {
                 item?;
+            }
+        }
+
+        for n in nodes_list {
+            if let Ok(value) = self.storage.retrieve_raw_bytes(&n.hash) {
+                if let Some(key) = n.key {
+                    if let Some(sr) = StateRecord::from_raw_key_value(key, value.to_vec()) {
+                        tracing::debug!(?sr);
+                    }
+                }
             }
         }
 
