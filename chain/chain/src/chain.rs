@@ -2420,6 +2420,8 @@ impl Chain {
         self.ping_missing_chunks(me, prev_hash, block)?;
         let incoming_receipts = self.collect_incoming_receipts_from_block(me, block)?;
 
+        info!(target: "chain", "epoch info = {:?}", self.runtime_adapter.get_epoch_info(block.header().epoch_id())?);
+
         // Check if block can be finalized and drop it otherwise.
         self.check_if_finalizable(block.header())?;
 
