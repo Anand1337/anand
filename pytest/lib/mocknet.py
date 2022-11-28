@@ -995,7 +995,7 @@ def set_genesis_file_from_empty_genesis(all_nodes, validator_node_and_stakes,
 
     genesis_config['shard_layout'] = {'V0': {'num_shards': num_shards, 'version': 0}}
     genesis_config['simple_nightshade_shard_layout'] = {}
-    genesis_config['minimum_validators_per_shard'] = 4
+    genesis_config['minimum_validators_per_shard'] = 1
     # not used, but required by some stupid assert.
     genesis_config['num_block_producer_seats_per_shard'] = num_shards * [0]
 
@@ -1008,10 +1008,13 @@ def set_config_file_from_default(nodes, chain_id, num_shards, overrider=None):
         'rm -rf /home/ubuntu/.near-tmp && mkdir /home/ubuntu/.near-tmp && /home/ubuntu/neard --home /home/ubuntu/.near-tmp init --chain-id {}'
         .format(chain_id))
     config_json = nodes[0].download_and_read_json('/home/ubuntu/.near-tmp/config.json')
-    boot_nodes = [n.addr(24567) for n in nodes[:10]]
-    config_json['tracked_shards'] = [2,3] # [i for i in range(num_shards)]
+    boot_nodes = [n.addr(24567) for n in nodes[:100]]
+    config_json['tracked_shards'] = [] # [i for i in range(num_shards)]
     config_json['archive'] = True
     config_json['archival_peer_connections_lower_bound'] = 1
+    config_json['network']['max_num_peers'] = 10
+    config_json['network']['ideal_connections_lo'] = 5
+    config_json['network']['ideal_connections_hi'] = 9
     config_json['network']['boot_nodes'] = ','.join(boot_nodes)
     config_json['network']['skip_sync_wait'] = False
     config_json['network']['experimental']['tier1_enable_inbound'] = True
@@ -1027,13 +1030,15 @@ def set_config_file_from_default(nodes, chain_id, num_shards, overrider=None):
 
 def clear_data(nodes):
     logger.info(f'clear_data')
-    pmap(lambda node: node.machine.run('rm -rf /home/ubuntu/.near/data'), nodes)
+    pmap(lambda node: node.machine.run('rm -rf /home/ubuntu/.near'), nodes)
     pmap(lambda node: node.machine.run('rm -rf /home/ubuntu/neard.log'), nodes)
+    pmap(lambda node: node.machine.run('mkdir /home/ubuntu/.near'), nodes)
 
 
 def neard_start_script(node):
     neard_binary = '/home/ubuntu/neard'
     return '''
+        chmod +x {neard_binary}
         sudo mv /home/ubuntu/near.log /home/ubuntu/near.log.1 2>/dev/null
         tmux new -s near -d bash
         tmux send-keys -t near 'RUST_BACKTRACE=full RUST_LOG=debug,actix_web=info {neard_binary} run 2>&1 | tee -a {neard_binary}.log' C-m
