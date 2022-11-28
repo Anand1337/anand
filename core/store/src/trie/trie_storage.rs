@@ -316,6 +316,7 @@ pub struct TrieRecordingStorage {
 impl TrieStorage for TrieRecordingStorage {
     fn retrieve_raw_bytes(&self, hash: &CryptoHash) -> Result<Arc<[u8]>, StorageError> {
         if let Some(val) = self.recorded.borrow().get(hash).cloned() {
+            tracing::debug!(?hash, val_len = val.len());
             return Ok(val);
         }
         let key = TrieCachingStorage::get_key_from_shard_uid_and_hash(self.shard_uid, hash);
@@ -326,6 +327,7 @@ impl TrieStorage for TrieRecordingStorage {
         if let Some(val) = val {
             let val = Arc::from(val);
             self.recorded.borrow_mut().insert(*hash, Arc::clone(&val));
+            tracing::debug!(?hash, val_len = val.len());
             Ok(val)
         } else {
             Err(StorageError::StorageInconsistentState("Trie node missing".to_string()))

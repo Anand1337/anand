@@ -68,8 +68,8 @@ impl Trie {
         for n in nodes_list {
             if let Ok(value) = self.storage.retrieve_raw_bytes(&n.hash) {
                 if let Some(key) = n.key {
-                    if let Some(sr) = StateRecord::from_raw_key_value(key, value.to_vec()) {
-                        tracing::debug!(?sr);
+                    if let Some(sr) = StateRecord::from_raw_key_value(key.clone(), value.to_vec()) {
+                        tracing::debug!(?key, ?sr);
                     }
                 }
             }

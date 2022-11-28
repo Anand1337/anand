@@ -582,8 +582,8 @@ impl Trie {
             .recorded
             .borrow_mut()
             .drain()
-            .map(|(_key, value)| {
-                tracing::debug!(value_len = value.len(), "recorded_storage");
+            .map(|(key, value)| {
+                tracing::debug!(?key, value_len = value.len(), "recorded_storage");
                 value
             })
             .collect();
