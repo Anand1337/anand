@@ -539,8 +539,8 @@ class GCloudNode(BaseNode):
                                       project=project,
                                       ssh_key_path=ssh_key_path)
             self.ip = self.machine.ip
-            self.node_key = self.download_and_read_json('/home/ubuntu/.near/node_key.json')
-            self.account_key = Key.from_json(self.download_and_read_json('/home/ubuntu/.near/validator_key.json'))
+            self.node_key = Key.implicit_account() 
+            self.validator_key = Key.implicit_account()
         elif len(args) == 4:
             # Create new instance from scratch
             instance_name, zone, node_dir, binary = args
@@ -570,16 +570,11 @@ class GCloudNode(BaseNode):
         else:
             raise Exception()
 
-    def _upload_config_files(self, node_dir):
-        self.machine.run('bash', input='mkdir -p ~/.near')
-        self.machine.upload(os.path.join(node_dir, '*.json'),
-                            f'/home/{self.machine.username}/.near/')
-        self.validator_key = Key.from_json_file(
-            os.path.join(node_dir, "validator_key.json"))
-        self.node_key = Key.from_json_file(
-            os.path.join(node_dir, "node_key.json"))
-        self.signer_key = Key.from_json_file(
-            os.path.join(node_dir, "validator_key.json"))
+    def upload_configs(self):
+        self.upload_json('/home/ubuntu/.near/node_key.json',self.node_key.to_json())
+        self.upload_json('/home/ubuntu/.near/validator_key.json',self.validator_key.to_json())
+        self.upload_json('/home/ubuntu/.near/genesis.json',self.genesis_json)
+        self.upload_json('/home/ubuntu/.near/config.json',self.config_json)
 
     @retry(wait_fixed=1000, stop_max_attempt_number=3)
     def _download_binary(self, binary):
@@ -593,6 +588,9 @@ chmod +x neard
 
     def addr(self):
         return (self.ip, self.port)
+
+    def addr(self, port):
+        return f'{self.node_key.pk}@{self.ip}:{port}'
 
     def rpc_addr(self):
         return (self.ip, self.rpc_port)
@@ -651,10 +649,6 @@ chmod +x neard
             json.dump(new_key.to_json(), f)
         self.machine.upload(os.path.join(self.node_dir, 'validator_key.json'),
                             f'/home/{self.machine.username}/.near/')
-    def addr(self, port):
-        key = self.node_key["public_key"]
-        return f'{key}@{self.ip}:{port}'
-
     def download_and_read_json(self, filename):
         logger.info(f'Download json {self.instance_name} {filename}')
         tmp_file = tempfile.NamedTemporaryFile(mode='r+', delete=False)

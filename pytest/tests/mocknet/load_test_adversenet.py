@@ -102,10 +102,12 @@ if __name__ == '__main__':
     assert epoch_length > 0
 
     all_nodes = mocknet.get_nodes(pattern=pattern)
-    mocknet.stop_nodes(all_nodes)
+    pmap(mocknet.stop_node, all_nodes)
     pmap(lambda node: node.machine.run("killall wget"),all_nodes)
     all_nodes = all_nodes[:args.max_nodes]
-    
+    for n in all_nodes:
+        logger.info(f'{n.machine.name}: peer_id = {n.node_key.pk}, validator_key = {n.validator_key.pk}')
+
     validator_nodes = all_nodes[:args.num_seats]
     rpc_nodes = all_nodes[args.num_seats:]
     logger.info(f'validator_nodes: {validator_nodes}')
@@ -119,18 +121,17 @@ if __name__ == '__main__':
     if not args.skip_reconfigure:
         logger.info(f'Reconfiguring nodes')
         # Make sure nodes are running by restarting them.
-    
         mocknet.clear_data(all_nodes)
-        mocknet.create_and_upload_genesis_file_from_empty_genesis(
+        mocknet.set_genesis_file_from_empty_genesis(
+            all_nodes,
             [(node, 5) for node in validator_nodes],
-            rpc_nodes,
             chain_id=chain_id,
             epoch_length=epoch_length,
             num_seats=args.num_seats,
             num_shards=args.num_shards)
-        mocknet.create_and_upload_config_file_from_default(
+        mocknet.set_config_file_from_default(
             all_nodes, chain_id, args.num_shards, override_config) 
-    mocknet.start_nodes(all_nodes)
-    mocknet.wait_all_nodes_up(all_nodes)
+    pmap(mocknet.start_node, all_nodes)
+    pmap(mocknet.wait_node_up, all_nodes)
 
     # TODO: send loadtest traffic.

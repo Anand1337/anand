@@ -844,8 +844,7 @@ def create_genesis_file(validator_node_names,
                                increasing_stakes, num_seats, single_shard)
 
 
-def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
-                                                      rpc_nodes,
+def set_genesis_file_from_empty_genesis(all_nodes, validator_node_and_stakes,
                                                       chain_id=None,
                                                       epoch_length=None,
                                                       num_seats=None,
@@ -911,13 +910,13 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
     stakes = []
     account_id_to_validator_pk = {}
     for i, (validator, stake_multiplier) in enumerate(validator_node_and_stakes):
-        logger.info(f'Adding account {validator.account_key.account_id}')
-        account_id_to_validator_pk[validator.account_key.account_id] = validator.account_key.pk
+        logger.info(f'Adding account {validator.validator_key.account_id}')
+        account_id_to_validator_pk[validator.validator_key.account_id] = validator.validator_key.pk
         staked = MIN_STAKE * stake_multiplier
-        stakes.append((staked, validator.account_key.account_id))
+        stakes.append((staked, validator.validator_key.account_id))
         records.append({
             'Account': {
-                'account_id': validator.account_key.account_id,
+                'account_id': validator.validator_key.account_id,
                 'account': {
                     'amount': str(VALIDATOR_BALANCE),
                     'locked': str(staked),
@@ -929,7 +928,7 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
         })
         records.append({
             'AccessKey': {
-                'account_id': validator.account_key.account_id,
+                'account_id': validator.validator_key.account_id,
                 'public_key': PUBLIC_KEY,
                 'access_key': {
                     'nonce': 0,
@@ -939,7 +938,7 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
         })
         for i in range(NUM_ACCOUNTS):
             load_testing_account = load_testing_account_id(
-                validator.account_key.account_id, i)
+                validator.validator_key.account_id, i)
             logger.info(f'Adding load testing account {load_testing_account}')
             records.append({
                 'Account': {
@@ -1001,40 +1000,10 @@ def create_and_upload_genesis_file_from_empty_genesis(validator_node_and_stakes,
     genesis_config['num_block_producer_seats_per_shard'] = num_shards * [0]
 
     genesis_config['records'] = records
-    pmap(
-        lambda node: node.upload_json('/home/ubuntu/.near/genesis.json', genesis_config),
-        [node for (node, _) in validator_node_and_stakes] + rpc_nodes
-    )
+    for n in all_nodes:
+        n.genesis_json = genesis_config
 
-def update_config_file(config_filename_in, config_filename_out, all_node_pks,
-                       node_ips):
-    with open(config_filename_in) as f:
-        config_json = json.load(f)
-
-    port = config_json['network']['addr'].split(':')[
-        1]  # Usually the port is 24567
-    node_addresses = [
-        f'{node_key}@{node_ip}:{port}'
-        for node_key, node_ip in zip(all_node_pks, node_ips)
-    ]
-
-    config_json['tracked_shards'] = [0]
-    config_json['archive'] = True
-    config_json['archival_peer_connections_lower_bound'] = 1
-    config_json['network']['boot_nodes'] = ','.join(node_addresses)
-    config_json['rpc']['addr'] = '0.0.0.0:3030'
-    if 'telemetry' in config_json:
-        config_json['telemetry']['endpoints'] = []
-
-    with open(config_filename_out, 'w') as f:
-        json.dump(config_json, f, indent=2)
-
-def upload_config(node, config_json):
-    c = json.loads(json.dumps(config_json))
-    c['network']['public_addrs'] = [node.addr(24567)]
-    node.upload_json('/home/ubuntu/.near/config.json', c)
-
-def create_and_upload_config_file_from_default(nodes, chain_id, num_shards, overrider=None):
+def set_config_file_from_default(nodes, chain_id, num_shards, overrider=None):
     nodes[0].machine.run(
         'rm -rf /home/ubuntu/.near-tmp && mkdir /home/ubuntu/.near-tmp && /home/ubuntu/neard --home /home/ubuntu/.near-tmp init --chain-id {}'
         .format(chain_id))
@@ -1051,16 +1020,9 @@ def create_and_upload_config_file_from_default(nodes, chain_id, num_shards, over
     config_json['rpc']['enable_debug_rpc'] = True
     if 'telemetry' in config_json:
         config_json['telemetry']['endpoints'] = []
-
-    pmap(lambda node: upload_config(node, config_json), nodes)
-
-def start_nodes(nodes, upgrade_schedule=None):
-    pmap(lambda node: start_node(node, upgrade_schedule=upgrade_schedule),
-         nodes)
-
-
-def stop_nodes(nodes):
-    pmap(stop_node, nodes)
+    for n in nodes:
+        n.config_json = json.loads(json.dumps(config_json))
+        n.config_json['network']['public_addrs'] = [n.addr(24567)]
 
 
 def clear_data(nodes):
@@ -1069,23 +1031,19 @@ def clear_data(nodes):
     pmap(lambda node: node.machine.run('rm -rf /home/ubuntu/neard.log'), nodes)
 
 
-def neard_start_script(node, upgrade_schedule=None, epoch_height=None):
-    if upgrade_schedule and upgrade_schedule.get(node.instance_name,
-                                                 0) <= epoch_height:
-        neard_binary = '/home/ubuntu/neard.upgrade'
-    else:
-        neard_binary = '/home/ubuntu/neard'
+def neard_start_script(node):
+    neard_binary = '/home/ubuntu/neard'
     return '''
         sudo mv /home/ubuntu/near.log /home/ubuntu/near.log.1 2>/dev/null
-        sudo mv /home/ubuntu/near.upgrade.log /home/ubuntu/near.upgrade.log.1 2>/dev/null
-        sudo rm -rf /home/ubuntu/.near/data
         tmux new -s near -d bash
         tmux send-keys -t near 'RUST_BACKTRACE=full RUST_LOG=debug,actix_web=info {neard_binary} run 2>&1 | tee -a {neard_binary}.log' C-m
     '''.format(neard_binary=shlex.quote(neard_binary))
 
 
-def start_node(node, upgrade_schedule=None):
+def start_node(node):
+    node.upload_configs()
     m = node.machine
+    
     logger.info(f'Starting node {m.name}')
     attempt = 0
     success = False
@@ -1094,11 +1052,7 @@ def start_node(node, upgrade_schedule=None):
         if pid != '':
             success = True
             break
-        start_process = m.run('sudo -u ubuntu -i',
-                              input=neard_start_script(
-                                  node,
-                                  upgrade_schedule=upgrade_schedule,
-                                  epoch_height=0))
+        start_process = m.run('sudo -u ubuntu -i', input=neard_start_script(node))
         if start_process.returncode == 0:
             success = True
             break
