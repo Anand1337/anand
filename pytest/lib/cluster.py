@@ -539,8 +539,10 @@ class GCloudNode(BaseNode):
                                       project=project,
                                       ssh_key_path=ssh_key_path)
             self.ip = self.machine.ip
-            self.node_key = Key.implicit_account() 
+            self.node_key = Key.implicit_account()
+            self.node_key.account_id = self.machine.name
             self.validator_key = Key.implicit_account()
+            self.validator_key.account_id = self.machine.name
         elif len(args) == 4:
             # Create new instance from scratch
             instance_name, zone, node_dir, binary = args
