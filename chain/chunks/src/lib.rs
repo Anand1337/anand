@@ -1627,9 +1627,9 @@ impl ShardsManager {
                 // validate_chunk_header returns DBNotFoundError if the previous block is not ready
                 // in this case, we return NeedBlock instead of error
                 near_chain::Error::DBNotFoundErr(_) => {
-                    debug!(target:"client", "Dropping partial encoded chunk {:?} height {}, shard_id {} because we don't have enough information to validate it",
-                           header.chunk_hash(), header.height_created(), header.shard_id());
-                    return Ok(ProcessPartialEncodedChunkResult::NeedBlock);
+                    // debug!(target:"client", "Dropping partial encoded chunk {:?} height {}, shard_id {} because we don't have enough information to validate it",
+                    //        header.chunk_hash(), header.height_created(), header.shard_id());
+                    // return Ok(ProcessPartialEncodedChunkResult::NeedBlock);
                 }
                 _ => return Err(chain_error.into()),
             },
