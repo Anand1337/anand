@@ -411,12 +411,9 @@ def accounts_from_nodes(nodes):
     return pmap(get_validator_account, nodes)
 
 
-def kill_proccess_script(pid):
+def kill_proccess_script():
     return f'''
-        sudo kill {pid}
-        while kill -0 {pid}; do
-            sleep 1
-        done
+        sudo killall -s 9 neard 
     '''
 
 
@@ -429,10 +426,8 @@ def get_near_pid(machine):
 def stop_node(node):
     m = node.machine
     logger.info(f'Stopping node {m.name}')
-    pid = get_near_pid(m)
-    if pid != '':
-        m.run('bash', input=kill_proccess_script(pid))
-        m.run('sudo -u ubuntu -i', input=TMUX_STOP_SCRIPT)
+    m.run('bash', input=kill_proccess_script())
+    m.run('sudo -u ubuntu -i', input=TMUX_STOP_SCRIPT)
 
 
 def upload_and_extract(node, src_filename, dst_filename):
