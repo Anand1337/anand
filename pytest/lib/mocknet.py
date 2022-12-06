@@ -907,7 +907,7 @@ def set_genesis_file_from_empty_genesis(all_nodes, validator_node_and_stakes,
     for i, (validator, stake_multiplier) in enumerate(validator_node_and_stakes):
         logger.info(f'Adding account {validator.validator_key.account_id}')
         account_id_to_validator_pk[validator.validator_key.account_id] = validator.validator_key.pk
-        staked = MIN_STAKE * stake_multiplier
+        staked = VALIDATOR_BALANCE * stake_multiplier
         stakes.append((staked, validator.validator_key.account_id))
         records.append({
             'Account': {
@@ -986,7 +986,8 @@ def set_genesis_file_from_empty_genesis(all_nodes, validator_node_and_stakes,
     genesis_config['transaction_validity_period'] = 10**9
     # Protocol upgrades require downtime, therefore make it harder to kickout validators.
     # The default value of this parameter is 90.
-    genesis_config['block_producer_kickout_threshold'] = 10
+    genesis_config['block_producer_kickout_threshold'] = 0
+    genesis_config['chunk_producer_kickout_threshold'] = 0
 
     genesis_config['shard_layout'] = {'V0': {'num_shards': num_shards, 'version': 0}}
     genesis_config['simple_nightshade_shard_layout'] = {}
