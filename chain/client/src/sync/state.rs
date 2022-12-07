@@ -895,10 +895,15 @@ mod test {
     use near_chain::{test_utils::process_block_sync, Block, BlockProcessingArtifact, Provenance};
 
     use near_epoch_manager::EpochManagerAdapter;
-    use near_network::test_utils::MockPeerManagerAdapter;
+    use near_network::{
+        test_utils::MockPeerManagerAdapter,
+        types::{StateResponseInfo, StateResponseInfoV1},
+    };
     use near_primitives::{
         merkle::PartialMerkleTree,
-        syncing::{ShardStateSyncResponseHeader, ShardStateSyncResponseV2},
+        syncing::{
+            ShardStateSyncResponseHeader, ShardStateSyncResponseV1, ShardStateSyncResponseV2,
+        },
         types::EpochId,
     };
 
@@ -959,7 +964,7 @@ mod test {
                     *request_hash,
                     &mut new_shard_sync,
                     &mut chain,
-                    &(kv as Arc<dyn RuntimeAdapter>),
+                    &(kv.clone() as Arc<dyn RuntimeAdapter>),
                     &[],
                     vec![0],
                     &apply_parts_fn,
@@ -1019,6 +1024,54 @@ mod test {
             assert_eq!(download.status, ShardSyncStatus::StateDownloadHeader);
             // Download should be marked as done.
             assert_eq!(download.downloads[0].done, true);
+
+            // Now we expect to receive a 'download parts' request.
+            state_sync
+                .run(
+                    &None,
+                    *request_hash,
+                    &mut new_shard_sync,
+                    &mut chain,
+                    &(kv as Arc<dyn RuntimeAdapter>),
+                    &[],
+                    vec![0],
+                    &apply_parts_fn,
+                    &state_split_fn,
+                )
+                .unwrap();
+
+            // Wait for the message that is sent to peer manager.
+            mock_peer_manager.notify.notified().await;
+            // FIXME: incorrect - we should change mock_peer_manager to await on each read.
+
+            for part in 0..3 {
+                assert_eq!(
+                    NetworkRequests::StateRequestPart {
+                        shard_id: 0,
+                        part_id: part,
+                        sync_hash: *request_hash,
+                        target: AccountOrPeerIdOrHash::AccountId("test".parse().unwrap())
+                    },
+                    mock_peer_manager.pop().unwrap().as_network_requests()
+                );
+            }
+            assert!(mock_peer_manager.pop().is_none());
+
+            let part = chain.get_state_response_part(0, 1, *request_hash).unwrap();
+            let state_response = ShardStateSyncResponse::V1(ShardStateSyncResponseV1 {
+                header: None,
+                part: Some((1, part)),
+            });
+
+            state_sync.update_download_on_state_response_message(
+                &mut new_shard_sync.get_mut(&0).unwrap(),
+                *request_hash,
+                0,
+                state_response,
+                &mut chain,
+            );
+
+            assert!(new_shard_sync.get(&0).unwrap().downloads[1].done);
 
             System::current().stop()
         });
