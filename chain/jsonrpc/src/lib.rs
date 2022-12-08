@@ -1405,6 +1405,21 @@ macro_rules! debug_page_string {
     };
 }
 
+#[get("/debug2/static/main.js")]
+async fn new_debug_main_js() -> actix_web::Result<impl actix_web::Responder> {
+    Ok(HttpResponse::Ok().body(include_str!("../../../tools/debug-ui/dist/main.js")))
+}
+
+#[get("/debug2/static/main.css")]
+async fn new_debug_main_css() -> actix_web::Result<impl actix_web::Responder> {
+    Ok(HttpResponse::Ok().body(include_str!("../../../tools/debug-ui/dist/main.css")))
+}
+
+#[get("/debug2/*")]
+async fn new_debug_html() -> actix_web::Result<impl actix_web::Responder> {
+    Ok(HttpResponse::Ok().body(include_str!("../../../tools/debug-ui/dist/index.html")))
+}
+
 #[get("/debug")]
 async fn debug_html(
     handler: web::Data<JsonRpcHandler>,
@@ -1503,6 +1518,9 @@ pub fn start_http(
             )
             .service(debug_html)
             .service(display_debug_html)
+            .service(new_debug_main_js)
+            .service(new_debug_main_css)
+            .service(new_debug_html)
     })
     .bind(addr)
     .unwrap()
