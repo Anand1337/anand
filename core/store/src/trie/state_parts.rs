@@ -20,7 +20,7 @@ fn is_not_greater(should_be_smaller: &[u8], should_be_larger: &[u8]) -> bool {
 
 fn is_acceptable(path: &[u8], path_begin: &[u8], path_end: &[u8]) -> bool {
     let res = is_not_greater(path_begin, path) && is_not_greater(path, path_end);
-    tracing::info!(target: "newstatesync", ?res, ?path, ?path_begin, ?path_end, "is_acceptable");
+    tracing::debug!(target: "newstatesync", ?res, ?path, ?path_begin, ?path_end, "is_acceptable");
     res
 }
 
@@ -40,19 +40,19 @@ fn visit_nodes_interval_parallel_step<'a, 'b>(
     path_end: Vec<u8>,
 ) -> Result<(), StorageError> {
     let _span =
-        tracing::info_span!(target: "newstatesync", "visit_nodes_interval_parallel_step").entered();
-    tracing::info!(target: "newstatesync", ?path, ?path_begin, ?path_end);
+        tracing::debug_span!(target: "newstatesync", "visit_nodes_interval_parallel_step").entered();
+    tracing::debug!(target: "newstatesync", ?path, ?path_begin, ?path_end);
     assert!(is_acceptable(&path, &path_begin, &path_end));
     let path_encoded = NibbleSlice::encode_nibbles(&path, false);
     let mut iterator = trie.iter()?;
     let maybe_last_hash =
         iterator.seek_nibble_slice(NibbleSlice::from_encoded(&path_encoded).0, false);
     if maybe_last_hash.is_err() {
-        tracing::info!(target: "newstatesync", "Failed to seek path {:?}: {:?}", path, maybe_last_hash);
+        tracing::debug!(target: "newstatesync", "Failed to seek path {:?}: {:?}", path, maybe_last_hash);
     }
     let last_hash = maybe_last_hash.unwrap();
     let node = trie.retrieve_node(&last_hash)?.1.node;
-    tracing::info!(target: "newstatesync",?node, "node");
+    tracing::debug!(target: "newstatesync",?node, "node");
     trie.storage.retrieve_raw_bytes(&last_hash)?;
     match node {
         TrieNode::Empty => {}
@@ -101,7 +101,7 @@ fn visit_nodes_interval_parallel_step<'a, 'b>(
         TrieNode::Extension(key, _child_handle) => {
             let (nibbles, _) = NibbleSlice::from_encoded(key.as_slice());
             let decoded = nibbles.iter().collect::<Vec<_>>();
-            tracing::info!(target:"newstatesync", ?nibbles, ?decoded);
+            tracing::debug!(target:"newstatesync", ?nibbles, ?decoded);
             let mut npath = path.clone();
             npath.extend_from_slice(&decoded);
             if is_acceptable(&npath, &path_begin, &path_end) {
@@ -134,7 +134,7 @@ impl Trie {
     /// StorageError if the storage is corrupted
     pub fn get_trie_nodes_for_part(&self, part_id: PartId) -> Result<PartialState, StorageError> {
         let _span =
-            tracing::info_span!(target: "newstatesync", "get_trie_nodes_for_part").entered();
+            tracing::debug_span!(target: "newstatesync", "get_trie_nodes_for_part").entered();
         // assert!(self.storage.as_caching_storage().is_some());
 
         // let with_recording = self.recording_reads();
@@ -155,19 +155,16 @@ impl Trie {
         path_end: &[u8],
     ) -> Result<(), StorageError> {
         let _span =
-            tracing::info_span!(target: "newstatesync", "visit_nodes_interval_parallel").entered();
+            tracing::debug_span!(target: "newstatesync", "visit_nodes_interval_parallel").entered();
         {
-            {
-                let _span = tracing::info_span!(target: "newstatesync", "unsafe").entered();
                 let path_begin = Vec::from(path_begin);
                 let path_end = Vec::from(path_end);
                 let trie = self;
                 rayon::scope(|s| {
-                    let _span = tracing::info_span!(target: "newstatesync", "task-root").entered();
+                    let _span = tracing::debug_span!(target: "newstatesync", "task-root").entered();
                     visit_nodes_interval_parallel_step(s, trie, vec![], path_begin, path_end)
                         .unwrap()
                 });
-            }
         }
         Ok(())
     }
@@ -181,14 +178,9 @@ impl Trie {
     /// right set of nodes.
     fn visit_nodes_for_state_part(&self, part_id: PartId) -> Result<(), StorageError> {
         let _span =
-            tracing::info_span!(target: "newstatesync", "visit_nodes_for_state_part").entered();
+            tracing::debug_span!(target: "newstatesync", "visit_nodes_for_state_part").entered();
         let path_begin = self.find_path_for_part_boundary(part_id.idx, part_id.total)?;
         let path_end = self.find_path_for_part_boundary(part_id.idx + 1, part_id.total)?;
-
-        tracing::info!(
-            target: "state_parts",
-            ?path_begin,
-            ?path_end);
 
         self.visit_nodes_interval_parallel(&path_begin, &path_end)?;
         // let nodes_list = iterator.visit_nodes_interval(&path_begin, &path_end)?;
