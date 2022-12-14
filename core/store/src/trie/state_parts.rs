@@ -32,8 +32,8 @@ fn common_prefix(str1: &[u8], str2: &[u8]) -> usize {
     prefix
 }
 
-fn visit_nodes_interval_parallel_step<'a, 'b: 'a>(
-    s: &'a rayon::Scope<'a>,
+fn visit_nodes_interval_parallel_step<'a, 'b>(
+    s: &'a rayon::Scope<'b>,
     trie: &'b Trie,
     path: Vec<u8>,
     path_begin: Vec<u8>,
@@ -164,7 +164,8 @@ impl Trie {
                 let trie = self;
                 rayon::scope(|s| {
                     let _span = tracing::info_span!(target: "newstatesync", "task-root").entered();
-                    visit_nodes_interval_parallel_step(s, trie, vec![], path_begin, path_end) .unwrap()
+                    visit_nodes_interval_parallel_step(s, trie, vec![], path_begin, path_end)
+                        .unwrap()
                 });
             }
         }

@@ -1,6 +1,7 @@
 use crate::epoch_info::iterate_and_filter;
 use clap::Subcommand;
 use near_chain::{ChainStore, ChainStoreAccess, RuntimeAdapter};
+use near_crypto::{KeyType, PublicKey};
 use near_epoch_manager::EpochManager;
 use near_primitives::epoch_manager::epoch_info::EpochInfo;
 use near_primitives::state_part::PartId;
@@ -101,6 +102,20 @@ fn get_first_hash_of_epoch(
     }
 }
 
+fn make_env_filter(
+    verbose: Option<&str>,
+) -> Result<tracing_subscriber::EnvFilter, near_o11y::BuildEnvFilterError> {
+    let env_filter = near_o11y::EnvFilterBuilder::from_env().verbose(verbose).finish()?;
+    // Sandbox node can log to sandbox logging target via sandbox_debug_log host function.
+    // This is hidden by default so we enable it for sandbox node.
+    let env_filter = if cfg!(feature = "sandbox") {
+        env_filter.add_directive("sandbox=debug".parse().unwrap())
+    } else {
+        env_filter
+    };
+    Ok(env_filter)
+}
+
 pub(crate) fn dump_state_parts(
     epoch_selection: EpochSelection,
     shard_id: ShardId,
@@ -110,67 +125,83 @@ pub(crate) fn dump_state_parts(
     store: Store,
     output_dir: &Path,
 ) {
-    let runtime_adapter: Arc<dyn RuntimeAdapter> =
-        Arc::new(NightshadeRuntime::from_config(home_dir, store.clone(), &near_config));
-    let mut epoch_manager =
-        EpochManager::new_from_genesis_config(store.clone(), &near_config.genesis.config)
-            .expect("Failed to start Epoch Manager");
-    let mut chain_store = ChainStore::new(
-        store.clone(),
-        near_config.genesis.config.genesis_height,
-        !near_config.client_config.archive,
-    );
+    let sys = actix::System::new();
 
-    let epoch_id = epoch_selection.to_epoch_id(store, &mut chain_store, &mut epoch_manager);
-    let epoch = runtime_adapter.get_epoch_info(&epoch_id).unwrap();
-    let sync_hash = get_first_hash_of_epoch(&epoch, &mut chain_store, &mut epoch_manager);
-    let sync_block = chain_store.get_block(&sync_hash).unwrap();
-    let sync_prev_hash = sync_block.header().prev_hash();
-    let sync_prev_block = chain_store.get_block(&sync_prev_hash).unwrap();
+    sys.block_on(async move {
+        // Initialize the subscriber that takes care of both logging and tracing.
+        let _subscriber_guard = near_o11y::default_subscriber_with_opentelemetry(
+            make_env_filter(Some("")).unwrap(),
+            &near_o11y::Options::default(),
+            "none".to_string(),
+            PublicKey::empty(KeyType::ED25519),
+            None,
+        )
+        .await
+        .global();
 
-    assert!(runtime_adapter.is_next_block_epoch_start(&sync_prev_hash).unwrap());
-    assert!(
-        shard_id < sync_prev_block.chunks().len() as u64,
-        "shard_id: {}, #shards: {}",
-        shard_id,
-        sync_prev_block.chunks().len()
-    );
-    let state_root = sync_prev_block.chunks()[shard_id as usize].prev_state_root();
-    let state_root_node =
-        runtime_adapter.get_state_root_node(shard_id, &sync_prev_hash, &state_root).unwrap();
+        let runtime_adapter: Arc<dyn RuntimeAdapter> =
+            Arc::new(NightshadeRuntime::from_config(home_dir, store.clone(), &near_config));
+        let mut epoch_manager =
+            EpochManager::new_from_genesis_config(store.clone(), &near_config.genesis.config)
+                .expect("Failed to start Epoch Manager");
+        let mut chain_store = ChainStore::new(
+            store.clone(),
+            near_config.genesis.config.genesis_height,
+            !near_config.client_config.archive,
+        );
 
-    let num_parts = get_num_state_parts(state_root_node.memory_usage);
-    tracing::info!(
+        let epoch_id = epoch_selection.to_epoch_id(store, &mut chain_store, &mut epoch_manager);
+        let epoch = runtime_adapter.get_epoch_info(&epoch_id).unwrap();
+        let sync_hash = get_first_hash_of_epoch(&epoch, &mut chain_store, &mut epoch_manager);
+        let sync_block = chain_store.get_block(&sync_hash).unwrap();
+        let sync_prev_hash = sync_block.header().prev_hash();
+        let sync_prev_block = chain_store.get_block(&sync_prev_hash).unwrap();
+
+        assert!(runtime_adapter.is_next_block_epoch_start(&sync_prev_hash).unwrap());
+        assert!(
+            shard_id < sync_prev_block.chunks().len() as u64,
+            "shard_id: {}, #shards: {}",
+            shard_id,
+            sync_prev_block.chunks().len()
+        );
+        let state_root = sync_prev_block.chunks()[shard_id as usize].prev_state_root();
+        let state_root_node =
+            runtime_adapter.get_state_root_node(shard_id, &sync_prev_hash, &state_root).unwrap();
+
+        let num_parts = get_num_state_parts(state_root_node.memory_usage);
+        tracing::info! (
         target: "dump-state-parts",
         epoch_height = epoch.epoch_height(),
-        epoch_id = ?epoch_id.0,
+        epoch_id = ? epoch_id.0,
         shard_id,
         num_parts,
-        ?sync_prev_hash,
-        ?sync_hash,
+        ? sync_prev_hash,
+        ? sync_hash,
         "Dumping state as seen at the beginning of the specified epoch.",
-    );
+        );
 
-    std::fs::create_dir_all(output_dir).unwrap();
-    for part_id in if let Some(part_id) = part_id { part_id..part_id + 1 } else { 0..num_parts } {
-        let now = Instant::now();
-        assert!(part_id < num_parts, "part_id: {}, num_parts: {}", part_id, num_parts);
-        let state_part = runtime_adapter
-            .obtain_state_part(
-                shard_id,
-                &sync_prev_hash,
-                &state_root,
-                PartId::new(part_id, num_parts),
-            )
-            .unwrap();
-        let filename = output_dir.join(format!("state_part_{:06}", part_id));
-        let len = state_part.len();
-        std::fs::write(&filename, state_part).unwrap();
-        tracing::info!(
-            target: "dump-state-parts",
-            part_id,
-            part_length = len,
-            ?filename,
-            elapsed_sec = now.elapsed().as_secs_f64());
-    }
+        std::fs::create_dir_all(output_dir).unwrap();
+        for part_id in if let Some(part_id) = part_id { part_id..part_id + 1 } else { 0..num_parts }
+        {
+            let now = Instant::now();
+            assert!(part_id < num_parts, "part_id: {}, num_parts: {}", part_id, num_parts);
+            let state_part = runtime_adapter
+                .obtain_state_part(
+                    shard_id,
+                    &sync_prev_hash,
+                    &state_root,
+                    PartId::new(part_id, num_parts),
+                )
+                .unwrap();
+            let filename = output_dir.join(format!("state_part_{:06}", part_id));
+            let len = state_part.len();
+            std::fs::write(&filename, state_part).unwrap();
+            tracing::info ! (
+target: "dump-state-parts",
+part_id,
+part_length = len,
+?filename,
+elapsed_sec = now.elapsed().as_secs_f64());
+        }
+    });
 }
