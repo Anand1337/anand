@@ -39,8 +39,8 @@ fn visit_nodes_interval_parallel_step<'a, 'b>(
     path_begin: Vec<u8>,
     path_end: Vec<u8>,
 ) -> Result<(), StorageError> {
-    let _span =
-        tracing::debug_span!(target: "newstatesync", "visit_nodes_interval_parallel_step").entered();
+    let _span = tracing::debug_span!(target: "newstatesync", "visit_nodes_interval_parallel_step")
+        .entered();
     tracing::debug!(target: "newstatesync", ?path, ?path_begin, ?path_end);
     assert!(is_acceptable(&path, &path_begin, &path_end));
     let path_encoded = NibbleSlice::encode_nibbles(&path, false);
@@ -157,14 +157,13 @@ impl Trie {
         let _span =
             tracing::debug_span!(target: "newstatesync", "visit_nodes_interval_parallel").entered();
         {
-                let path_begin = Vec::from(path_begin);
-                let path_end = Vec::from(path_end);
-                let trie = self;
-                rayon::scope(|s| {
-                    let _span = tracing::debug_span!(target: "newstatesync", "task-root").entered();
-                    visit_nodes_interval_parallel_step(s, trie, vec![], path_begin, path_end)
-                        .unwrap()
-                });
+            let path_begin = Vec::from(path_begin);
+            let path_end = Vec::from(path_end);
+            let trie = self;
+            rayon::scope(|s| {
+                let _span = tracing::debug_span!(target: "newstatesync", "task-root").entered();
+                visit_nodes_interval_parallel_step(s, trie, vec![], path_begin, path_end).unwrap()
+            });
         }
         Ok(())
     }

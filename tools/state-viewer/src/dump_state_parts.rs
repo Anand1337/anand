@@ -130,7 +130,7 @@ pub(crate) fn dump_state_parts(
     sys.block_on(async move {
         // Initialize the subscriber that takes care of both logging and tracing.
         let _subscriber_guard = near_o11y::default_subscriber_with_opentelemetry(
-            make_env_filter(Some("")).unwrap(),
+            make_env_filter(None).unwrap(),
             &near_o11y::Options::default(),
             "none".to_string(),
             PublicKey::empty(KeyType::ED25519),
