@@ -220,7 +220,6 @@ pub enum EpochSyncResponse {
 pub const STATE_PART_MEMORY_LIMIT: bytesize::ByteSize = bytesize::ByteSize(bytesize::MIB);
 
 pub fn get_num_state_parts(memory_usage: u64) -> u64 {
-    tracing::debug!(memory_usage, "get_num_state_parts");
     // We assume that 1 Mb is a good limit for state part size.
     // On the other side, it's important to divide any state into
     // several parts to make sure that partitioning always works.

@@ -67,7 +67,7 @@ impl EpochSelection {
 }
 
 /// Returns block hash of the last block of an epoch preceding the given `epoch_info`.
-fn get_prev_hash_of_epoch(
+fn get_first_hash_of_epoch(
     epoch_info: &EpochInfo,
     chain_store: &ChainStore,
     epoch_manager: &EpochManager,
@@ -94,7 +94,7 @@ fn get_prev_hash_of_epoch(
             epoch_manager.get_block_info(epoch_first_block_info.prev_hash()).unwrap();
 
         if cur_epoch_height == epoch_info.epoch_height() {
-            return *prev_epoch_last_block_info.hash();
+            return *epoch_first_block_info.hash();
         }
 
         cur_block_info = prev_epoch_last_block_info;
@@ -123,7 +123,9 @@ pub(crate) fn dump_state_parts(
 
     let epoch_id = epoch_selection.to_epoch_id(store, &mut chain_store, &mut epoch_manager);
     let epoch = runtime_adapter.get_epoch_info(&epoch_id).unwrap();
-    let sync_prev_hash = get_prev_hash_of_epoch(&epoch, &mut chain_store, &mut epoch_manager);
+    let sync_hash = get_first_hash_of_epoch(&epoch, &mut chain_store, &mut epoch_manager);
+    let sync_block = chain_store.get_block(&sync_hash).unwrap();
+    let sync_prev_hash = sync_block.header().prev_hash();
     let sync_prev_block = chain_store.get_block(&sync_prev_hash).unwrap();
 
     assert!(runtime_adapter.is_next_block_epoch_start(&sync_prev_hash).unwrap());
@@ -145,6 +147,7 @@ pub(crate) fn dump_state_parts(
         shard_id,
         num_parts,
         ?sync_prev_hash,
+        ?sync_hash,
         "Dumping state as seen at the beginning of the specified epoch.",
     );
 
