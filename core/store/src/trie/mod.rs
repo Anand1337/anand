@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Read;
 
@@ -7,7 +6,7 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 use near_primitives::challenge::PartialState;
 use near_primitives::contract::ContractCode;
-use near_primitives::hash::{hash, CryptoHash};
+use near_primitives::hash::CryptoHash;
 pub use near_primitives::shard_layout::ShardUId;
 use near_primitives::state::ValueRef;
 #[cfg(feature = "protocol_feature_flat_state")]
@@ -23,8 +22,8 @@ use crate::trie::iterator::TrieIterator;
 pub use crate::trie::nibble_slice::NibbleSlice;
 pub use crate::trie::prefetching_trie_storage::PrefetchApi;
 pub use crate::trie::shard_tries::{KeyForStateChanges, ShardTries, WrappedTrieChanges};
+use crate::trie::trie_storage::DoNothingStorage;
 pub use crate::trie::trie_storage::{TrieCache, TrieCachingStorage, TrieDBStorage, TrieStorage};
-use crate::trie::trie_storage::{TrieMemoryPartialStorage, TrieRecordingStorage};
 use crate::StorageError;
 pub use near_primitives::types::TrieNodesCount;
 use std::fmt::Write;
@@ -465,7 +464,7 @@ impl RawTrieNodeWithSize {
 }
 
 pub struct Trie {
-    pub storage: Box<dyn TrieStorage>,
+    pub storage: Box<dyn TrieStorage + Send + Sync>,
     root: StateRoot,
     pub flat_state: Option<FlatState>,
 }
@@ -558,7 +557,7 @@ impl Trie {
     pub const EMPTY_ROOT: StateRoot = StateRoot::new();
 
     pub fn new(
-        storage: Box<dyn TrieStorage>,
+        storage: Box<dyn TrieStorage + Send + Sync>,
         root: StateRoot,
         flat_state: Option<FlatState>,
     ) -> Self {
@@ -568,11 +567,7 @@ impl Trie {
     pub fn recording_reads(&self) -> Self {
         let storage =
             self.storage.as_caching_storage().expect("Storage should be TrieCachingStorage");
-        let storage = TrieRecordingStorage {
-            store: storage.store.clone(),
-            shard_uid: storage.shard_uid,
-            recorded: RefCell::new(Default::default()),
-        };
+        let storage = TrieDBStorage { store: storage.store.clone(), shard_uid: storage.shard_uid };
         Trie { storage: Box::new(storage), root: self.root.clone(), flat_state: None }
     }
 
@@ -592,12 +587,7 @@ impl Trie {
     }
 
     pub fn from_recorded_storage(partial_storage: PartialStorage, root: StateRoot) -> Self {
-        let recorded_storage =
-            partial_storage.nodes.0.into_iter().map(|value| (hash(&value), value)).collect();
-        let storage = Box::new(TrieMemoryPartialStorage {
-            recorded_storage,
-            visited_nodes: Default::default(),
-        });
+        let storage = Box::new(DoNothingStorage {});
         Self::new(storage, root, None)
     }
 

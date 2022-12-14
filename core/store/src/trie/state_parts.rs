@@ -1,4 +1,6 @@
+use rayon::ThreadPool;
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use near_primitives::challenge::{PartialState, StateItem};
 use near_primitives::state_part::PartId;
@@ -8,11 +10,138 @@ use tracing::error;
 use crate::trie::iterator::TrieTraversalItem;
 use crate::trie::nibble_slice::NibbleSlice;
 use crate::trie::{
-    ApplyStatePartResult, NodeHandle, RawTrieNodeWithSize, TrieNode, TrieNodeWithSize,
+    ApplyStatePartResult, NodeHandle, RawTrieNodeWithSize, TrieNode, TrieNodeWithSize, ValueHandle,
 };
 use crate::{PartialStorage, StorageError, Trie, TrieChanges};
 use near_primitives::contract::ContractCode;
-use near_primitives::state_record::{is_contract_code_key, StateRecord};
+use near_primitives::state_record::is_contract_code_key;
+
+fn is_not_greater(should_be_smaller: &[u8], should_be_larger: &[u8]) -> bool {
+    let n = std::cmp::min(should_be_smaller.len(), should_be_larger.len());
+    should_be_smaller[0..n] <= should_be_larger[0..n]
+}
+
+fn is_acceptable(path: &[u8], path_begin: &[u8], path_end: &[u8]) -> bool {
+    let res = is_not_greater(path_begin, path) && is_not_greater(path, path_end);
+    tracing::info!(target: "newstatesync", ?res, ?path, ?path_begin, ?path_end, "is_acceptable");
+    res
+}
+
+fn common_prefix(str1: &[u8], str2: &[u8]) -> usize {
+    let mut prefix = 0;
+    while prefix < str1.len() && prefix < str2.len() && str1[prefix] == str2[prefix] {
+        prefix += 1;
+    }
+    prefix
+}
+
+/*fn visit_nodes_interval_parallel_step<'a, 'b: 'a>(
+    s: &'a rayon::Scope<'a>,
+    trie: Arc<RwLock<&'b Trie>>,
+    path: Vec<u8>,
+    path_begin: Vec<u8>,
+    path_end: Vec<u8>,
+) -> Result<(), StorageError>*/
+fn visit_nodes_interval_parallel_step<'a: 'static, 'b: 'a>(
+    s: &'static ThreadPool,
+    trie: Arc<RwLock<&'b Trie>>,
+    path: Vec<u8>,
+    path_begin: Vec<u8>,
+    path_end: Vec<u8>,
+) -> Result<(), StorageError> {
+    let _span =
+        tracing::info_span!(target: "newstatesync", "visit_nodes_interval_parallel_step").entered();
+    tracing::info!(target: "newstatesync", ?path, ?path_begin, ?path_end);
+    assert!(is_acceptable(&path, &path_begin, &path_end));
+    let path_encoded = NibbleSlice::encode_nibbles(&path, false);
+    let trie_lock = trie.read().unwrap();
+    let mut iterator = trie_lock.iter()?;
+    let maybe_last_hash =
+        iterator.seek_nibble_slice(NibbleSlice::from_encoded(&path_encoded).0, false);
+    if maybe_last_hash.is_err() {
+        tracing::info!(target: "newstatesync", "Failed to seek path {:?}: {:?}", path, maybe_last_hash);
+    }
+    let last_hash = maybe_last_hash.unwrap();
+    let node = trie_lock.retrieve_node(&last_hash)?.1.node;
+    tracing::info!(target: "newstatesync",?node, "node");
+    trie_lock.storage.retrieve_raw_bytes(&last_hash)?;
+    match node {
+        TrieNode::Empty => {}
+        TrieNode::Leaf(_key, value) => {
+            let hash = match value {
+                ValueHandle::HashAndSize(_, hash) => hash,
+                ValueHandle::InMemory(_node) => unreachable!(),
+            };
+            trie_lock.storage.retrieve_raw_bytes(&hash)?;
+        }
+        TrieNode::Branch(children, maybe_value) => {
+            if let Some(value) = maybe_value {
+                let hash = match value {
+                    ValueHandle::HashAndSize(_, hash) => hash,
+                    ValueHandle::InMemory(_node) => unreachable!(),
+                };
+                trie_lock.storage.retrieve_raw_bytes(&hash)?;
+            }
+            for i in 0..16 {
+                if let Some(_child) = &children[i] {
+                    let mut npath: Vec<u8> = path.clone();
+                    npath.push(i as u8);
+                    if is_acceptable(&npath, &path_begin, &path_end) {
+                        // let hash = child.unwrap_hash();
+                        assert_ne!(npath, path);
+                        let ntrie = trie.clone();
+                        let npath_begin = path_begin.clone();
+                        let npath_end = path_end.clone();
+                        s.spawn(move || {
+                            let ntrie = ntrie;
+                            let npath = npath;
+                            let npath_begin = npath_begin;
+                            let npath_end = npath_end;
+                            visit_nodes_interval_parallel_step(
+                                s,
+                                ntrie,
+                                npath,
+                                npath_begin,
+                                npath_end,
+                            )
+                            .unwrap();
+                        });
+                    }
+                }
+            }
+        }
+        TrieNode::Extension(key, _child_handle) => {
+            let (nibbles, _) = NibbleSlice::from_encoded(key.as_slice());
+            let decoded = nibbles.iter().collect::<Vec<_>>();
+            tracing::info!(target:"newstatesync", ?nibbles, ?decoded);
+            let mut npath = path.clone();
+            npath.extend_from_slice(&decoded);
+            if is_acceptable(&npath, &path_begin, &path_end) {
+                assert_ne!(npath, path);
+                let ntrie = trie.clone();
+                let npath_begin = path_begin.clone();
+                let npath_end = path_end.clone();
+                s.spawn(move || {
+                    let ntrie = ntrie;
+                    let npath = npath;
+                    let npath_begin = npath_begin;
+                    let npath_end = npath_end;
+                    visit_nodes_interval_parallel_step(s, ntrie, npath, npath_begin, npath_end)
+                        .unwrap();
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+struct R<'a>(&'a ThreadPool);
+unsafe fn extend_lifetime<'b>(r: R<'b>) -> R<'static> {
+    std::mem::transmute::<R<'b>, R<'static>>(r)
+}
+unsafe fn extend_lifetime_trie<'a>(r: Arc<RwLock<&'a Trie>>) -> Arc<RwLock<&'static Trie>> {
+    std::mem::transmute::<Arc<RwLock<&'a Trie>>, Arc<RwLock<&'static Trie>>>(r)
+}
 
 impl Trie {
     /// Computes the set of trie nodes for a state part.
@@ -24,15 +153,53 @@ impl Trie {
     /// # Errors
     /// StorageError if the storage is corrupted
     pub fn get_trie_nodes_for_part(&self, part_id: PartId) -> Result<PartialState, StorageError> {
-        assert!(self.storage.as_caching_storage().is_some());
+        let _span =
+            tracing::info_span!(target: "newstatesync", "get_trie_nodes_for_part").entered();
+        // assert!(self.storage.as_caching_storage().is_some());
 
-        let with_recording = self.recording_reads();
-        with_recording.visit_nodes_for_state_part(part_id)?;
-        let recorded = with_recording.recorded_storage().unwrap();
+        // let with_recording = self.recording_reads();
+        // with_recording.visit_nodes_for_state_part(part_id)?;
+        //let recorded = with_recording.recorded_storage().unwrap();
 
-        let trie_nodes = recorded.nodes;
-        tracing::debug!(target: "state_parts", num_nodes = trie_nodes.0.len());
+        self.visit_nodes_for_state_part(part_id).unwrap();
+
+        let trie_nodes = PartialState(vec![]);
+        // let trie_nodes = recorded.nodes;
+        // tracing::debug!(target: "state_parts", num_nodes = trie_nodes.0.len());
         Ok(trie_nodes)
+    }
+
+    fn visit_nodes_interval_parallel(
+        &self,
+        path_begin: &[u8],
+        path_end: &[u8],
+    ) -> Result<(), StorageError> {
+        let _span =
+            tracing::info_span!(target: "newstatesync", "visit_nodes_interval_parallel").entered();
+        {
+            unsafe {
+                let _span = tracing::info_span!(target: "newstatesync", "unsafe").entered();
+                let path_begin = Vec::from(path_begin);
+                let path_end = Vec::from(path_end);
+                let pool = rayon::ThreadPoolBuilder::new().num_threads(32).build().unwrap();
+                let r = R(&pool);
+                let rr = extend_lifetime(r);
+                let poolref: &'static ThreadPool = rr.0;
+                let trie = Arc::new(RwLock::new(self));
+                let trie = extend_lifetime_trie(trie);
+                poolref.spawn(move || {
+                    let _span = tracing::info_span!(target: "newstatesync", "task-root").entered();
+                    visit_nodes_interval_parallel_step(poolref, trie, vec![], path_begin, path_end)
+                        .unwrap()
+                });
+            }
+        }
+        /*
+        rayon::scope(|s| {
+        });
+
+         */
+        Ok(())
     }
 
     /// Assume we lay out all trie nodes in dfs order visiting children after the parent.
@@ -43,16 +210,18 @@ impl Trie {
     /// Creating a StatePart takes all these nodes, validating a StatePart checks that it has the
     /// right set of nodes.
     fn visit_nodes_for_state_part(&self, part_id: PartId) -> Result<(), StorageError> {
+        let _span =
+            tracing::info_span!(target: "newstatesync", "visit_nodes_for_state_part").entered();
         let path_begin = self.find_path_for_part_boundary(part_id.idx, part_id.total)?;
         let path_end = self.find_path_for_part_boundary(part_id.idx + 1, part_id.total)?;
 
-        tracing::debug!(
+        tracing::info!(
             target: "state_parts",
             ?path_begin,
             ?path_end);
 
-        let mut iterator = self.iter()?;
-        let nodes_list = iterator.visit_nodes_interval(&path_begin, &path_end)?;
+        self.visit_nodes_interval_parallel(&path_begin, &path_end)?;
+        // let nodes_list = iterator.visit_nodes_interval(&path_begin, &path_end)?;
 
         // Extra nodes for compatibility with the previous version of computing state parts
         if part_id.idx + 1 != part_id.total {
@@ -65,6 +234,7 @@ impl Trie {
             }
         }
 
+        /*
         for n in nodes_list {
             if let Ok(value) = self.storage.retrieve_raw_bytes(&n.hash) {
                 if let Some(key) = n.key {
@@ -74,6 +244,7 @@ impl Trie {
                 }
             }
         }
+         */
 
         Ok(())
     }

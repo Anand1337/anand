@@ -353,6 +353,64 @@ impl<'a> TrieIterator<'a> {
         }
         Ok(nodes_list)
     }
+
+    pub fn visit_nodes_interval_parallel(
+        &mut self,
+        path_begin: &[u8],
+        path_end: &[u8],
+    ) -> Result<Vec<TrieTraversalItem>, StorageError> {
+        let _span = tracing::debug_span!(
+            target: "runtime",
+            "visit_nodes_interval_parallel")
+        .entered();
+        let path_begin_encoded = NibbleSlice::encode_nibbles(path_begin, true);
+        let path_end_encoded = NibbleSlice::encode_nibbles(path_end, false);
+        let last_hash =
+            self.seek_nibble_slice(NibbleSlice::from_encoded(&path_begin_encoded).0, false)?;
+        let mut prefix = Self::common_prefix(path_end, &self.key_nibbles);
+        if self.key_nibbles[prefix..] >= path_end[prefix..] {
+            return Ok(vec![]);
+        }
+        let mut nodes_list = Vec::new();
+
+        // Actually (self.key_nibbles[..] == path_begin) always because path_begin always ends in a node
+        if &self.key_nibbles[..] >= path_begin {
+            nodes_list.push(TrieTraversalItem {
+                hash: last_hash,
+                key: self.has_value().then(|| self.key()),
+            });
+        }
+
+        loop {
+            let iter_step = match self.iter_step() {
+                Some(iter_step) => iter_step,
+                None => break,
+            };
+            match iter_step {
+                IterStep::PopTrail => {
+                    self.trail.pop();
+                    prefix = std::cmp::min(self.key_nibbles.len(), prefix);
+                }
+                IterStep::Descend(hash) => {
+                    prefix += Self::common_prefix(&path_end[prefix..], &self.key_nibbles[prefix..]);
+                    if self.key_nibbles[prefix..] >= path_end[prefix..] {
+                        break;
+                    }
+                    self.descend_into_node(&hash)?;
+                    nodes_list.push(TrieTraversalItem { hash, key: None });
+                }
+                IterStep::Continue => {}
+                IterStep::Value(hash) => {
+                    self.trie.storage.retrieve_raw_bytes(&hash)?;
+                    nodes_list.push(TrieTraversalItem {
+                        hash,
+                        key: self.has_value().then(|| self.key()),
+                    });
+                }
+            }
+        }
+        Ok(nodes_list)
+    }
 }
 
 enum IterStep {

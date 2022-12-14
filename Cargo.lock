@@ -3551,6 +3551,7 @@ dependencies = [
  "num_cpus",
  "once_cell",
  "rand 0.8.5",
+ "rayon",
  "rlimit",
  "rocksdb",
  "serde",

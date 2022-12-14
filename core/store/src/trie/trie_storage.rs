@@ -651,6 +651,18 @@ pub struct TrieDBStorage {
     pub(crate) shard_uid: ShardUId,
 }
 
+pub struct DoNothingStorage {}
+
+impl TrieStorage for DoNothingStorage {
+    fn retrieve_raw_bytes(&self, hash: &CryptoHash) -> Result<Arc<[u8]>, StorageError> {
+        todo!()
+    }
+
+    fn get_trie_nodes_count(&self) -> TrieNodesCount {
+        todo!()
+    }
+}
+
 impl TrieDBStorage {
     #[allow(unused)]
     pub fn new(store: Store, shard_uid: ShardUId) -> Self {

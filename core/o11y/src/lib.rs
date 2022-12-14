@@ -215,7 +215,7 @@ fn get_fmt_span(with_span_events: bool) -> fmt::format::FmtSpan {
     if with_span_events {
         fmt::format::FmtSpan::ENTER | fmt::format::FmtSpan::CLOSE
     } else {
-        fmt::format::FmtSpan::NONE
+        fmt::format::FmtSpan::ENTER | fmt::format::FmtSpan::CLOSE
     }
 }
 

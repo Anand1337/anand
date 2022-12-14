@@ -16,7 +16,7 @@ use crate::trie::config::TrieConfig;
 use crate::trie::prefetching_trie_storage::PrefetchingThreadsHandle;
 use crate::trie::trie_storage::{TrieCache, TrieCachingStorage};
 use crate::trie::{TrieRefcountChange, POISONED_LOCK_ERR};
-use crate::{metrics, DBCol, DBOp, DBTransaction, PrefetchApi};
+use crate::{metrics, DBCol, DBOp, DBTransaction, PrefetchApi, TrieDBStorage};
 use crate::{Store, StoreUpdate, Trie, TrieChanges, TrieUpdate};
 
 struct ShardTriesInner {
@@ -141,13 +141,7 @@ impl ShardTries {
                 .clone()
         });
 
-        let storage = Box::new(TrieCachingStorage::new(
-            self.0.store.clone(),
-            cache,
-            shard_uid,
-            is_view,
-            prefetch_api,
-        ));
+        let storage = Box::new(TrieDBStorage::new(self.0.store.clone(), shard_uid));
         let flat_state = self.0.flat_state_factory.new_flat_state_for_shard(
             shard_uid.shard_id(),
             block_hash,
