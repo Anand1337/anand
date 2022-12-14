@@ -1,10 +1,7 @@
-use rayon::ThreadPool;
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-
 use near_primitives::challenge::{PartialState, StateItem};
 use near_primitives::state_part::PartId;
 use near_primitives::types::StateRoot;
+use std::collections::HashMap;
 use tracing::error;
 
 use crate::trie::iterator::TrieTraversalItem;
@@ -37,7 +34,7 @@ fn common_prefix(str1: &[u8], str2: &[u8]) -> usize {
 
 fn visit_nodes_interval_parallel_step<'a, 'b: 'a>(
     s: &'a rayon::Scope<'a>,
-    trie: Arc<RwLock<&'b Trie>>,
+    trie: &'b Trie,
     path: Vec<u8>,
     path_begin: Vec<u8>,
     path_end: Vec<u8>,
@@ -47,17 +44,16 @@ fn visit_nodes_interval_parallel_step<'a, 'b: 'a>(
     tracing::info!(target: "newstatesync", ?path, ?path_begin, ?path_end);
     assert!(is_acceptable(&path, &path_begin, &path_end));
     let path_encoded = NibbleSlice::encode_nibbles(&path, false);
-    let trie_lock = trie.read().unwrap();
-    let mut iterator = trie_lock.iter()?;
+    let mut iterator = trie.iter()?;
     let maybe_last_hash =
         iterator.seek_nibble_slice(NibbleSlice::from_encoded(&path_encoded).0, false);
     if maybe_last_hash.is_err() {
         tracing::info!(target: "newstatesync", "Failed to seek path {:?}: {:?}", path, maybe_last_hash);
     }
     let last_hash = maybe_last_hash.unwrap();
-    let node = trie_lock.retrieve_node(&last_hash)?.1.node;
+    let node = trie.retrieve_node(&last_hash)?.1.node;
     tracing::info!(target: "newstatesync",?node, "node");
-    trie_lock.storage.retrieve_raw_bytes(&last_hash)?;
+    trie.storage.retrieve_raw_bytes(&last_hash)?;
     match node {
         TrieNode::Empty => {}
         TrieNode::Leaf(_key, value) => {
@@ -65,7 +61,7 @@ fn visit_nodes_interval_parallel_step<'a, 'b: 'a>(
                 ValueHandle::HashAndSize(_, hash) => hash,
                 ValueHandle::InMemory(_node) => unreachable!(),
             };
-            trie_lock.storage.retrieve_raw_bytes(&hash)?;
+            trie.storage.retrieve_raw_bytes(&hash)?;
         }
         TrieNode::Branch(children, maybe_value) => {
             if let Some(value) = maybe_value {
@@ -73,7 +69,7 @@ fn visit_nodes_interval_parallel_step<'a, 'b: 'a>(
                     ValueHandle::HashAndSize(_, hash) => hash,
                     ValueHandle::InMemory(_node) => unreachable!(),
                 };
-                trie_lock.storage.retrieve_raw_bytes(&hash)?;
+                trie.storage.retrieve_raw_bytes(&hash)?;
             }
             for i in 0..16 {
                 if let Some(_child) = &children[i] {
@@ -127,14 +123,6 @@ fn visit_nodes_interval_parallel_step<'a, 'b: 'a>(
     Ok(())
 }
 
-struct R<'a>(&'a ThreadPool);
-unsafe fn extend_lifetime<'b>(r: R<'b>) -> R<'static> {
-    std::mem::transmute::<R<'b>, R<'static>>(r)
-}
-unsafe fn extend_lifetime_trie<'a>(r: Arc<RwLock<&'a Trie>>) -> Arc<RwLock<&'static Trie>> {
-    std::mem::transmute::<Arc<RwLock<&'a Trie>>, Arc<RwLock<&'static Trie>>>(r)
-}
-
 impl Trie {
     /// Computes the set of trie nodes for a state part.
     ///
@@ -173,7 +161,7 @@ impl Trie {
                 let _span = tracing::info_span!(target: "newstatesync", "unsafe").entered();
                 let path_begin = Vec::from(path_begin);
                 let path_end = Vec::from(path_end);
-                let trie = Arc::new(RwLock::new(self));
+                let trie = self;
                 rayon::scope(|s| {
                     let _span = tracing::info_span!(target: "newstatesync", "task-root").entered();
                     visit_nodes_interval_parallel_step(s, trie, vec![], path_begin, path_end)
