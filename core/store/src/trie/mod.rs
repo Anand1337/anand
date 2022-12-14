@@ -586,7 +586,7 @@ impl Trie {
         Some(PartialStorage { nodes: PartialState(nodes) })
     }
 
-    pub fn from_recorded_storage(partial_storage: PartialStorage, root: StateRoot) -> Self {
+    pub fn from_recorded_storage(_partial_storage: PartialStorage, root: StateRoot) -> Self {
         let storage = Box::new(DoNothingStorage {});
         Self::new(storage, root, None)
     }

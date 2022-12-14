@@ -654,7 +654,7 @@ pub struct TrieDBStorage {
 pub struct DoNothingStorage {}
 
 impl TrieStorage for DoNothingStorage {
-    fn retrieve_raw_bytes(&self, hash: &CryptoHash) -> Result<Arc<[u8]>, StorageError> {
+    fn retrieve_raw_bytes(&self, _hash: &CryptoHash) -> Result<Arc<[u8]>, StorageError> {
         todo!()
     }
 

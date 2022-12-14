@@ -364,7 +364,6 @@ impl<'a> TrieIterator<'a> {
             "visit_nodes_interval_parallel")
         .entered();
         let path_begin_encoded = NibbleSlice::encode_nibbles(path_begin, true);
-        let path_end_encoded = NibbleSlice::encode_nibbles(path_end, false);
         let last_hash =
             self.seek_nibble_slice(NibbleSlice::from_encoded(&path_begin_encoded).0, false)?;
         let mut prefix = Self::common_prefix(path_end, &self.key_nibbles);

@@ -35,15 +35,8 @@ fn common_prefix(str1: &[u8], str2: &[u8]) -> usize {
     prefix
 }
 
-/*fn visit_nodes_interval_parallel_step<'a, 'b: 'a>(
+fn visit_nodes_interval_parallel_step<'a, 'b: 'a>(
     s: &'a rayon::Scope<'a>,
-    trie: Arc<RwLock<&'b Trie>>,
-    path: Vec<u8>,
-    path_begin: Vec<u8>,
-    path_end: Vec<u8>,
-) -> Result<(), StorageError>*/
-fn visit_nodes_interval_parallel_step<'a: 'static, 'b: 'a>(
-    s: &'static ThreadPool,
     trie: Arc<RwLock<&'b Trie>>,
     path: Vec<u8>,
     path_begin: Vec<u8>,
@@ -87,12 +80,11 @@ fn visit_nodes_interval_parallel_step<'a: 'static, 'b: 'a>(
                     let mut npath: Vec<u8> = path.clone();
                     npath.push(i as u8);
                     if is_acceptable(&npath, &path_begin, &path_end) {
-                        // let hash = child.unwrap_hash();
                         assert_ne!(npath, path);
                         let ntrie = trie.clone();
                         let npath_begin = path_begin.clone();
                         let npath_end = path_end.clone();
-                        s.spawn(move || {
+                        s.spawn(move |s| {
                             let ntrie = ntrie;
                             let npath = npath;
                             let npath_begin = npath_begin;
@@ -121,7 +113,7 @@ fn visit_nodes_interval_parallel_step<'a: 'static, 'b: 'a>(
                 let ntrie = trie.clone();
                 let npath_begin = path_begin.clone();
                 let npath_end = path_end.clone();
-                s.spawn(move || {
+                s.spawn(move |s| {
                     let ntrie = ntrie;
                     let npath = npath;
                     let npath_begin = npath_begin;
@@ -177,28 +169,18 @@ impl Trie {
         let _span =
             tracing::info_span!(target: "newstatesync", "visit_nodes_interval_parallel").entered();
         {
-            unsafe {
+            {
                 let _span = tracing::info_span!(target: "newstatesync", "unsafe").entered();
                 let path_begin = Vec::from(path_begin);
                 let path_end = Vec::from(path_end);
-                let pool = rayon::ThreadPoolBuilder::new().num_threads(32).build().unwrap();
-                let r = R(&pool);
-                let rr = extend_lifetime(r);
-                let poolref: &'static ThreadPool = rr.0;
                 let trie = Arc::new(RwLock::new(self));
-                let trie = extend_lifetime_trie(trie);
-                poolref.spawn(move || {
+                rayon::scope(|s| {
                     let _span = tracing::info_span!(target: "newstatesync", "task-root").entered();
-                    visit_nodes_interval_parallel_step(poolref, trie, vec![], path_begin, path_end)
+                    visit_nodes_interval_parallel_step(s, trie, vec![], path_begin, path_end)
                         .unwrap()
                 });
             }
         }
-        /*
-        rayon::scope(|s| {
-        });
-
-         */
         Ok(())
     }
 
