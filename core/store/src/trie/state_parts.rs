@@ -80,13 +80,13 @@ fn visit_nodes_interval_parallel_step<'a, 'b: 'a>(
                         let ntrie = trie.clone();
                         let npath_begin = path_begin.clone();
                         let npath_end = path_end.clone();
-                        s.spawn(move |s| {
+                        s.spawn(move |t| {
                             let ntrie = ntrie;
                             let npath = npath;
                             let npath_begin = npath_begin;
                             let npath_end = npath_end;
                             visit_nodes_interval_parallel_step(
-                                s,
+                                t,
                                 ntrie,
                                 npath,
                                 npath_begin,
@@ -109,12 +109,12 @@ fn visit_nodes_interval_parallel_step<'a, 'b: 'a>(
                 let ntrie = trie.clone();
                 let npath_begin = path_begin.clone();
                 let npath_end = path_end.clone();
-                s.spawn(move |s| {
+                s.spawn(move |t| {
                     let ntrie = ntrie;
                     let npath = npath;
                     let npath_begin = npath_begin;
                     let npath_end = npath_end;
-                    visit_nodes_interval_parallel_step(s, ntrie, npath, npath_begin, npath_end)
+                    visit_nodes_interval_parallel_step(t, ntrie, npath, npath_begin, npath_end)
                         .unwrap();
                 });
             }
@@ -164,8 +164,7 @@ impl Trie {
                 let trie = self;
                 rayon::scope(|s| {
                     let _span = tracing::info_span!(target: "newstatesync", "task-root").entered();
-                    visit_nodes_interval_parallel_step(s, trie, vec![], path_begin, path_end)
-                        .unwrap()
+                    visit_nodes_interval_parallel_step(s, trie, vec![], path_begin, path_end) .unwrap()
                 });
             }
         }
