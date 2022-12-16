@@ -136,6 +136,8 @@ pub enum ProtocolFeature {
     MaxKickoutStake,
     /// Validate account id for function call access keys.
     AccountIdInFunctionCallPermission,
+    /// Enables delegate actions which enables meta-transactions.
+    DelegateAction,
 
     /// In case not all validator seats are occupied our algorithm provide incorrect minimal seat
     /// price - it reports as alpha * sum_stake instead of alpha * sum_stake / (1 - alpha), where
@@ -151,8 +153,6 @@ pub enum ProtocolFeature {
     RejectBlocksWithOutdatedProtocolVersions,
     #[cfg(feature = "shardnet")]
     ShardnetShardLayoutUpgrade,
-    #[cfg(feature = "protocol_feature_delegate_action")]
-    DelegateAction,
 }
 
 /// Both, outgoing and incoming tcp connections to peers, will be rejected if `peer's`
@@ -163,11 +163,13 @@ pub const PEER_MIN_ALLOWED_PROTOCOL_VERSION: ProtocolVersion =
 /// Current protocol version used on the mainnet.
 /// Some features (e. g. FixStorageUsage) require that there is at least one epoch with exactly
 /// the corresponding version
-const STABLE_PROTOCOL_VERSION: ProtocolVersion = 57;
+// TODO likely not updating the protocol version with this PR
+const STABLE_PROTOCOL_VERSION: ProtocolVersion = 58;
 
 /// Largest protocol version supported by the current binary.
 pub const PROTOCOL_VERSION: ProtocolVersion = if cfg!(feature = "nightly_protocol") {
     // On nightly, pick big enough version to support all features.
+    // TODO update this back to 132 or whatever number is latest. Was 132
     133
 } else if cfg!(feature = "shardnet") {
     102
@@ -237,6 +239,8 @@ impl ProtocolFeature {
             ProtocolFeature::AltBn128 => 55,
             ProtocolFeature::ChunkOnlyProducers | ProtocolFeature::MaxKickoutStake => 56,
             ProtocolFeature::AccountIdInFunctionCallPermission => 57,
+            // TODO check this version number or if included with above
+            ProtocolFeature::DelegateAction => 58,
 
             // Nightly & shardnet features, this is to make feature MaxKickoutStake not enabled on
             // shardnet
@@ -256,8 +260,6 @@ impl ProtocolFeature {
             }
             #[cfg(feature = "shardnet")]
             ProtocolFeature::ShardnetShardLayoutUpgrade => 102,
-            #[cfg(feature = "protocol_feature_delegate_action")]
-            ProtocolFeature::DelegateAction => 133,
         }
     }
 }

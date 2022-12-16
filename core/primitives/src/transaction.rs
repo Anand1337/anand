@@ -259,18 +259,10 @@ pub struct DelegateAction {
     /// Public key that is used to sign this delegated action.
     pub public_key: PublicKey,
 }
-#[cfg_attr(feature = "protocol_feature_delegate_action", derive(BorshDeserialize))]
-#[derive(BorshSerialize, Serialize, Deserialize, PartialEq, Eq, Clone, Debug)]
+#[derive(BorshSerialize, Serialize, Deserialize, PartialEq, Eq, Clone, Debug, BorshDeserialize)]
 pub struct SignedDelegateAction {
     pub delegate_action: DelegateAction,
     pub signature: Signature,
-}
-
-#[cfg(not(feature = "protocol_feature_delegate_action"))]
-impl borsh::de::BorshDeserialize for SignedDelegateAction {
-    fn deserialize(_buf: &mut &[u8]) -> ::core::result::Result<Self, borsh::maybestd::io::Error> {
-        return Err(Error::new(ErrorKind::InvalidInput, "Delegate action isn't supported"));
-    }
 }
 
 impl SignedDelegateAction {
@@ -655,7 +647,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "protocol_feature_delegate_action")]
     fn test_delegate_action_deserialization() {
         // Expected an error. Buffer is empty
         assert_eq!(
@@ -682,20 +673,6 @@ mod tests {
         assert_eq!(
             Action::try_from_slice(&serialized_delegate_action).expect("Expect ok"),
             delegate_action
-        );
-    }
-
-    #[test]
-    #[cfg(not(feature = "protocol_feature_delegate_action"))]
-    fn test_delegate_action_deserialization() {
-        let delegate_action =
-            create_delegate_action(vec![Action::CreateAccount(CreateAccountAction {})]);
-        let serialized_delegate_action = delegate_action.try_to_vec().expect("Expect ok");
-
-        // Valid action
-        assert_eq!(
-            Action::try_from_slice(&serialized_delegate_action).map_err(|e| e.kind()),
-            Err(ErrorKind::InvalidInput)
         );
     }
 }
