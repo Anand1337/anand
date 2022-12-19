@@ -227,6 +227,9 @@ impl Inner {
                 local_edges.insert(other.clone(), e.clone());
             }
         }
+
+        tracing::error!("Local edges count: {:?}", local_edges.len());
+        tracing::error!("Graph update: local edges: {:?}", local_edges);
         metrics::ROUTING_TABLE_RECALCULATIONS.inc();
         metrics::PEER_REACHABLE.set(next_hops.len() as i64);
         metrics::EDGE_UPDATES.inc_by(total as u64);
