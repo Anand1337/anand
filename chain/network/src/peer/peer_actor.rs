@@ -1151,6 +1151,16 @@ impl PeerActor {
                     conn.peer_info.id,
                     rtu.edges.len()
                 );
+
+                for edge in &rtu.edges {
+                    if edge.other(self.my_node_id()) == Some(&conn.peer_info.id) {
+                        tracing::error!(
+                            "Got a refresh edge from {} nonce: {:?}",
+                            conn.peer_info.id,
+                            edge.nonce()
+                        );
+                    }
+                }
                 ctx.spawn(wrap_future(async move {
                     Self::handle_sync_routing_table(&clock, &network_state, conn.clone(), rtu)
                         .await;
