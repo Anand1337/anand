@@ -1146,6 +1146,11 @@ impl PeerActor {
                 let clock = self.clock.clone();
                 let conn = conn.clone();
                 let network_state = self.network_state.clone();
+                tracing::error!(
+                    "Got sync routing table from {} edges: {}",
+                    conn.peer_info.id,
+                    rtu.edges.len()
+                );
                 ctx.spawn(wrap_future(async move {
                     Self::handle_sync_routing_table(&clock, &network_state, conn.clone(), rtu)
                         .await;
