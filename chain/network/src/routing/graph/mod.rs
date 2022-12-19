@@ -95,12 +95,15 @@ impl Inner {
         edges
     }
 
-    fn prune_old_edges(&mut self, prune_edges_older_than: time::Utc) {
+    fn prune_old_edges(&mut self, prune_edges_older_than: time::Utc) -> u32 {
+        let mut removed = 0;
         for e in self.edges.clone().values() {
             if e.is_edge_older_than(prune_edges_older_than) {
+                removed += 1;
                 self.remove_edge(e.key());
             }
         }
+        removed
     }
 
     /// If peer_id is not in memory check if it is on disk in bring it back on memory.
@@ -152,7 +155,7 @@ impl Inner {
 
     /// Prunes peers unreachable since <unreachable_since> (and their adjacent edges)
     /// from the in-mem graph and stores them in DB.
-    fn prune_unreachable_peers(&mut self, unreachable_since: time::Instant) {
+    fn prune_unreachable_peers(&mut self, unreachable_since: time::Instant) -> u32 {
         // Select peers to prune.
         let mut peers = HashSet::new();
         for k in self.edges.keys() {
@@ -168,21 +171,25 @@ impl Inner {
             }
         }
         if peers.is_empty() {
-            return;
+            return 0;
         }
+        let mut removed = 0;
 
         // Prune peers from peer_reachable_at.
         for peer_id in &peers {
             self.peer_reachable_at.remove(&peer_id);
+            removed += 1;
         }
 
         // Prune edges from graph.
         let edges = self.remove_adjacent_edges(&peers);
+        tracing::error!("UU removed edges: {} and peers {}", edges.len(), peers.len());
 
         // Store the pruned data in DB.
         if let Err(e) = self.store.push_component(&peers, &edges) {
             tracing::warn!("self.store.push_component(): {}", e);
         }
+        removed
     }
 
     /// 1. Adds edges to the graph (edges are expected to be already validated).
@@ -213,14 +220,16 @@ impl Inner {
                 loaded += 1;
             }
         }
-        tracing::error!("Loaded {} components for {} edges", loaded, edges.len());
+        tracing::error!("UU Loaded {} components for {} edges", loaded, edges.len());
         edges.retain(|e| self.update_edge(now, e.clone()));
-        tracing::error!("{} edges are actually new.", edges.len());
+        tracing::error!("UU {} edges are actually new.", edges.len());
         // Update metrics after edge update
         if let Some(prune_edges_after) = self.config.prune_edges_after {
-            self.prune_old_edges(now - prune_edges_after);
+            let removed = self.prune_old_edges(now - prune_edges_after);
+            tracing::error!("UU Removed {} edges", removed);
         }
         let next_hops = Arc::new(self.graph.calculate_distance(unreliable_peers));
+        tracing::error!("UU Distance computed.");
 
         // Update peer_reachable_at.
         let now = clock.now();
@@ -228,13 +237,17 @@ impl Inner {
         for peer in next_hops.keys() {
             self.peer_reachable_at.insert(peer.clone(), now);
         }
+        tracing::error!("UU Reachable marked");
         self.prune_unreachable_peers(now - self.config.prune_unreachable_peers_after);
+        tracing::error!("UU unreachable removed");
+
         let mut local_edges = HashMap::new();
         for e in self.edges.clone().values() {
             if let Some(other) = e.other(&self.config.node_id) {
                 local_edges.insert(other.clone(), e.clone());
             }
         }
+        tracing::error!("UU local edges computed");
 
         let active_edges =
             local_edges.iter().filter(|x| x.1.edge_type() == EdgeState::Active).collect::<Vec<_>>();
