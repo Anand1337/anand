@@ -620,6 +620,8 @@ impl NetworkState {
                         let this = this.clone();
                         let clock = clock.clone();
                         let other_peer = other_peer.clone();
+                        tracing::error!("!! Marking edge {} for removal.", other_peer);
+
                         async move {
                             // This edge says this is an connected peer, which is currently not in the set of connected peers.
                             // Wait for some time to let the connection begin or broadcast edge removal instead.
@@ -627,6 +629,7 @@ impl NetworkState {
                             if this.tier2.load().ready.contains_key(&other_peer) {
                                 return;
                             }
+                            tracing::error!("!! Removing edge to {}", other_peer);
                             // Peer is still not connected after waiting a timeout.
                             // Unwrap is safe, because new_edge is always valid.
                             let new_edge =
