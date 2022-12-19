@@ -133,20 +133,21 @@ impl Inner {
     /// And therefore `C_2` component will become unreachable.
     /// TODO(gprusak): this whole algorithm seems to be leaking stuff to storage and never cleaning up.
     /// What is the point of it? What does it actually gives us?
-    fn load_component(&mut self, now: time::Utc, peer_id: PeerId) {
+    fn load_component(&mut self, now: time::Utc, peer_id: PeerId) -> bool {
         if peer_id == self.config.node_id || self.peer_reachable_at.contains_key(&peer_id) {
-            return;
+            return false;
         }
         let edges = match self.store.pop_component(&peer_id) {
             Ok(edges) => edges,
             Err(e) => {
                 tracing::warn!("self.store.pop_component({}): {}", peer_id, e);
-                return;
+                return false;
             }
         };
         for e in edges {
             self.update_edge(now, e);
         }
+        return true;
     }
 
     /// Prunes peers unreachable since <unreachable_since> (and their adjacent edges)
@@ -202,12 +203,19 @@ impl Inner {
         // It is especially important for initial full sync with peers, because
         // we broadcast all the returned edges to all connected peers.
         let now = clock.now_utc();
+        let mut loaded = 0;
         for edge in &edges {
             let key = edge.key();
-            self.load_component(now, key.0.clone());
-            self.load_component(now, key.1.clone());
+            if self.load_component(now, key.0.clone()) {
+                loaded += 1;
+            }
+            if self.load_component(now, key.1.clone()) {
+                loaded += 1;
+            }
         }
+        tracing::error!("Loaded {} components for {} edges", loaded, edges.len());
         edges.retain(|e| self.update_edge(now, e.clone()));
+        tracing::error!("{} edges are actually new.", edges.len());
         // Update metrics after edge update
         if let Some(prune_edges_after) = self.config.prune_edges_after {
             self.prune_old_edges(now - prune_edges_after);

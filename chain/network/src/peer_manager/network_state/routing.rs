@@ -106,8 +106,11 @@ impl NetworkState {
             .add_edges_demux
             .call(edges, |edges: Vec<Vec<Edge>>| async move {
                 let results: Vec<_> = edges.iter().map(|_| ()).collect();
+                let entries_count = edges.len();
                 let edges: Vec<_> = edges.into_iter().flatten().collect();
+                tracing::error!("In demux for {} together: {}", entries_count, edges.len());
                 let mut edges = this.graph.update(&clock, edges).await;
+                tracing::error!("Demux continues.. with {}", edges.len());
                 // Don't send tombstones during the initial time.
                 // Most of the network is created during this time, which results
                 // in us sending a lot of tombstones to peers.
