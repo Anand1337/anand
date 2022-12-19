@@ -1307,7 +1307,9 @@ impl PeerActor {
         rtu: RoutingTableUpdate,
     ) {
         let _span = tracing::trace_span!(target: "network", "handle_sync_routing_table").entered();
-        if let Err(ban_reason) = network_state.add_edges(&clock, rtu.edges).await {
+        if let Err(ban_reason) =
+            network_state.add_edges(&clock, rtu.edges, Some(conn.peer_info.id.clone())).await
+        {
             conn.stop(Some(ban_reason));
         }
         // For every announce we received, we fetch the last announce with the same account_id

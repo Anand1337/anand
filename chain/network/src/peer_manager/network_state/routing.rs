@@ -74,7 +74,7 @@ impl NetworkState {
             &self.config.node_key,
             edge_info.signature,
         );
-        self.add_edges(&clock, vec![edge.clone()]).await?;
+        self.add_edges(&clock, vec![edge.clone()], None).await?;
         Ok(edge)
     }
 
@@ -85,6 +85,7 @@ impl NetworkState {
         self: &Arc<Self>,
         clock: &time::Clock,
         edges: Vec<Edge>,
+        peer_id: Option<PeerId>,
     ) -> Result<(), ReasonForBan> {
         // TODO(gprusak): sending duplicate edges should be considered a malicious behavior
         // instead, however that would be backward incompatible, so it can be introduced in
@@ -116,6 +117,9 @@ impl NetworkState {
                         edges.retain(|edge| edge.edge_type() == EdgeState::Active);
                         metrics::EDGE_TOMBSTONE_SENDING_SKIPPED.inc();
                     }
+                }
+                if edges.len() > 0 {
+                    tracing::error!("Added {} edges based on info from {:?}", edges.len(), peer_id);
                 }
                 // Broadcast new edges to all other peers.
                 this.config.event_sink.push(Event::EdgesAdded(edges.clone()));

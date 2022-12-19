@@ -309,7 +309,7 @@ impl NetworkState {
                     // First verify and broadcast the edge of the connection, so that in case
                     // it is invalid, the connection is not added to the pool.
                     // TODO(gprusak): consider actually banning the peer for consistency.
-                    this.add_edges(&clock, vec![edge])
+                    this.add_edges(&clock, vec![edge], None)
                         .await
                         .map_err(|_: ReasonForBan| RegisterPeerError::InvalidEdge)?;
                     this.tier2.insert_ready(conn.clone()).map_err(RegisterPeerError::PoolError)?;
@@ -353,7 +353,7 @@ impl NetworkState {
                 if edge.edge_type() == EdgeState::Active {
                     let edge_update =
                         edge.remove_edge(this.config.node_id(), &this.config.node_key);
-                    this.add_edges(&clock, vec![edge_update.clone()]).await.unwrap();
+                    this.add_edges(&clock, vec![edge_update.clone()], None).await.unwrap();
                 }
             }
 
@@ -634,7 +634,7 @@ impl NetworkState {
                             // Unwrap is safe, because new_edge is always valid.
                             let new_edge =
                                 edge.remove_edge(this.config.node_id(), &this.config.node_key);
-                            this.add_edges(&clock, vec![new_edge.clone()]).await.unwrap()
+                            this.add_edges(&clock, vec![new_edge.clone()], None).await.unwrap()
                         }
                     })),
                     // OK
