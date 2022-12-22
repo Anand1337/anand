@@ -17,7 +17,7 @@ use tracing::{info, warn};
 
 use near_chain_configs::{
     get_initial_supply, ClientConfig, GCConfig, Genesis, GenesisConfig, GenesisValidationMode,
-    LogSummaryStyle,
+    LogSummaryStyle, MutableConfigValue, StaticClientConfig,
 };
 use near_crypto::{InMemorySigner, KeyFile, KeyType, PublicKey, Signer};
 #[cfg(feature = "json_rpc")]
@@ -541,7 +541,7 @@ impl Genesis {
 #[derive(Clone)]
 pub struct NearConfig {
     pub config: Config,
-    pub client_config: ClientConfig,
+    pub client_config: StaticClientConfig,
     pub network_config: NetworkConfig,
     #[cfg(feature = "json_rpc")]
     pub rpc_config: Option<RpcConfig>,
@@ -561,7 +561,7 @@ impl NearConfig {
     ) -> anyhow::Result<Self> {
         Ok(NearConfig {
             config: config.clone(),
-            client_config: ClientConfig {
+            client_config: StaticClientConfig {
                 version: Default::default(),
                 chain_id: genesis.config.chain_id.clone(),
                 rpc_addr: config.rpc_addr().map(|addr| addr.to_owned()),

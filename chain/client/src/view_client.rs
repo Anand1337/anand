@@ -16,7 +16,7 @@ use near_chain::{
     get_epoch_block_producers_view, Chain, ChainGenesis, ChainStoreAccess, DoomslugThresholdMode,
     RuntimeAdapter,
 };
-use near_chain_configs::{ClientConfig, ProtocolConfigView};
+use near_chain_configs::{ClientConfig, ProtocolConfigView, StaticClientConfig};
 use near_client_primitives::types::{
     Error, GetBlock, GetBlockError, GetBlockProof, GetBlockProofError, GetBlockProofResponse,
     GetBlockWithMerkleTree, GetChunkError, GetExecutionOutcome, GetExecutionOutcomeError,
@@ -1428,7 +1428,7 @@ pub fn start_view_client(
     chain_genesis: ChainGenesis,
     runtime_adapter: Arc<dyn RuntimeAdapter>,
     network_adapter: Arc<dyn PeerManagerAdapter>,
-    config: ClientConfig,
+    config: StaticClientConfig,
     adv: crate::adversarial::Controls,
 ) -> Addr<ViewClientActor> {
     let request_manager = Arc::new(RwLock::new(ViewClientRequestManager::new()));
@@ -1444,7 +1444,7 @@ pub fn start_view_client(
             &chain_genesis,
             runtime_adapter1,
             network_adapter1,
-            config1,
+            ClientConfig::new(config1),
             request_manager1,
             adv.clone(),
         )

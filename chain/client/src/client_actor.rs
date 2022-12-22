@@ -34,7 +34,7 @@ use near_chain::{
     byzantine_assert, near_chain_primitives, Block, BlockHeader, BlockProcessingArtifact,
     ChainGenesis, DoneApplyChunkCallback, Provenance, RuntimeAdapter,
 };
-use near_chain_configs::ClientConfig;
+use near_chain_configs::{ClientConfig, StaticClientConfig};
 use near_chunks::client::ShardsManagerResponse;
 use near_chunks::logic::cares_about_shard_this_or_next_epoch;
 use near_client_primitives::types::{
@@ -1012,11 +1012,6 @@ impl ClientActor {
     fn handle_block_production(&mut self) -> Result<(), Error> {
         let _span = tracing::debug_span!(target: "client", "handle_block_production").entered();
         // If syncing, don't try to produce blocks.
-        if self.client.sync_status.is_syncing() {
-            debug!(target:"client", "Syncing - block production disabled");
-            return Ok(());
-        }
-
         let _ = self.client.check_and_update_doomslug_tip();
 
         self.pre_block_production()?;
@@ -1113,6 +1108,12 @@ impl ClientActor {
         // There is a bug in Actix library. While there are messages in mailbox, Actix
         // will prioritize processing messages until mailbox is empty. Execution of any other task
         // scheduled with run_later will be delayed.
+
+        // just some poc code to show we can update the config value here
+        let block_fetch_horizon = self.client.config.block_fetch_horizon.get();
+        self.client.config.block_fetch_horizon.update(block_fetch_horizon);
+        // should probably call something like
+        // self.client.config.update(updateable_config);
 
         // Check block height to trigger expected shutdown
         if let Ok(head) = self.client.chain.head() {
@@ -1613,7 +1614,7 @@ impl ClientActor {
                 SyncStatus::StateSync(_, _) => true,
                 _ if header_head.height
                     >= highest_height
-                        .saturating_sub(self.client.config.block_header_fetch_horizon) =>
+                        .saturating_sub(self.client.config.block_header_fetch_horizon.get()) =>
                 {
                     unwrap_and_report!(self.client.block_sync.run(
                         &mut self.client.sync_status,
@@ -1992,7 +1993,7 @@ pub fn random_seed_from_thread() -> RngSeed {
 
 /// Starts client in a separate Arbiter (thread).
 pub fn start_client(
-    client_config: ClientConfig,
+    client_config: StaticClientConfig,
     chain_genesis: ChainGenesis,
     runtime_adapter: Arc<dyn RuntimeAdapter>,
     node_id: PeerId,
@@ -2007,7 +2008,7 @@ pub fn start_client(
     let client_addr = ClientActor::start_in_arbiter(&client_arbiter_handle, move |ctx| {
         ClientActor::new(
             ctx.address(),
-            client_config,
+            ClientConfig::new(client_config),
             chain_genesis,
             runtime_adapter,
             node_id,

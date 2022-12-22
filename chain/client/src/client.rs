@@ -25,7 +25,7 @@ use near_chain::{
     BlockProcessingArtifact, BlockStatus, Chain, ChainGenesis, ChainStoreAccess,
     DoneApplyChunkCallback, Doomslug, DoomslugThresholdMode, Provenance, RuntimeAdapter,
 };
-use near_chain_configs::ClientConfig;
+use near_chain_configs::{ClientConfig, StaticClientConfig};
 use near_chunks::ShardsManager;
 use near_network::types::{
     HighestHeightPeerInfo, NetworkRequests, PeerManagerAdapter, ReasonForBan,
@@ -230,8 +230,11 @@ impl Client {
             config.header_sync_stall_ban_timeout,
             config.header_sync_expected_height_per_second,
         );
-        let block_sync =
-            BlockSync::new(network_adapter.clone(), config.block_fetch_horizon, config.archive);
+        let block_sync = BlockSync::new(
+            network_adapter.clone(),
+            config.block_fetch_horizon.clone(),
+            config.archive,
+        );
         let state_sync = StateSync::new(network_adapter.clone(), config.state_sync_timeout);
         let num_block_producer_seats = config.num_block_producer_seats as usize;
         let data_parts = runtime_adapter.num_data_parts();

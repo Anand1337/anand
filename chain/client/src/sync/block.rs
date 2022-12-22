@@ -1,4 +1,6 @@
 use near_chain::{check_known, ChainStoreAccess};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use std::sync::Arc;
 
@@ -8,6 +10,7 @@ use rand::seq::IteratorRandom;
 use tracing::{debug, warn};
 
 use near_chain::Chain;
+use near_chain_configs::MutableConfigValue;
 use near_network::types::{HighestHeightPeerInfo, NetworkRequests, PeerManagerAdapter};
 use near_primitives::hash::CryptoHash;
 
@@ -38,7 +41,7 @@ pub struct BlockSync {
     network_adapter: Arc<dyn PeerManagerAdapter>,
     last_request: Option<BlockSyncRequest>,
     /// How far to fetch blocks vs fetch state.
-    block_fetch_horizon: BlockHeightDelta,
+    block_fetch_horizon: MutableConfigValue<BlockHeightDelta>,
     /// Whether to enforce block sync
     archive: bool,
 }
@@ -46,7 +49,7 @@ pub struct BlockSync {
 impl BlockSync {
     pub fn new(
         network_adapter: Arc<dyn PeerManagerAdapter>,
-        block_fetch_horizon: BlockHeightDelta,
+        block_fetch_horizon: MutableConfigValue<BlockHeightDelta>,
         archive: bool,
     ) -> Self {
         BlockSync { network_adapter, last_request: None, block_fetch_horizon, archive }
@@ -92,7 +95,7 @@ impl BlockSync {
 
         // Don't run State Sync if header head is not more than one epoch ahead.
         if head.epoch_id != header_head.epoch_id && head.next_epoch_id != header_head.epoch_id {
-            if head.height < header_head.height.saturating_sub(self.block_fetch_horizon)
+            if head.height < header_head.height.saturating_sub(self.block_fetch_horizon.get())
                 && !self.archive
             {
                 // Epochs are different and we are too far from horizon, State Sync is needed

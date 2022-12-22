@@ -1,5 +1,5 @@
 use crate::append_only_map::AppendOnlyMap;
-use near_chain_configs::ClientConfig;
+use near_chain_configs::{ClientConfig, StaticClientConfig};
 use near_epoch_manager::EpochManagerHandle;
 use near_primitives::errors::EpochError;
 use near_primitives::hash::CryptoHash;
@@ -16,7 +16,7 @@ impl TrackedConfig {
         TrackedConfig::Accounts(vec![])
     }
 
-    pub fn from_config(config: &ClientConfig) -> Self {
+    pub fn from_config(config: &StaticClientConfig) -> Self {
         if config.tracked_shards.is_empty() {
             TrackedConfig::Accounts(config.tracked_accounts.clone())
         } else {
