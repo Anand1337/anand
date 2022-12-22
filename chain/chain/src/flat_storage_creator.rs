@@ -379,7 +379,8 @@ impl FlatStorageCreator {
         let mut shard_creators: HashMap<ShardId, FlatStorageShardCreator> = HashMap::new();
         let mut creation_needed = false;
         for shard_id in 0..num_shards {
-            if runtime_adapter.cares_about_shard(me, &chain_head.prev_block_hash, shard_id, true) {
+            // if runtime_adapter.cares_about_shard(me, &chain_head.prev_block_hash, shard_id, true) {
+            {
                 let status = runtime_adapter.try_create_flat_storage_state_for_shard(
                     shard_id,
                     chain_store.head().unwrap().height,
