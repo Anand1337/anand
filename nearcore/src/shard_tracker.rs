@@ -5,6 +5,7 @@ use near_primitives::errors::EpochError;
 use near_primitives::hash::CryptoHash;
 use near_primitives::shard_layout::account_id_to_shard_id;
 use near_primitives::types::{AccountId, EpochId, ShardId};
+use tracing::info;
 
 pub enum TrackedConfig {
     Accounts(Vec<AccountId>),
@@ -91,14 +92,17 @@ impl ShardTracker {
                     .cares_about_shard_from_prev_block(parent_hash, account_id, shard_id)
                     .unwrap_or(false)
             };
+            info!(target: "chain", %shard_id, %account_cares_about_shard, "in care_about_shard");
             if !is_me {
                 return account_cares_about_shard;
             } else if account_cares_about_shard {
                 return true;
             }
         }
-        matches!(self.tracked_config, TrackedConfig::AllShards)
-            || self.tracks_shard(shard_id, parent_hash).unwrap_or(false)
+        let all_shards = matches!(self.tracked_config, TrackedConfig::AllShards);
+        let tracks_shard = self.tracks_shard(shard_id, parent_hash).unwrap_or(false);
+        info!(target: "chain", %shard_id, %all_shards, %tracks_shard, "in care_about_shard");
+        all_shards || tracks_shard
     }
 
     // `shard_id` always refers to a shard in the current epoch that the next block from `parent_hash` belongs
