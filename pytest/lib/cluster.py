@@ -728,7 +728,7 @@ def init_cluster(num_nodes, num_observers, num_shards, config,
         os.path.join(near_root, binary_name), "localnet", "--v",
         str(num_nodes), "--shards",
         str(num_shards), "--n",
-        str(num_observers), "--prefix", "test", "--tracked_shards", "none"
+        str(num_observers), "--prefix", "test", "--tracked-shards", "none"
     ],
                                stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE)
