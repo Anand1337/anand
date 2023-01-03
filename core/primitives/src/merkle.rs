@@ -23,6 +23,7 @@ pub fn combine_hash(hash1: &MerkleHash, hash2: &MerkleHash) -> MerkleHash {
 }
 
 /// Merklize an array of items. If the array is empty, returns hash of 0
+/// TODO: 40% of this is spent on 'reserve_for_push'/growing the vector. Maybe call 'reserve' instead?
 pub fn merklize<T: BorshSerialize>(arr: &[T]) -> (MerkleHash, Vec<MerklePath>) {
     if arr.is_empty() {
         return (MerkleHash::default(), vec![]);

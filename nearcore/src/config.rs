@@ -100,7 +100,7 @@ pub const CHUNK_PRODUCER_KICKOUT_THRESHOLD: u8 = 90;
 /// Fast mode constants for testing/developing.
 pub const FAST_MIN_BLOCK_PRODUCTION_DELAY: u64 = 120;
 pub const FAST_MAX_BLOCK_PRODUCTION_DELAY: u64 = 500;
-pub const FAST_EPOCH_LENGTH: BlockHeightDelta = 60;
+pub const FAST_EPOCH_LENGTH: BlockHeightDelta = 600;
 
 /// Expected number of blocks per year
 pub const NUM_BLOCKS_PER_YEAR: u64 = 365 * 24 * 60 * 60;
@@ -1107,8 +1107,8 @@ pub fn create_testnet_configs_from_seeds(
     for i in 0..seeds.len() {
         let mut config = Config::default();
         config.rpc.get_or_insert(Default::default()).enable_debug_rpc = true;
-        config.consensus.min_block_production_delay = Duration::from_millis(600);
-        config.consensus.max_block_production_delay = Duration::from_millis(2000);
+        config.consensus.min_block_production_delay = Duration::from_millis(1300);
+        config.consensus.max_block_production_delay = Duration::from_millis(2500);
         if local_ports {
             config.network.addr =
                 format!("127.0.0.1:{}", if i == 0 { first_node_port } else { open_port() });

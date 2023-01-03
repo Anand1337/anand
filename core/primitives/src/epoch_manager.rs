@@ -94,6 +94,7 @@ impl AllEpochConfig {
         Self { use_production_config, genesis_epoch_config }
     }
 
+    // TODO: Add caching here !! -- we spend 3% of CPU in this function alone (for one of the threads).
     pub fn for_protocol_version(&self, protocol_version: ProtocolVersion) -> EpochConfig {
         // if SimpleNightshade is enabled, we override genesis shard config with
         // the simple nightshade shard config
