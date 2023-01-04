@@ -725,7 +725,7 @@ pub enum AccountOrPeerIdOrHash {
     Hash(CryptoHash),
 }
 
-pub(crate) struct RawRoutedMessage {
+pub struct RawRoutedMessage {
     pub target: PeerIdOrHash,
     pub body: RoutedMessageBody,
 }

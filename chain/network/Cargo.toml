@@ -56,6 +56,8 @@ criterion.workspace = true
 pretty_assertions.workspace = true
 tempfile.workspace = true
 rlimit.workspace = true
+bencher.workspace = true
+
 
 [features]
 delay_detector = ["delay-detector/delay_detector"]
@@ -63,3 +65,7 @@ performance_stats = [
     "near-performance-metrics/performance_stats",
 ]
 test_features = []
+
+[[bench]]
+name = "network_bench"
+harness = false

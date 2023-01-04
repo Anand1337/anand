@@ -172,6 +172,7 @@ impl InfoHelper {
         let blocks_info_log =
             Some(format!(" {:.2} bps {}", avg_bls, PrettyNumber::gas_per_sec(avg_gas_used)));
 
+        // TODO: refresh process seems to be quite expensive.. (even if it is run only once every 10 seconds)
         let proc_info = self.pid.filter(|pid| self.sys.refresh_process(*pid)).map(|pid| {
             let proc =
                 self.sys.process(pid).expect("refresh_process succeeds, this should be not None");

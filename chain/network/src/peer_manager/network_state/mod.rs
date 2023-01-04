@@ -534,6 +534,7 @@ impl NetworkState {
         };
 
         let msg = RawRoutedMessage { target: PeerIdOrHash::PeerId(target), body: msg };
+        // TODO: this is 80% of CPU
         let msg = self.sign_message(clock, msg);
         if msg.body.is_important() {
             for _ in 0..IMPORTANT_MESSAGE_RESENT_COUNT {

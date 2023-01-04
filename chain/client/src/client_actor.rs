@@ -1115,6 +1115,7 @@ impl ClientActor {
         // scheduled with run_later will be delayed.
 
         // Check block height to trigger expected shutdown
+        // TODO: this block seems to use almost 8% of CPU time... (as the 'head' is fetched from rocksdb every time..)
         if let Ok(head) = self.client.chain.head() {
             let block_height_to_shutdown =
                 EXPECTED_SHUTDOWN_AT.load(std::sync::atomic::Ordering::Relaxed);

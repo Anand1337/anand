@@ -3244,6 +3244,7 @@ dependencies = [
  "arc-swap",
  "assert_matches",
  "async-trait",
+ "bencher",
  "borsh",
  "bytes",
  "bytesize",

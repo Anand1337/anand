@@ -1244,6 +1244,7 @@ impl PeerActor {
                 }
                 self.routed_message_cache.put(key, now);
 
+                // TODO: this consumes 40% of the CPU time of the actor.
                 if !msg.verify() {
                     // Received invalid routed message from peer.
                     self.stop(ctx, ClosingReason::Ban(ReasonForBan::InvalidSignature));

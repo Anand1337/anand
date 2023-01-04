@@ -318,6 +318,7 @@ pub struct ChainStore {
     /// Latest known.
     latest_known: once_cell::unsync::OnceCell<LatestKnown>,
     /// Current head of the chain
+    /// TODO: what is the logic of this? as it seems that it is set only on commit. And normally when we try to access head, we keep reading from rocksdb nonstop.
     head: Option<Tip>,
     /// Tail height of the chain,
     tail: Option<BlockHeight>,
@@ -846,6 +847,7 @@ impl ChainStoreAccess for ChainStore {
     }
     /// The chain head.
     fn head(&self) -> Result<Tip, Error> {
+        // TODO: understand the logic here.. when should we cache this?
         if let Some(ref tip) = self.head {
             Ok(tip.clone())
         } else {

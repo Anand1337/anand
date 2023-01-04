@@ -2077,6 +2077,7 @@ impl Client {
         apply_chunks_done_callback: DoneApplyChunkCallback,
     ) -> Result<(), Error> {
         let me = &self.validator_signer.as_ref().map(|x| x.validator_id().clone());
+        // TODO: we're running this method every 100ms (quite often..) - they 'bailout' condition should be far cheaper (as this touches DB every time..)
         for (sync_hash, state_sync_info) in self.chain.store().iterate_state_sync_infos()? {
             assert_eq!(sync_hash, state_sync_info.epoch_tail_hash);
             let network_adapter1 = self.network_adapter.clone();
