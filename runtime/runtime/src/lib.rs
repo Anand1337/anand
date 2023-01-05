@@ -1152,6 +1152,10 @@ impl Runtime {
         epoch_info_provider: &dyn EpochInfoProvider,
         state_patch: SandboxStatePatch,
     ) -> Result<ApplyResult, RuntimeError> {
+        if cfg!(feature = "sandbox") && !state_patch.is_empty() {
+            debug!(target: "sandbox", "[{}] Submitting state patch with len={}", std::process::id(), state_patch.len());
+        }
+
         // state_patch must be empty unless this is sandbox build.  Thanks to
         // conditional compilation this always resolves to true so technically
         // the check is not necessary.  It’s defence in depth to make sure any
@@ -1203,6 +1207,7 @@ impl Runtime {
             && apply_state.current_protocol_version
                 >= ProtocolFeature::FixApplyChunks.protocol_version()
         {
+            debug!(target: "sandbox", "[{}] Not apply on non new chunk {} {:?} {:?}", std::process::id(), !apply_state.is_new_chunk, apply_state.current_protocol_version, ProtocolFeature::FixApplyChunks.protocol_version());
             let (trie_changes, state_changes) = state_update.finalize()?;
             let proof = trie.recorded_storage();
             return Ok(ApplyResult {
@@ -1374,9 +1379,13 @@ impl Runtime {
             apply_state.current_protocol_version,
         )?;
 
+        let state_patched = !state_patch.is_empty();
         state_update.commit(StateChangeCause::UpdatedDelayedReceipts);
         self.apply_state_patch(&mut state_update, state_patch);
         let (trie_changes, state_changes) = state_update.finalize()?;
+        if state_patched {
+            debug!(target: "sandbox", "[{}] Applied: {:?}", std::process::id(), state_changes);
+        }
 
         // Dedup proposals from the same account.
         // The order is deterministically changed.

@@ -34,6 +34,10 @@ pub mod state_patch {
         pub fn merge(&mut self, other: SandboxStatePatch) {
             self.records.extend(other.records);
         }
+
+        pub fn len(&self) -> usize {
+            self.records.len()
+        }
     }
 
     impl IntoIterator for SandboxStatePatch {
@@ -66,6 +70,10 @@ pub mod state_patch {
         }
         #[inline(always)]
         pub fn merge(&self, _other: SandboxStatePatch) {}
+        #[inline(always)]
+        pub fn len(&self) -> usize {
+            0
+        }
     }
 
     impl IntoIterator for SandboxStatePatch {
