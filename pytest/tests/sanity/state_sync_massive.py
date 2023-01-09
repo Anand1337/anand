@@ -93,7 +93,9 @@ LARGE_HEIGHT = 660
 TIMEOUT = 3600
 start = time.time()
 
+logging.info("Spin 0")
 boot_node = spin_up_node(config, near_root, node_dirs[0], 0)
+logging.info("Spin 1")
 observer = spin_up_node(config, near_root, node_dirs[1], 1, boot_node=boot_node)
 
 
@@ -131,15 +133,19 @@ def wait_for_height(target_height, rpc_node, sleep_time=2, bps_threshold=-1):
         assert bps is None or bps >= bps_threshold
 
 
+logging.info("Wait 0")
 wait_for_height(SMALL_HEIGHT, boot_node)
 
+logging.info("Spin 2")
 observer = spin_up_node(config, near_root, node_dirs[2], 2, boot_node=boot_node)
 tracker = LogTracker(observer)
 
 # Check that bps is not degraded
+logging.info("Wait 1")
 wait_for_height(LARGE_HEIGHT, boot_node)
 
 # Make sure observer2 is able to sync
+logging.info("Wait 2")
 wait_for_height(SMALL_HEIGHT, observer)
 
 tracker.reset()
