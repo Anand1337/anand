@@ -15,7 +15,6 @@ use near_primitives::state_record::is_delayed_receipt_key;
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::{StateRoot, StateRootNode};
 
-use crate::columns::DBKeyType::TrieKey;
 use crate::flat_state::FlatState;
 pub use crate::trie::config::TrieConfig;
 pub(crate) use crate::trie::config::DEFAULT_SHARD_CACHE_TOTAL_SIZE_LIMIT;
