@@ -784,6 +784,7 @@ impl<T: HasEpochMangerHandle + Send + Sync> EpochManagerAdapter for T {
         if block_info.slashed().contains_key(chunk_producer.account_id()) {
             return Ok(false);
         }
+        // TODO: maybe consider caching this ?? (or maybe add a counter to see how often we do the verifications..)
         Ok(signature.verify(chunk_hash.as_ref(), chunk_producer.public_key()))
     }
 

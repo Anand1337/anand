@@ -23,7 +23,7 @@ const MAX_TIMER_ITERS: usize = 20;
 const MAX_HEIGHTS_AHEAD_TO_STORE_APPROVALS: BlockHeight = 10_000;
 
 // Number of blocks (before head) for which to keep the history of approvals (for debugging).
-const MAX_HEIGHTS_BEFORE_TO_STORE_APPROVALS: u64 = 20;
+const MAX_HEIGHTS_BEFORE_TO_STORE_APPROVALS: u64 = 100;
 
 // Maximum amount of historical approvals that we'd keep for debugging purposes.
 const MAX_HISTORY_SIZE: usize = 1000;

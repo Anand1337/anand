@@ -353,3 +353,20 @@ pub(crate) fn export_version(neard_version: &near_primitives::version::Version) 
         ])
         .inc();
 }
+
+pub static REJECTED_PARTIAL_CHUNKS: Lazy<IntCounter> = Lazy::new(|| {
+    near_o11y::metrics::try_create_int_counter(
+        "near_rejected_partial_chunks",
+        "Partial chunks rejected",
+    )
+    .unwrap()
+});
+
+pub static REJECTED_PARTIAL_CHUNKS_TYPE: Lazy<IntCounterVec> = Lazy::new(|| {
+    near_o11y::metrics::try_create_int_counter_vec(
+        "near_rejected_partial_chunks_type",
+        "Partial chunks rejected",
+        &["error"],
+    )
+    .unwrap()
+});

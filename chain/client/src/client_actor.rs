@@ -15,7 +15,9 @@ use crate::debug::new_network_info_view;
 use crate::info::{
     display_sync_status, get_validator_epoch_stats, InfoHelper, ValidatorInfoHelper,
 };
-use crate::metrics::PARTIAL_ENCODED_CHUNK_RESPONSE_DELAY;
+use crate::metrics::{
+    PARTIAL_ENCODED_CHUNK_RESPONSE_DELAY, REJECTED_PARTIAL_CHUNKS, REJECTED_PARTIAL_CHUNKS_TYPE,
+};
 use crate::sync::state::{StateSync, StateSyncResult};
 use crate::{metrics, StatusResponse};
 use actix::dev::SendError;
@@ -423,6 +425,8 @@ impl Handler<WithSpanContext<BlockResponse>> for ClientActor {
                 .chain
                 .store()
                 .get_all_block_hashes_by_height(block.header().height());
+            // TODO: we're getting blocks from all the peers - and validation is quite expensive
+            // consider somehow queueing them (if they have the same hash) instead?
             if was_requested || !blocks_at_height.is_ok() {
                 if let SyncStatus::StateSync(sync_hash, _) = &mut this.client.sync_status {
                     if let Ok(header) = this.client.chain.get_block_header(sync_hash) {
@@ -588,8 +592,13 @@ impl Handler<WithSpanContext<RecvPartialEncodedChunk>> for ClientActor {
                 partial_encoded_chunk.height_created(),
                 partial_encoded_chunk.shard_id(),
             );
-            let _ =
+            // This part is problematic - as we might be 'ignoring' the chunks from the future..
+            let result =
                 this.client.shards_mgr.process_partial_encoded_chunk(partial_encoded_chunk.into());
+            if let Err(err) = result {
+                REJECTED_PARTIAL_CHUNKS.inc();
+                REJECTED_PARTIAL_CHUNKS_TYPE.with_label_values(&[err.to_string().as_str()]).inc();
+            }
         })
     }
 }

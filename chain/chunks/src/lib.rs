@@ -1640,6 +1640,7 @@ impl ShardsManager {
             Err(Error::ChainError(chain_error)) => match chain_error {
                 // validate_chunk_header returns DBNotFoundError if the previous block is not ready
                 // in this case, we return NeedBlock instead of error
+                /////// TODO: does this thing cause missing chunks??
                 near_chain::Error::DBNotFoundErr(_) => {
                     debug!(target:"client", "Dropping partial encoded chunk {:?} height {}, shard_id {} because we don't have enough information to validate it",
                            header.chunk_hash(), header.height_created(), header.shard_id());
@@ -1957,10 +1958,29 @@ impl ShardsManager {
             owned_parts,
         );
 
+        let current_chunk_height = partial_encoded_chunk.header.height_created();
+
+        // Only send to the next chunk producer for this shard.
+        let next_chunk_producer = self.runtime_adapter.get_chunk_producer(
+            &epoch_id,
+            current_chunk_height + 1,
+            partial_encoded_chunk.header.shard_id(),
+        )?;
+
+        self.peer_manager_adapter.do_send(
+            PeerManagerMessageRequest::NetworkRequests(
+                NetworkRequests::PartialEncodedChunkForward {
+                    account_id: next_chunk_producer,
+                    forward: forward.clone(),
+                },
+            )
+            .with_span_context(),
+        );
+
+        /*
         let block_producers = self
             .runtime_adapter
             .get_epoch_block_producers_ordered(&epoch_id, lastest_block_hash)?;
-        let current_chunk_height = partial_encoded_chunk.header.height_created();
         let num_shards = self.runtime_adapter.num_shards(&epoch_id)?;
         let mut next_chunk_producers = (0..num_shards)
             .map(|shard_id| {
@@ -2009,6 +2029,7 @@ impl ShardsManager {
                 .with_span_context(),
             );
         }
+        */
 
         Ok(())
     }

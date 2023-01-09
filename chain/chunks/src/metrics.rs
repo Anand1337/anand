@@ -1,4 +1,4 @@
-use near_o11y::metrics::exponential_buckets;
+use near_o11y::metrics::{exponential_buckets, IntCounter, IntCounterVec};
 use once_cell::sync::Lazy;
 
 pub static PARTIAL_ENCODED_CHUNK_REQUEST_PROCESSING_TIME: Lazy<near_o11y::metrics::HistogramVec> =

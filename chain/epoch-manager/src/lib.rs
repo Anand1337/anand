@@ -1379,6 +1379,7 @@ impl EpochManager {
 
 /// Private utilities for EpochManager.
 impl EpochManager {
+    // TODO: this should be cached.
     fn cares_about_shard_in_epoch(
         &self,
         epoch_id: EpochId,
@@ -1475,6 +1476,7 @@ impl EpochManager {
         Ok(shard_layout)
     }
 
+    // TODO: we should consider caching this function - as AFAIK once we compute it for a given hash it will never change.
     pub fn will_shard_layout_change(&self, parent_hash: &CryptoHash) -> Result<bool, EpochError> {
         let epoch_id = self.get_epoch_id_from_prev_block(parent_hash)?;
         let next_epoch_id = self.get_next_epoch_id_from_prev_block(parent_hash)?;
