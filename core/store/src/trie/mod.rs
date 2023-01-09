@@ -15,6 +15,7 @@ use near_primitives::state_record::is_delayed_receipt_key;
 use near_primitives::trie_key::TrieKey;
 use near_primitives::types::{StateRoot, StateRootNode};
 
+use crate::columns::DBKeyType::TrieKey;
 use crate::flat_state::FlatState;
 pub use crate::trie::config::TrieConfig;
 pub(crate) use crate::trie::config::DEFAULT_SHARD_CACHE_TOTAL_SIZE_LIMIT;
@@ -26,8 +27,10 @@ pub use crate::trie::shard_tries::{KeyForStateChanges, ShardTries, WrappedTrieCh
 pub use crate::trie::trie_storage::{TrieCache, TrieCachingStorage, TrieDBStorage, TrieStorage};
 use crate::trie::trie_storage::{TrieMemoryPartialStorage, TrieRecordingStorage};
 use crate::{FlatStateDelta, StorageError};
+use near_primitives::state_record::StateRecord;
 pub use near_primitives::types::TrieNodesCount;
 use std::fmt::Write;
+use tracing::info;
 
 mod config;
 mod insert_delete;
@@ -916,11 +919,23 @@ impl Trie {
         // stabilized.
         #[cfg(feature = "protocol_feature_flat_state")]
         {
-            let is_delayed = is_delayed_receipt_key(key);
+            let is_delayed = is_delayed_receipt_key(key.clone());
             if matches!(mode, KeyLookupMode::FlatStorage) && !is_delayed {
                 if let Some(flat_state) = &self.flat_state {
                     let flat_result = flat_state.get_ref(&key);
-                    assert_eq!(result, flat_result);
+                    if result != flat_result {
+                        match &result {
+                            Ok(Some(value_ref)) => {
+                                let value =
+                                    self.storage.retrieve_raw_bytes(&value_ref.hash).unwrap();
+                                let sr =
+                                    StateRecord::from_raw_key_value(key.to_vec(), value.to_vec());
+                                info!("{:?}", sr);
+                            }
+                            _ => {}
+                        };
+                        assert_eq!(result, flat_result);
+                    }
                 }
             }
         }
