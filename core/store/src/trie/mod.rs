@@ -929,7 +929,7 @@ impl Trie {
                                     self.storage.retrieve_raw_bytes(&value_ref.hash).unwrap();
                                 let sr =
                                     StateRecord::from_raw_key_value(key.to_vec(), value.to_vec());
-                                info!("{:?}", sr);
+                                info!(target: "chain", "{:?}", sr);
                             }
                             _ => {}
                         };
