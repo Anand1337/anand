@@ -243,9 +243,7 @@ impl ApplyStatePartsCmd {
             home_dir,
             near_config,
             store,
-            self.root_dir,
-            self.s3_bucket,
-            self.s3_region,
+            state_parts::Location::new(self.root_dir, (self.s3_bucket, self.s3_region)),
         );
     }
 }
@@ -416,9 +414,7 @@ impl DumpStatePartsCmd {
             home_dir,
             near_config,
             store,
-            self.root_dir,
-            self.s3_bucket,
-            self.s3_region,
+            state_parts::Location::new(self.root_dir, (self.s3_bucket, self.s3_region)),
         );
     }
 }
