@@ -241,6 +241,7 @@ fn test_flat_storage_creation_two_shards() {
     let mut next_height = start_height;
     while next_height < start_height + BLOCKS_TIMEOUT {
         env.produce_block(0, next_height);
+        eprintln!("{:?}", store_helper::get_flat_storage_state_status(&store, 0));
         env.clients[0].run_flat_storage_creation_step().unwrap();
         next_height += 1;
         if env.clients[0].runtime_adapter.get_flat_storage_state_for_shard(0).is_some() {
