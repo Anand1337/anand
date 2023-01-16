@@ -3,7 +3,6 @@ use near_chain::{ChainGenesis, RuntimeAdapter};
 use near_chain_configs::Genesis;
 use near_client::test_utils::TestEnv;
 use near_o11y::testonly::init_test_logger;
-use near_primitives::types::EpochId;
 use near_primitives_core::types::{BlockHeight, NumShards};
 use near_store::flat_state::{
     store_helper, FetchingStateStatus, FlatStorageStateStatus, NUM_PARTS_IN_ONE_STEP,
@@ -23,7 +22,7 @@ fn test_flat_storage_creation() {
     let chain_genesis = ChainGenesis::new(&genesis);
     let store = create_test_store();
 
-    // Process some blocks with flat storage.
+    // Process some blocks with flat storage. Then remove flat storage data from disk.
     {
         let runtimes: Vec<Arc<dyn RuntimeAdapter>> = vec![Arc::new(
             nearcore::NightshadeRuntime::test(Path::new("../../../.."), store.clone(), &genesis),
@@ -124,8 +123,8 @@ fn test_flat_storage_creation() {
     );
 
     // Run chain for a couple of blocks and check that statuses switch to `CatchingUp` and then to `Ready`.
-    // State is being fetched in rayon threads, but we expect it to finish in <30s because state is small and there is
-    // only one state part.
+    // We have a pause after processing each block because state fata is being fetched in rayon threads.
+    // But we expect it to finish in <30s because state is small and there is only one state part.
     const BLOCKS_TIMEOUT: BlockHeight = 30;
     let start_height = 8;
     let mut next_height = start_height;
@@ -180,6 +179,7 @@ fn test_flat_storage_creation_two_shards() {
     let chain_genesis = ChainGenesis::new(&genesis);
     let store = create_test_store();
 
+    // Process some blocks with flat storages for two shards. Then remove flat storage data from disk for shard 0.
     {
         let runtimes: Vec<Arc<dyn RuntimeAdapter>> = vec![Arc::new(
             nearcore::NightshadeRuntime::test(Path::new("../../../.."), store.clone(), &genesis),
@@ -217,6 +217,7 @@ fn test_flat_storage_creation_two_shards() {
         return;
     }
 
+    // Check that flat storage is not ready for shard 0 but ready for shard 1.
     let runtimes: Vec<Arc<dyn RuntimeAdapter>> = vec![Arc::new(nearcore::NightshadeRuntime::test(
         Path::new("../../../.."),
         store.clone(),
@@ -234,9 +235,7 @@ fn test_flat_storage_creation_two_shards() {
         FlatStorageStateStatus::Ready
     );
 
-    // Run chain for a couple of blocks and check that statuses switch to `CatchingUp` and then to `Ready`.
-    // State is being fetched in rayon threads, but we expect it to finish in <30s because state is small and there is
-    // only one state part.
+    // Run chain for a couple of blocks and check that flat storage for shard 0 is eventually created.
     const BLOCKS_TIMEOUT: BlockHeight = 30;
     let start_height = 4;
     let mut next_height = start_height;
@@ -249,5 +248,5 @@ fn test_flat_storage_creation_two_shards() {
         }
         thread::sleep(Duration::from_secs(1));
     }
-    assert_eq!(env.clients[0].runtime_adapter.get_flat_storage_state_for_shard(0).is_some());
+    assert!(env.clients[0].runtime_adapter.get_flat_storage_state_for_shard(0).is_some());
 }
