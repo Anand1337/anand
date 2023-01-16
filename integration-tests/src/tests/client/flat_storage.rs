@@ -3,7 +3,8 @@ use near_chain::{ChainGenesis, RuntimeAdapter};
 use near_chain_configs::Genesis;
 use near_client::test_utils::TestEnv;
 use near_o11y::testonly::init_test_logger;
-use near_primitives_core::types::BlockHeight;
+use near_primitives::types::EpochId;
+use near_primitives_core::types::{BlockHeight, NumShards};
 use near_store::flat_state::{
     store_helper, FetchingStateStatus, FlatStorageStateStatus, NUM_PARTS_IN_ONE_STEP,
 };
@@ -61,15 +62,14 @@ fn test_flat_storage_creation() {
             );
             assert_eq!(store_helper::get_flat_head(&store, 0), None);
         }
-    }
 
-    // Remove flat storage head using low-level disk operation. Flat storage is implemented in such way that its
-    // existence is determined by existence of flat storage head.
-    #[cfg(feature = "protocol_feature_flat_state")]
-    {
-        let mut store_update = store.store_update();
-        store_helper::remove_flat_head(&mut store_update, 0);
-        store_update.commit().unwrap();
+        let block_hash = env.clients[0].chain.get_block_hash_by_height(3).unwrap();
+        let epoch_id = env.clients[0].chain.runtime_adapter.get_epoch_id(&block_hash).unwrap();
+        env.clients[0]
+            .chain
+            .runtime_adapter
+            .remove_flat_storage_state_for_shard(0, &epoch_id)
+            .unwrap();
     }
 
     // Create new chain and runtime using the same store. It should produce next blocks normally, but now it should
@@ -165,4 +165,89 @@ fn test_flat_storage_creation() {
     // Finally, check that flat storage state was created.
     assert!(env.clients[0].run_flat_storage_creation_step().unwrap());
     assert!(env.clients[0].runtime_adapter.get_flat_storage_state_for_shard(0).is_some());
+}
+
+/// Check that client can create flat storage on some shard while it already exists on another shard.
+#[test]
+fn test_flat_storage_creation_two_shards() {
+    init_test_logger();
+    let num_shards: NumShards = 2;
+    let genesis = Genesis::test_sharded_new_version(
+        vec!["test0".parse().unwrap()],
+        1,
+        vec![1; num_shards as usize],
+    );
+    let chain_genesis = ChainGenesis::new(&genesis);
+    let store = create_test_store();
+
+    {
+        let runtimes: Vec<Arc<dyn RuntimeAdapter>> = vec![Arc::new(
+            nearcore::NightshadeRuntime::test(Path::new("../../../.."), store.clone(), &genesis),
+        )];
+        let mut env =
+            TestEnv::builder(chain_genesis.clone()).runtime_adapters(runtimes.clone()).build();
+        for i in 1..4 {
+            env.produce_block(0, i);
+        }
+
+        for shard_id in 0..num_shards {
+            if cfg!(feature = "protocol_feature_flat_state") {
+                assert_eq!(
+                    store_helper::get_flat_storage_state_status(&store, shard_id),
+                    FlatStorageStateStatus::Ready
+                );
+            } else {
+                assert_eq!(
+                    store_helper::get_flat_storage_state_status(&store, shard_id),
+                    FlatStorageStateStatus::DontCreate
+                );
+            }
+        }
+
+        let block_hash = env.clients[0].chain.get_block_hash_by_height(3).unwrap();
+        let epoch_id = env.clients[0].chain.runtime_adapter.get_epoch_id(&block_hash).unwrap();
+        env.clients[0]
+            .chain
+            .runtime_adapter
+            .remove_flat_storage_state_for_shard(0, &epoch_id)
+            .unwrap();
+    }
+
+    if !cfg!(feature = "protocol_feature_flat_state") {
+        return;
+    }
+
+    let runtimes: Vec<Arc<dyn RuntimeAdapter>> = vec![Arc::new(nearcore::NightshadeRuntime::test(
+        Path::new("../../../.."),
+        store.clone(),
+        &genesis,
+    ))];
+    let mut env = TestEnv::builder(chain_genesis).runtime_adapters(runtimes.clone()).build();
+    assert!(env.clients[0].runtime_adapter.get_flat_storage_state_for_shard(0).is_none());
+    assert_eq!(
+        store_helper::get_flat_storage_state_status(&store, 0),
+        FlatStorageStateStatus::SavingDeltas
+    );
+    assert!(env.clients[0].runtime_adapter.get_flat_storage_state_for_shard(1).is_some());
+    assert_eq!(
+        store_helper::get_flat_storage_state_status(&store, 1),
+        FlatStorageStateStatus::Ready
+    );
+
+    // Run chain for a couple of blocks and check that statuses switch to `CatchingUp` and then to `Ready`.
+    // State is being fetched in rayon threads, but we expect it to finish in <30s because state is small and there is
+    // only one state part.
+    const BLOCKS_TIMEOUT: BlockHeight = 30;
+    let start_height = 4;
+    let mut next_height = start_height;
+    while next_height < start_height + BLOCKS_TIMEOUT {
+        env.produce_block(0, next_height);
+        env.clients[0].run_flat_storage_creation_step().unwrap();
+        next_height += 1;
+        if env.clients[0].runtime_adapter.get_flat_storage_state_for_shard(0).is_some() {
+            break;
+        }
+        thread::sleep(Duration::from_secs(1));
+    }
+    assert_eq!(env.clients[0].runtime_adapter.get_flat_storage_state_for_shard(0).is_some());
 }
