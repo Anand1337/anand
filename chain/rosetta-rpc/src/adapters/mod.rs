@@ -419,6 +419,7 @@ impl From<NearActions> for Vec<crate::models::Operation> {
                     );
                     operations.push(deploy_contract_operation);
                 }
+                // TODO(8380): Figure out how to represent delegated actions as Rosetta objects.
                 near_primitives::transaction::Action::Delegate(_) => todo!(),
             }
         }
